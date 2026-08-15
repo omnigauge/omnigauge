@@ -486,6 +486,49 @@ class TestProviderConformance(unittest.TestCase):
             self.assertEqual(self.plug.scan(p, since), og.scan_claude(p, since),
                              f"drift in scan(since={since})")
 
+    def test_codex_hostile_shapes_match_builtin(self):
+        """The delta fixture above is a HEALTHY rollout, and both copies agreed
+        on it while disagreeing completely on a counter that resets. A drift lock
+        only locks the shapes it is given.
+
+        These are the shapes that broke: a restart inside the window, a restart
+        whose new run overtakes the old total, and a file with no parseable
+        timestamp anywhere.
+        """
+        def ev(ts, tot):
+            o = {"type": "token_count", "payload": {"info": {"total_token_usage": {
+                "input_tokens": tot, "output_tokens": tot // 10,
+                "total_tokens": tot + tot // 10}}}}
+            if ts is not None:
+                o["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z",
+                                               time.gmtime(ts))
+            return json.dumps(o)
+
+        now = time.time()
+        since = now - 86400
+        cases = {
+            "reset_inside_window": (
+                [ev(now - 3 * 86400, 1_000_000), ev(now - 2 * 86400, 5_000_000),
+                 ev(now - 3600, 10_000), ev(now - 600, 150_000)], None),
+            "reset_overtakes_old_total": (
+                [ev(now - 30 * 86400, 5_000_000), ev(now - 3600, 10_000),
+                 ev(now - 600, 8_000_000)], None),
+            "no_timestamps_anywhere": (
+                [ev(None, 1_000_000), ev(None, 5_000_000)], now - 30 * 86400),
+        }
+        for name, (lines, mtime) in cases.items():
+            f = os.path.join(_TMP, f"codex-{name}.jsonl")
+            with open(f, "w") as fh:
+                fh.write("\n".join(lines) + "\n")
+            if mtime is not None:
+                os.utime(f, (mtime, mtime))
+            a = og.scan_codex(f, since)
+            b = self.plug_codex.scan(f, since)
+            self.assertEqual(
+                {k: a[k] for k, _ in og._CODEX_FIELDS},
+                {k: b[k] for k, _ in og._CODEX_FIELDS},
+                f"built-in and provider disagree on {name}")
+
     def test_codex_parse_and_spec_match_builtin(self):
         self.assertEqual(self.plug_codex.parse_quota(TestParsers.CODEX),
                          og.parse_codex(TestParsers.CODEX))
@@ -1206,3 +1249,74 @@ class TestHumanPromotesAtTheRoundingBoundary(unittest.TestCase):
                         s.startswith("1000."),
                         f"human({probe:,}) = {s} — a thousand of a unit is the "
                         f"next unit")
+
+
+class TestCodexCumulativeIsNotMonotonic(unittest.TestCase):
+    """The window value is `last - base` across the window edge.
+
+    That is only the truth while the vendor's cumulative counter never goes
+    backwards. When a rollout's counter resets — a new session reusing the file,
+    a vendor-side restart — the arithmetic breaks in both directions, and the
+    max(0, …) clamp turns the negative case into a confident zero.
+
+    A file with no parseable timestamps at all cannot be placed in time. It must
+    not donate its whole history to every window that happens to be asked for.
+    """
+
+    def _codex(self):
+        sys.path.insert(0, os.path.join(ROOT, "providers"))
+        import codex
+        return codex
+
+    def _ev(self, ts, tot):
+        o = {"type": "token_count", "payload": {"info": {"total_token_usage": {
+            "input_tokens": tot, "output_tokens": tot // 10,
+            "total_tokens": tot + tot // 10}}}}
+        if ts is not None:
+            o["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(ts))
+        return json.dumps(o)
+
+    def _scan(self, lines, since, mtime=None):
+        d = tempfile.mkdtemp(prefix="og-codex-")
+        f = os.path.join(d, "rollout.jsonl")
+        with io.open(f, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
+        if mtime is not None:
+            os.utime(f, (mtime, mtime))
+        return self._codex().scan(f, since), f
+
+    def test_a_reset_inside_the_window_is_not_reported_as_zero(self):
+        now = time.time(); since = now - 86400
+        r, _ = self._scan([self._ev(now - 3 * 86400, 1_000_000),
+                           self._ev(now - 2 * 86400, 5_000_000),
+                           self._ev(now - 3600, 10_000),
+                           self._ev(now - 600, 150_000)], since)
+        self.assertEqual(r["tin"], 150_000,
+                         "the counter restarted at 10,000 and reached 150,000 "
+                         "inside the window; that is what was spent")
+
+    def test_a_reset_that_climbs_past_the_old_high_is_not_undercounted(self):
+        now = time.time(); since = now - 86400
+        r, _ = self._scan([self._ev(now - 30 * 86400, 5_000_000),
+                           self._ev(now - 3600, 10_000),
+                           self._ev(now - 600, 8_000_000)], since)
+        self.assertEqual(r["tin"], 8_000_000,
+                         "endpoint arithmetic hides a reset whose new run "
+                         "overtakes the old total")
+
+    def test_a_healthy_monotonic_rollout_is_unchanged(self):
+        now = time.time(); since = now - 86400
+        r, _ = self._scan([self._ev(now - 3 * 86400, 1_000_000),
+                           self._ev(now - 600, 1_500_000)], since)
+        self.assertEqual(r["tin"], 500_000)
+
+    def test_an_unstamped_rollout_does_not_donate_its_history_to_the_window(self):
+        now = time.time(); since = now - 86400
+        old = now - 30 * 86400
+        r, f = self._scan([self._ev(None, 1_000_000), self._ev(None, 5_000_000)],
+                          since, mtime=old)
+        self.assertEqual(
+            r["tin"], 0,
+            "no event in this file carries a timestamp, and the file has not "
+            "been written for 30 days — the only evidence available says it "
+            "contributed nothing to the last 24 hours")

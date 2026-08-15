@@ -622,6 +622,28 @@ _CODEX_FIELDS = (("tin", "input_tokens"), ("tout", "output_tokens"),
                  ("think", "reasoning_output_tokens"), ("total", "total_tokens"))
 
 
+def _codex_spend(seq, since, fields):
+    """What was actually spent from `since` onward. Identical in intent to
+    providers/codex.py::_spend — the conformance tests lock the two together.
+
+    The cumulative counter is differenced STEP BY STEP, because it does not only
+    climb. A rollout reused by a new session sends it backwards; the new value is
+    then itself the spend since the restart. Endpoint arithmetic broke both ways:
+    a reset inside the window went negative and max(0, ...) made it a confident
+    zero, and a reset whose new run overtook the old total silently omitted
+    everything before the restart.
+    """
+    acc = {k: 0 for k, _ in fields}
+    prev = None
+    for ep, u in seq:
+        if prev is not None and (ep is None or ep >= since):
+            for k, f in fields:
+                c, p = u.get(f, 0), prev.get(f, 0)
+                acc[k] += c if c < p else c - p
+        prev = u
+    return acc
+
+
 def _codex_events(text):
     """(epoch, totals) for every token_count event in a text block."""
     out = []
@@ -681,13 +703,22 @@ def scan_codex(path, since=0):
     if mm: model = mm[-1]          # rollouts can span models; attribute to the last
     last = events[-1][1]
     base = None
+    seq = None
     if since:
         stamped = [(ep, u) for ep, u in events if ep is not None]
+        if not stamped:
+            # Nothing here can be placed in time; mtime is the only evidence.
+            try:
+                if os.path.getmtime(path) < since:
+                    return t
+            except OSError:
+                return t
         if stamped and not any(ep >= since for ep, _ in stamped):
             return t               # tail is authoritative: nothing in the window
         pre = [u for ep, u in stamped if ep < since]
         if pre:
             base = pre[-1]         # window edge sits inside the tail
+            seq = stamped          # and every in-window event is here too
         elif stamped and size > (1 << 20):
             # Edge is deeper than the tail: bisect offsets for the last event
             # before the cutoff. Probes that see no event fall back toward 0.
@@ -701,10 +732,16 @@ def scan_codex(path, since=0):
                     else: lo = mid
                 ev = _codex_events(_codex_block(fh, size, lo, (1 << 19)))
                 pre = [u for ep, u in ev if ep is not None and ep < since]
-                if pre: base = pre[-1]
+                if pre:
+                    base = pre[-1]
+                    seq = [(since - 1, base)] + stamped
     t["msgs"] = 1
-    for key, field in _CODEX_FIELDS:
-        t[key] = max(0, last.get(field, 0) - (base.get(field, 0) if base else 0))
+    if since and seq:
+        for key, val in _codex_spend(seq, since, _CODEX_FIELDS).items():
+            t[key] = val
+    else:
+        for key, field in _CODEX_FIELDS:
+            t[key] = max(0, last.get(field, 0) - (base.get(field, 0) if base else 0))
     add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t
 
