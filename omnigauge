@@ -689,7 +689,7 @@ def notify(cfg, messages, sev):
     is worse than no monitor."""
     if not messages:
         return
-    title = "omnigauge — quota critical" if sev >= 2 else "omnigauge — quota warning"
+    title = "OmniGauge — quota critical" if sev >= 2 else "OmniGauge — quota warning"
     body = "\n".join(messages[:6])
     hours = cfg.get("quiet_hours") or []
     quiet = False
@@ -1103,7 +1103,7 @@ def render(args):
     flat = [(a_, r) for a_ in ("claude", "codex", "grok") for r in q.get(a_, [])]
     if not flat and not any(SCANNERS[a_][0]() for a_ in SCANNERS):
         print(f"\n  {s.b}Nothing to show yet.{s.r}")
-        print(f"  {s.gry}omnigauge reads what your agent CLIs already write to disk.{s.r}")
+        print(f"  {s.gry}OmniGauge reads what your agent CLIs already write to disk.{s.r}")
         print(f"  {s.accent}omnigauge --doctor{s.r}{s.gry}  shows what is connected and what to do next{s.r}\n")
         con.close(); return
 

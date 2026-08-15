@@ -15,4 +15,4 @@ paste here
 `~/.local/share/omnigauge/last-scrape-<agent>.txt`
 Redact anything personal first — it is a screenshot of your terminal.
 
-**Versions**: omnigauge commit, the agent CLI version, OS.
+**Versions**: OmniGauge commit, the agent CLI version, OS.

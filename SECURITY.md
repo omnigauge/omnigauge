@@ -6,12 +6,12 @@ for anything credential-related — a public report is a disclosure.
 Expect an acknowledgement within a few days. This is a solo-maintained project,
 so please allow reasonable time before disclosing publicly.
 
-## What omnigauge touches
+## What OmniGauge touches
 
 Being honest about the blast radius, because it is not zero:
 
 - **Reads local transcripts** written by Claude Code, Codex and Grok. These
-  contain your conversations. omnigauge parses token counts and never copies,
+  contain your conversations. OmniGauge parses token counts and never copies,
   uploads or logs their contents.
 - **Stores API credentials** in `~/.local/share/omnigauge/credentials.json` at
   mode `0600`. It **refuses to read that file** if the mode is group- or
@@ -34,7 +34,7 @@ Being honest about the blast radius, because it is not zero:
 ## Out of scope
 
 - Vulnerabilities in the vendor CLIs themselves — report those to the vendor
-- A vendor changing its UI so a scrape fails. This is expected; omnigauge is
+- A vendor changing its UI so a scrape fails. This is expected; OmniGauge is
   built to fail loudly and dump the raw screen rather than report a wrong number
 - Physical access to an already-unlocked machine
 

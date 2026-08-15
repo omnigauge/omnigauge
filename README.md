@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/logo-400.png" width="120" alt="omnigauge">
+  <img src="assets/logo-400.png" width="120" alt="OmniGauge">
 </p>
 
-<h1 align="center">omnigauge</h1>
+<h1 align="center">OmniGauge</h1>
 
 <p align="center">
   <em>One gauge for every AI agent and API account you run.</em><br>
@@ -64,7 +64,7 @@ The local-tracker space is well served — [tokscale](https://github.com/junhoye
 covers 50+ agents. Its own docs list what it does not do, and that list is this
 project's reason to exist:
 
-| | tokscale | enterprise SaaS | omnigauge |
+| | tokscale | enterprise SaaS | OmniGauge |
 |---|---|---|---|
 | token + quota tracking | ✅ | ✅ | ✅ |
 | **burn rate & exhaustion forecast** | ❌ *"cannot predict"* | ✅ | ✅ |
@@ -130,12 +130,12 @@ This is the whole design, and it is deliberate.
 
 **Codex reports percent *remaining*. Claude and Grok report percent *used*.** Shown raw side
 by side, a Codex at "6%" looks healthier than a Claude at "23%" — when in fact Codex is
-nearly exhausted and Claude has three quarters left. omnigauge normalizes everything to
+nearly exhausted and Claude has three quarters left. OmniGauge normalizes everything to
 **percent consumed** and prints what the vendor actually said underneath, so you can check it.
 
 **Token volume is not the vendors' token count.** Local transcripts record cache reads and
 per-turn context re-sends; vendors count something narrower. The figures differ by orders of
-magnitude and neither is wrong — they have different denominators. omnigauge shows both
+magnitude and neither is wrong — they have different denominators. OmniGauge shows both
 kinds of number and never adds them together or reconciles them into one total.
 
 **Subscriptions have no dollar balance**, so none is shown. Plan usage and API spend are
@@ -165,7 +165,7 @@ install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
 omnigauge --refresh
 ```
 
-You stay logged in through your own CLIs — omnigauge never sees or stores a credential.
+You stay logged in through your own CLIs — OmniGauge never sees or stores a credential.
 It only works for accounts *you* are already signed into on that machine.
 
 ## Usage
@@ -220,7 +220,7 @@ age, so a stale number looks stale.
 
 Quota panels are rendered under `tmux` and read back with `capture-pane`. These CLIs draw
 character-by-character with cursor moves; stripping ANSI from a raw pty gives you garbage.
-tmux is a real terminal emulator, so it does the rendering and omnigauge reads the finished
+tmux is a real terminal emulator, so it does the rendering and OmniGauge reads the finished
 screen.
 
 On WSL, Codex keeps **two separate stores** — `~/.codex` and `/mnt/c/Users/<you>/.codex`.
@@ -229,14 +229,14 @@ Both are discovered. Searching only one and concluding "nothing here" is a real 
 ## Workspace trust
 
 Launching Claude in a directory it has not seen raises a blocking trust prompt, which
-swallows the keystrokes. omnigauge **will not auto-accept it** — trusting a folder is a
+swallows the keystrokes. OmniGauge **will not auto-accept it** — trusting a folder is a
 real security decision and it persists. It instead reuses a directory the CLI has
 demonstrably run in before, read from Claude's own session registry, and detects the dialog
 explicitly if one still appears. Override with `--cwd DIR`.
 
 ## When a parse fails
 
-Vendor TUIs change. omnigauge treats a partial parse as a failure, because a plausible
+Vendor TUIs change. OmniGauge treats a partial parse as a failure, because a plausible
 number with the headline missing is worse than no number:
 
 ```
@@ -280,7 +280,7 @@ than from documentation — two consecutive calls to `/2/usage/tweets` left
 on the slow clock, never per redraw.
 
 **X dollar balances are console-only.** The developer console shows a balance;
-no public endpoint for it has been found, so omnigauge reports post consumption
+no public endpoint for it has been found, so OmniGauge reports post consumption
 and leaves the money figure to the console rather than inventing one.
 
 ## Not implemented, on purpose
@@ -293,7 +293,7 @@ you want it. It would be a separate panel, never merged into plan quota.
 
 ## Donations
 
-Optional, and it changes nothing about the tool — omnigauge is MIT and always
+Optional, and it changes nothing about the tool — OmniGauge is MIT and always
 will be, with no paid tier and no telemetry.
 
 **Solana:** `<ADDRESS PENDING>`

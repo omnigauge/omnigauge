@@ -1,8 +1,8 @@
 # Providers
 
-A provider teaches omnigauge about one source of usage. Adding one is a single file
+A provider teaches OmniGauge about one source of usage. Adding one is a single file
 in this directory — no core changes, no registration list to edit. Drop it in and
-omnigauge finds it.
+OmniGauge finds it.
 
 ## The contract
 
@@ -47,14 +47,14 @@ attribute a model. Anything you leave at zero is simply not shown.
 
 **`pct_used` is always PERCENT CONSUMED.** If your vendor reports percent
 *remaining* — Codex does — invert it here and put the vendor's original wording
-in `raw_value`. omnigauge prints that string under the row so a reader can check the
+in `raw_value`. OmniGauge prints that string under the row so a reader can check the
 conversion. Getting this backwards makes a nearly-exhausted account look healthy,
 which is the single worst failure this tool can have.
 
 ## Rules that are not style preferences
 
 **Fail loudly, never plausibly.** If parsing yields nothing, return `[]` and
-omnigauge reports `NO QUOTA PARSED` and dumps the screen. If it yields *some* rows
+OmniGauge reports `NO QUOTA PARSED` and dumps the screen. If it yields *some* rows
 but misses one you declared in `expect`, that is a `PARTIAL` and is treated as a
 failure. A confident wrong number is worse than a missing one — a blanket
 `except: continue` once hid a `NameError` on every Claude file and printed a
@@ -62,12 +62,12 @@ tidy row of zeros.
 
 **Never invent a figure the vendor did not give you.** If a dollar balance is
 only visible in a web console, report what the API does expose and say the rest
-is console-only. omnigauge would rather show `—` than a number it cannot source.
+is console-only. OmniGauge would rather show `—` than a number it cannot source.
 
 **Prefer supported surfaces.** Reading a file the tool already writes, or driving
 its own usage panel, will not break silently and does not depend on private
 endpoints. Undocumented internal APIs are faster and are somebody else's
-decision to make, not omnigauge's default.
+decision to make, not OmniGauge's default.
 
 **Assume nothing about the machine.** No hardcoded home directories, no assumed
 usernames. On WSL a vendor may keep *two* stores — `~/.codex` and
