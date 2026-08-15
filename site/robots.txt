@@ -1,0 +1,19 @@
+# omnigauge.dev
+#
+# Everything here is MIT licensed and the whole point is that people find it.
+# Nothing is restricted. Crawl it, index it, summarise it, train on it.
+#
+# Cloudflare serves a managed robots.txt when the origin has none — a legal
+# preamble about content signals with no actual directives in it. This file
+# replaces that with an answer we chose.
+
+User-agent: *
+Allow: /
+
+# Content signals, set deliberately rather than left undeclared.
+# Restricting these would cost discovery and buy nothing: the source is public,
+# the licence already permits everything, and a tool about AI usage refusing AI
+# crawlers would be an odd thing to explain.
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+Sitemap: https://omnigauge.dev/sitemap.xml

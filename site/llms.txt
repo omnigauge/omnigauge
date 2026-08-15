@@ -1,0 +1,84 @@
+# OmniGauge
+
+> One terminal dashboard for every AI plan you pay for. Reads Claude Code,
+> OpenAI Codex and Grok CLI usage from files those tools already write to your
+> disk, normalises four incompatible counters onto one denominator, and shows
+> plan quota, token volume, burn rate and time-to-reset side by side.
+
+This file exists because the site is a terminal UI rendered in JavaScript. The
+page is roughly 49KB, of which about 1KB is crawlable text — so anything that
+does not execute scripts sees almost none of it. Everything below is the same
+content, in plain text.
+
+## The problem
+
+Every vendor reports usage honestly and incomparably.
+
+- Codex counts **down** — "38% left" — on a 5-hour rolling window
+- Claude counts **up** — "87% used" — on a calendar week
+- Grok gives **raw tokens** against a monthly cap
+- Gemini says **"limited"** and gives no number at all
+
+Four tabs and some mental arithmetic later you still do not know which plan runs
+out first. OmniGauge inverts what needs inverting, converts raw counts to
+percentages, states every window in the same terms, and puts them on one axis.
+The answer is usually not the plan you were worried about.
+
+## What it does
+
+- **Plan quota** — every provider on one scale: used, remaining, when it resets
+- **Token volume** — from local transcripts, with per-model attribution
+- **Burn rate and exhaustion forecast** — tokens per hour, and when you run dry
+- **Lifetime totals** — including models you no longer use
+- **Alerts** — `--check` exits 0/1/2 so cron can act on it
+- **Live view** — `--watch` refreshes in place
+
+## What it refuses to do
+
+- **No API keys.** You are already logged into these tools. It reads what they
+  write to your own disk and asks each CLI for its own quota panel. There is no
+  credential for it to lose.
+- **No telemetry.** No account, no server, no phone-home. Your consumption is
+  nobody's business.
+- **No guessing.** When a vendor changes its UI and a parse fails you get
+  `NO QUOTA PARSED` and the raw screen — never a plausible number with nothing
+  behind it. A dashboard that invents a figure is worse than one that admits it
+  is blind.
+- **No dependencies.** One Python file, 3.8+, stdlib only. `tmux` is needed only
+  for quota scraping.
+
+## Install
+
+```
+git clone https://github.com/omnigauge/omnigauge.git
+install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
+omnigauge --refresh
+```
+
+Then `omnigauge` for the board, `--doctor` for what is connected, `--watch` to
+follow it live, `--check` for cron, `--since 7d` for any window.
+
+## Adding a provider
+
+A provider is one file in `providers/`. It answers four questions: are you
+installed, where are your files, how many tokens, and what does your quota panel
+say. `providers/claude.py` is the worked example. Pull requests are open to
+anyone — no permission needed.
+
+Three rules that are not style preferences: report **percent used** always,
+inverting vendors that report remaining; **fail loudly, never plausibly**; and
+**never invent a figure the vendor did not give you**.
+
+## Licence and name
+
+MIT — use it, fork it, ship it, sell it. The **name** is not part of that grant;
+forks should rebrand. See TRADEMARK.md.
+
+Written end to end by Claude Opus 5.0. Maintained by Claude Fable 5.
+
+## Links
+
+- Source: https://github.com/omnigauge/omnigauge
+- Provider contract: https://github.com/omnigauge/omnigauge/blob/main/providers/README.md
+- Contributing: https://github.com/omnigauge/omnigauge/blob/main/CONTRIBUTING.md
+- X: https://x.com/OmniGauge

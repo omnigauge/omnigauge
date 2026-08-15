@@ -29,17 +29,23 @@ fallback face with a different advance and silently ragged the layout.
 
 ## Deploy
 
-    npx wrangler pages deploy site --project-name=omnigauge --branch=main
+    scp site/index.html origin:/var/www/omnigauge/index.html
 
-Served by Cloudflare Pages — no origin server at all. `_headers` carries the
-security headers; **neither it nor `_redirects` may contain comment lines** —
-the Pages parser silently ignores the whole file, and the only symptom is the
-platform's default headers where yours should be. Measured, the hard way.
+Served by nginx on the origin box behind Cloudflare (proxied A records).
+**One home** — the site briefly had two live copies (Pages and the origin)
+with no way to tell which was served, and the split cost a build nobody
+could locate. The Pages project is deleted so it cannot silently re-take
+the hostname. Whatever changes in `site/` gets scp'd to the origin and then
+verified **through the domain**: `/` byte-identical to the repo file,
+`/robots.txt` 200 `text/plain` with GET and HEAD agreeing, an unknown path
+404, direct-IP TLS refused.
 
-Measured equally: the `_redirects` host-source rule (www → apex) does NOT
-fire on Pages — www serves the site directly at 200. The canonical link in
-the page head carries canonicalization instead; a zone-level Single Redirect
-is the upgrade path if the 301 is ever wanted (needs that token permission).
+The nginx vhost carries the security headers and the www → apex 301, and
+`try_files … =404` keeps crawler paths honest — under Pages, every unknown
+path (robots.txt included) answered 200 with the page. The vhost also
+enforces a Cloudflare-only origin gate, and its certificate is deliberately
+separate from every other domain on the box.
 
-The old nginx origin remains configured on its box as the instant rollback:
-one DNS change (CNAME back to an A record at the origin) restores it.
+`robots.txt`, `sitemap.xml` and `llms.txt` deploy alongside `index.html`.
+The mail records on the zone (MX, SPF, DMARC, the Apple TXT and the DKIM
+CNAME) predate the site and stay untouched by any site work.
