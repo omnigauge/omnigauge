@@ -86,7 +86,15 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
   scrollbar-width:thin;scrollbar-color:#2f56b8 transparent}
 #scr::-webkit-scrollbar{width:9px}
 #scr::-webkit-scrollbar-thumb{background:#2f56b8}
-#page{width:max-content;margin:0 auto;padding-bottom:1.2em}   /* the 78 columns, centred at any size */
+/* The block is 78 columns and margin:auto centres it exactly — but the ink does
+   not fill it. Loose lines run a median of 43 columns, so their weight sits left
+   of the box's centre and the page reads as left-aligned even though it is not.
+   Optical centring: shift right by roughly half the shortfall. --nudge is the
+   only knob; raise it to push further right, set it to 0 for true geometry. */
+:root{--nudge:6ch}
+#page{width:max-content;margin:0 auto;padding-bottom:1.2em;
+      transform:translateX(var(--nudge))}
+@media (max-width:820px){:root{--nudge:0ch}}   /* no room to spare on a phone */
 #out{white-space:pre}
 b{font-weight:400}
 .c{color:var(--cyan)} .y{color:var(--yellow)} .g{color:var(--green)}
