@@ -1130,7 +1130,6 @@ function fit(){
   probe.textContent='0'.repeat(78);
   document.body.appendChild(probe);
   var per=probe.getBoundingClientRect().width/100;   // px of width per 1px font-size
-  probe.remove();
   var pad=parseFloat(getComputedStyle(document.getElementById('scr')).paddingLeft)*2;
   var avail=document.documentElement.clientWidth-pad-2;
   var size=avail/per;
@@ -1138,6 +1137,19 @@ function fit(){
   if(wantMobile!==MOBILE){setMode(wantMobile); if(booted)rerender();}
   if(MOBILE)size=avail/(per/78*42);
   size=Math.max(6.2,Math.min(MOBILE?15:14.5,size));
+  /* The 100px probe predicts; the phone disposes. Glyph hinting at small
+     sizes is not linear, so the rendered grid can come out a few px wider
+     than the solve - and overflow-x:hidden then slices the right border in
+     half. Verify a real row at the APPLIED size and shrink until it
+     provably fits. */
+  probe.textContent='0'.repeat(W);
+  for(var i=0;i<4;i++){
+    probe.style.fontSize=size.toFixed(2)+'px';
+    var real=probe.getBoundingClientRect().width;
+    if(real<=avail)break;
+    size=Math.max(6.2,size*avail/real-0.05);
+  }
+  probe.remove();
   document.documentElement.style.setProperty('--fs',size.toFixed(2)+'px');
 }
 var booted=false;
