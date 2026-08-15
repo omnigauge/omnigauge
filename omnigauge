@@ -150,11 +150,32 @@ def vis(t):
     return len(re.sub(r"\033\[[0-9;]*m", "", t))
 
 
+def clip(text, width):
+    """Hard-truncate to `width` VISIBLE columns, ANSI-aware. A row longer than
+    its frame does not get to break the frame; it loses its tail instead. The
+    reset is re-appended so a clipped colour cannot bleed into the border."""
+    if vis(text) <= width:
+        return text
+    out, seen = [], 0
+    for m in re.finditer(r"\033\[[0-9;]*m|.", text, re.S):
+        tok = m.group(0)
+        if tok.startswith("\033"):
+            out.append(tok)
+        elif seen < width:
+            out.append(tok); seen += 1
+        else:
+            break
+    return "".join(out) + s.r
+
+
 def rule(ch="─"):
     return s.gry + ch * W + s.r
 
 
-IN = W - 2          # inner width of a framed panel
+# Inner width of a framed panel. A frame line is ' │' + IN + '│' — one leading
+# space and TWO borders, so IN must give back three columns, not two. W - 2 put
+# every panel at W+1 and wrapped the right border on an exactly-W terminal.
+IN = W - 3
 
 
 def top(title, sub=""):
@@ -165,16 +186,21 @@ def top(title, sub=""):
     # while only subtracting two total left every panel's top-right corner one
     # column short of its own body.
     fill = IN - vis(t) - vis(tail) - 1
-    print(f"\n {s.faint}╭─{s.r}{t}{s.faint}{'─' * max(1, fill)}{s.r}{tail}{s.faint}╮{s.r}")
+    if fill < 1 and tail:            # the sub is decoration; the frame is not
+        tail, fill = "", IN - vis(t) - 1
+    if fill < 1:
+        t, fill = clip(t, IN - 2), 1
+    print(f"\n {s.faint}╭─{s.r}{t}{s.faint}{'─' * fill}{s.r}{tail}{s.faint}╮{s.r}")
 
 
 def mid(text=""):
+    text = clip(text, IN)
     print(f" {s.faint}│{s.r}{text}{' ' * max(0, IN - vis(text))}{s.faint}│{s.r}")
 
 
 def bot(note=""):
     if note:
-        n = f"{s.gry} {note} {s.r}"
+        n = clip(f"{s.gry} {note} {s.r}", IN - 3)
         fill = IN - vis(n) - 2
         print(f" {s.faint}╰{'─' * 2}{s.r}{n}{s.faint}{'─' * max(1, fill)}╯{s.r}")
     else:
@@ -258,7 +284,7 @@ def countdown(text, _as_seconds=False):
     year = now.tm_year + (1 if mon < now.tm_mon - 6 else 0)
     try:
         target = time.mktime((year, mon, day, hh, mm, 0, 0, 0, -1))
-    except Exception:
+    except (ValueError, OverflowError, OSError):
         return None
     d = int(target - time.time())
     if _as_seconds:
@@ -287,16 +313,19 @@ def short_model(agent, model):
 
 def short_reset(t):
     """Drop the timezone parenthetical — it is the same for every row."""
-    if not t: return "—"
+    if not t: return "-"
     return re.sub(r"\s*\([^)]*\)\s*$", "", t).strip()
 
 
 def age(ts):
-    d = NOW - ts
-    if d < 90: return "just now"
-    if d < 5400: return f"{d//60}m ago"
-    if d < 172800: return f"{d//3600}h ago"
-    return f"{d//86400}d ago"
+    """Column-sized age of a reading: 'now', '7m', '3h', '2d'. The READ column
+    exists so a stale number looks stale — a PARTIAL refresh leaves the missing
+    window's previous reading on the board, and this is what says so."""
+    d = max(0, NOW - ts)
+    if d < 90: return "now"
+    if d < 5400: return f"{d//60}m"
+    if d < 172800: return f"{d//3600}h"
+    return f"{d//86400}d"
 
 
 # ──────────────────────────────── providers ──────────────────────────────────
@@ -305,9 +334,13 @@ def age(ts):
 # with no registration step — dropping it in is the whole install. See
 # providers/README.md for the contract.
 
+# Later directories WIN a name collision. The user-local data dir survives
+# upgrades but must LOSE to a checkout sitting next to the script — editing
+# providers/ in the repo has to beat the stale copy a previous install left in
+# the data dir — and an explicit OMNIGAUGE_PROVIDERS path beats both.
 PROVIDER_DIRS = [
+    os.path.join(DATA, "providers"),
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "providers"),
-    os.path.join(DATA, "providers"),                       # user-local, survives upgrade
     *(os.environ.get("OMNIGAUGE_PROVIDERS", "").split(os.pathsep) if
       os.environ.get("OMNIGAUGE_PROVIDERS") else []),
 ]
@@ -377,12 +410,13 @@ def scrape_cwd(agent):
         best, newest = None, 0
         for f in glob.glob(os.path.expanduser("~/.claude/sessions/*.json")):
             try:
-                d = json.load(io.open(f, encoding="utf-8"))
+                with io.open(f, encoding="utf-8") as fh:
+                    d = json.load(fh)
                 cwd = d.get("cwd")
                 st = os.path.getmtime(f)
                 if cwd and os.path.isdir(cwd) and st > newest:
                     best, newest = cwd, st
-            except Exception:
+            except (OSError, ValueError):
                 continue
         if best:
             return best
@@ -409,11 +443,14 @@ def _dig(o, key):
 
 
 def _epoch(ts):
+    """Epoch seconds, or None when the stamp is unreadable. None, not 0: a
+    message with a broken timestamp still happened, and 0 reads as "ancient",
+    which makes a window filter silently drop real usage."""
     try:
         import datetime
         return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-    except Exception:
-        return 0
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 Z = dict(msgs=0, tin=0, tout=0, cache_read=0, cache_write=0, think=0, total=0, files=0)
@@ -445,11 +482,13 @@ def scan_claude(path, since=0):
     for line in io.open(path, errors="replace"):
         if '"usage"' not in line: continue
         try: d = json.loads(line)
-        except Exception: continue
+        except ValueError: continue
         msg = d.get("message") or {}
         u = msg.get("usage")
         if not isinstance(u, dict): continue
-        if since and (ts := d.get("timestamp", "")) and _epoch(ts) < since: continue
+        if since:
+            ep = _epoch(d.get("timestamp", ""))
+            if ep is not None and ep < since: continue
         t["msgs"] += 1
         t["tin"] += u.get("input_tokens", 0)
         t["tout"] += u.get("output_tokens", 0)
@@ -487,11 +526,11 @@ def scan_codex(path, since=0):
         if text is None:
             if last: break
             try: text = io.open(path, errors="replace").read()
-            except Exception: break
+            except OSError: break
         for line in text.splitlines():
             if '"total_token_usage"' not in line: continue
             try: d = json.loads(line)
-            except Exception: continue
+            except ValueError: continue
             u = _dig(d, "total_token_usage")
             if u: last = u
         if last:
@@ -517,12 +556,12 @@ def scan_grok(path, since=0):
         smry = os.path.join(os.path.dirname(path), "summary.json")
         if os.path.exists(smry):
             model = json.load(io.open(smry, encoding="utf-8")).get("current_model_id")
-    except Exception:
+    except (OSError, ValueError):
         pass
     for line in io.open(path, errors="replace"):
         if '"totalTokens"' not in line: continue
         try: d = json.loads(line)
-        except Exception: continue
+        except ValueError: continue
         v = _dig(d, "totalTokens")
         if isinstance(v, int): best = max(best, v)
     if best:
@@ -562,6 +601,22 @@ def all_agents():
             out.append(name)
         SCANNERS[name] = (mod.files, mod.scan)
     return out
+
+
+def agent_order():
+    """Every agent the board renders: built-ins in their canonical order, then
+    provider agents alphabetically. The render loops iterate THIS — a provider
+    whose data is collected but never drawn is a plugin system in name only."""
+    rest = sorted(a for a in SCANNERS if a not in ("claude", "codex", "grok"))
+    return [a for a in ("claude", "codex", "grok") if a in SCANNERS] + rest
+
+
+def api_providers():
+    """KIND="api" provider modules. Their detect() answers --doctor's
+    "configured?" and their api_usage(creds) feeds the spend panel — the two
+    halves of the contract providers/README promises them."""
+    return {n: m for n, m in PROVIDERS.items()
+            if getattr(m, "KIND", "") == "api"}
 
 
 # Memo for the interactive loop. Cycling a theme must not re-read 200 files;
@@ -689,7 +744,7 @@ def evaluate_alerts(con, cfg):
             reset_s = countdown(r["reset"], _as_seconds=True) if r["reset"] else None
             if cfg.get("dry_before_reset") and r.get("dry_in") is not None \
                and reset_s is not None and r["dry_in"] < reset_s:
-                fired.append(f"{name} runs dry in {dur(r['dry_in'])} — "
+                fired.append(f"{name} runs dry in {dur(r['dry_in'])} - "
                              f"{dur(reset_s - r['dry_in'])} BEFORE its window resets")
                 sev = 2
             elif r["pct"] >= cfg.get("pct_used", 85):
@@ -848,6 +903,14 @@ def collect_api(con):
     for label, k in (("x/acct1", "x_acct1_bearer"), ("x/acct2", "x_acct2_bearer")):
         if creds.get(k):
             rows.append((label, "posts · cap", x_usage(creds[k], label)))
+    for name, mod in api_providers().items():
+        if not hasattr(mod, "api_usage"):
+            continue
+        try:
+            r = mod.api_usage(creds)
+        except Exception as e:
+            r = dict(source=name, err=f"{type(e).__name__}: {e}")
+        rows.append((name, "api", r))
     return rows, creds
 
 
@@ -1011,9 +1074,10 @@ def refresh(which):
             rows, err = [], f"parser raised {e}"
         dump = os.path.join(DATA, f"last-scrape-{agent}.txt")
         if not rows:
-            io.open(dump, "w", encoding="utf-8").write(screen or "")
+            with io.open(dump, "w", encoding="utf-8") as fh:
+                fh.write(screen or "")
             print(f" {s.bred}NO QUOTA PARSED{s.r}{' — ' + err if err else ''}")
-            print(f"           raw screen → {dump}")
+            print(f"           raw screen -> {dump}")
             continue
         got = {(r["window"], r["model"]) for r in rows}
         missing = [e for e in spec["expect"]
@@ -1035,9 +1099,10 @@ def refresh(which):
                             (agent, t, NOW))
         con.commit()
         if missing:
-            io.open(dump, "w", encoding="utf-8").write(screen)
+            with io.open(dump, "w", encoding="utf-8") as fh:
+                fh.write(screen)
             print(f" {s.byel}PARTIAL{s.r} — {len(rows)} row(s), missing {missing}")
-            print(f"           raw screen → {dump}")
+            print(f"           raw screen -> {dump}")
         else:
             print(f" {s.bgrn}ok{s.r} — {len(rows)} window(s)")
     con.close()
@@ -1097,17 +1162,53 @@ def burn(con, agent, window, model, pct_now, at_now, lookback=6 * 3600):
     return out
 
 
+def since_epoch(name):
+    """Window name -> epoch floor. 'today' is local midnight; 'all' is simply
+    far enough back to precede every file on disk."""
+    if name == "today":
+        return int(time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d")))
+    return int(time.time()) - {"24h": 86400, "7d": 604800,
+                               "30d": 2592000, "all": 10**10}.get(name, 86400)
+
+
+def _quota_layout():
+    """Column plan for PLAN QUOTA at the current width. The full board needs
+    94 columns of content; below that the forecast columns come out (the doom
+    sub-row and --check still carry the forecast) and the bar keeps its size
+    where it fits. 80-column terminals are the default case, not an edge case."""
+    full = IN >= 94
+    bar_w = min(22, max(8, IN - (72 if full else 53)))
+    return full, bar_w
+
+
+def quota_row_text(agent, model, window, pct, rate, dry_in, reset, at):
+    """One PLAN QUOTA row, laid out for the current width. The READ column is
+    the reading's age — a PARTIAL refresh leaves the missing window's previous
+    reading on the board, and READ is what keeps that visible."""
+    full, bar_w = _quota_layout()
+    nm = short_model(agent, model)
+    cd = countdown(reset) or (short_reset(reset)[:11] if reset else "-")
+    pc = sev(pct) if pct >= 70 else s.wht
+    reset_s = countdown(reset, _as_seconds=True) if reset else None
+    doom = dry_in is not None and reset_s is not None and dry_in < reset_s
+    row = (f"  {dot(pct)}  {s.b}{nm:<17.17}{s.r}{s.gry}{window:<8.8}{s.r}"
+           f"{bar(pct, bar_w)}  {pc}{pct:>4.0f}%{s.r}")
+    if full:
+        rate_s = f"{rate:.2f}%" if rate else "-"
+        dcol = s.crit if doom else s.gry
+        row += f"{s.gry}{rate_s:>9}{s.r}{dcol}{dur(dry_in):>10}{s.r}"
+    row += f"{s.gry}{cd:>10}{s.r}{s.faint}{age(at):>6}{s.r}"
+    return row
+
+
 def render(args):
     global NOW
     NOW = int(time.time())
     con = db()
-    since = (time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
-             if args.since == "today"
-             else NOW - dict(**{"24h": 86400, "7d": 604800, "30d": 2592000, "all": 10**10})
-             .get(args.since, 86400))
+    since = since_epoch(args.since)
 
     # ── masthead
-    logo = f"{s.bcya}▟▛{s.r}"
+    logo = f"{s.bcya}▐▌{s.r}"
     name = f"{s.b}{s.wht}OMNIGAUGE{s.r}  {s.gry}one gauge, every provider{s.r}"
     right = f"{s.gry}{os.uname().nodename} · {time.strftime('%H:%M %Z')}{s.r}"
     head = f" {logo} {name}"
@@ -1115,7 +1216,7 @@ def render(args):
     print(f" {s.faint}{'━' * (W - 2)}{s.r}")
 
     q = quota_rows(con)
-    flat = [(a_, r) for a_ in ("claude", "codex", "grok") for r in q.get(a_, [])]
+    flat = [(a_, r) for a_ in agent_order() for r in q.get(a_, [])]
     if not flat and not any(SCANNERS[a_][0]() for a_ in SCANNERS):
         print(f"\n  {s.b}Nothing to show yet.{s.r}")
         print(f"  {s.gry}OmniGauge reads what your agent CLIs already write to disk.{s.r}")
@@ -1138,35 +1239,30 @@ def render(args):
     # ── quota panel
     top("PLAN QUOTA", "normalized to % consumed")
     mid()
-    hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<8}{'':<24}{'USED':>5}"
-           f"{'BURN/h':>9}{'DRY IN':>10}{'RESETS':>10}{s.r}")
+    full_cols, bar_w = _quota_layout()
+    hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<8}{'':<{bar_w + 2}}{'USED':>5}"
+           + (f"{'BURN/h':>9}{'DRY IN':>10}" if full_cols else "")
+           + f"{'RESETS IN':>10}{'READ':>6}{s.r}")
     mid(hdr)
     if not flat:
-        mid(f"  {s.gry}nothing collected — run{s.r} {s.bcya}omnigauge --refresh{s.r}")
-    for agent in ("claude", "codex", "grok"):
+        mid(f"  {s.gry}nothing collected - run{s.r} {s.bcya}omnigauge --refresh{s.r}")
+    for agent in agent_order():
         rows = q.get(agent)
         if not rows:
             state = "not collected" if installed(agent) else "not installed"
             mid(f"  {s.gry}○  {agent:<17}{state}{s.r}")
             continue
         for r in sorted(rows, key=lambda x: (x["window"] != "week", x["model"] != "all")):
-            nm = short_model(agent, r["model"])
-            cd = countdown(r["reset"]) or (short_reset(r["reset"])[:11] if r["reset"] else "—")
-            pc = sev(r["pct"]) if r["pct"] >= 70 else s.wht
-            rate = f"{r['rate']:.2f}%" if r.get("rate") else "—"
-            dry = dur(r.get("dry_in"))
+            mid(quota_row_text(agent=agent, model=r["model"], window=r["window"],
+                               pct=r["pct"], rate=r.get("rate"), dry_in=r.get("dry_in"),
+                               reset=r["reset"], at=r["at"]))
             reset_s = countdown(r["reset"], _as_seconds=True) if r["reset"] else None
-            doom = (r.get("dry_in") is not None and reset_s is not None
-                    and r["dry_in"] < reset_s)
-            dcol = s.crit if doom else s.gry
-            mid(f"  {dot(r['pct'])}  {s.b}{nm:<17}{s.r}{s.gry}{r['window']:<8}{s.r}"
-                f"{bar(r['pct'])}  {pc}{r['pct']:>4.0f}%{s.r}"
-                f"{s.gry}{rate:>9}{s.r}{dcol}{dry:>10}{s.r}{s.gry}{cd:>10}{s.r}")
-            if doom:
+            if (r.get("dry_in") is not None and reset_s is not None
+                    and r["dry_in"] < reset_s):
                 short = dur(reset_s - r["dry_in"])
                 mid(f"  {s.crit}{'':<6}▲ runs dry {short} BEFORE the window resets{s.r}")
             if r["raw"] and "left" in (r["raw"] or ""):
-                mid(f"  {s.gry}{'':<21}vendor said “{r['raw']}” — inverted{s.r}")
+                mid(f'  {s.gry}{"":<21}vendor said "{r["raw"]}" - inverted{s.r}')
     mid()
     bot("subscription windows · no dollar balance exists for these plans")
 
@@ -1175,12 +1271,12 @@ def render(args):
         # Gather BEFORE drawing: the lifetime scan prints progress, and doing that
         # between mid() calls tears the frame apart.
         data = {a_: (getter(a_) if SCANNERS[a_][0]() else None)
-                for a_ in ("claude", "codex", "grok")}
+                for a_ in agent_order()}
         top(title, note)
         mid()
         mid(f"  {s.gry}{'AGENT':<10}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}"
             f"{'THINK':>10}{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}{s.r}")
-        for agent in ("claude", "codex", "grok"):
+        for agent in data:
             t = data[agent]
             if t is None:
                 mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
@@ -1197,12 +1293,12 @@ def render(args):
 
     if not args.brief:
         life = {a_: (lifetime_totals(a_, con, progress=True) if SCANNERS[a_][0]() else None)
-                for a_ in ("claude", "codex", "grok")}
+                for a_ in agent_order()}
         vol_table("LIFETIME", "every transcript on this machine", lambda a: life[a])
 
         # ── per model, across the whole corpus
         rows = []
-        for a_ in ("claude", "codex", "grok"):
+        for a_ in agent_order():
             t = life.get(a_)
             if not t: continue
             for mo, mv in t["models"].items():
@@ -1231,7 +1327,7 @@ def render(args):
         if not api_rows:
             mid(f"  {s.gry}no API credentials configured{s.r}")
             mid(f"  {s.gry}add one with{s.r} {s.accent}omnigauge --setup{s.r}"
-                f"{s.gry} — needs an OpenAI ADMIN key (scope api.usage.read){s.r}")
+                f"{s.gry} - needs an OpenAI ADMIN key (scope api.usage.read){s.r}")
         for name, window, r in api_rows:
             if r.get("err"):
                 mid(f"  {s.crit}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
@@ -1242,7 +1338,7 @@ def render(args):
                     f"{bar(r['pct'] or 0, 14)} {s.wht}{r['pct']:>5.2f}%{s.r}"
                     f"{s.gry}  {r['used']:,} / {human(r['cap'])} posts{s.r}")
                 continue
-            spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "—"
+            spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "-"
             mid(f"  {s.accent}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
                 f"{s.wht}{spend:>10}{s.r}{s.gry}"
                 f"{(f"  {r['requests']:,} req" if r.get('requests') else ''):<14}"
@@ -1278,7 +1374,7 @@ def render(args):
         for e in uniq[:6]:
             mid(f"  {s.crit}▸{s.r} {e[:W-8]}")
         mid()
-        bot("counts above are INCOMPLETE — these files were skipped")
+        bot("counts above are INCOMPLETE - these files were skipped")
     print()
     con.close()
 
@@ -1429,7 +1525,7 @@ def doctor():
 
     print(f"  {s.b}1. Agent CLIs{s.r} {s.gry}— token counts come from files these already write{s.r}")
     any_cli = False
-    for a in ("claude", "codex", "grok"):
+    for a in agent_order():
         n = len(SCANNERS[a][0]())
         if installed(a):
             any_cli = True
@@ -1450,7 +1546,7 @@ def doctor():
         have = {r[0] for r in con.execute("SELECT DISTINCT agent FROM snapshots "
                                           "WHERE usage_type='plan_quota'")}
         con.close()
-        for a in ("claude", "codex", "grok"):
+        for a in agent_order():
             if not installed(a):
                 print(f"     {s.faint}○ {a:<8} n/a{s.r}"); continue
             if a in have:
@@ -1460,16 +1556,27 @@ def doctor():
 
     print(f"\n  {s.b}3. API spend{s.r} {s.gry}— optional; real dollars, separate from plan quota{s.r}")
     checks = [("openai_admin_key", "OpenAI",
-               "platform.openai.com → Settings → Organization → Admin keys → Restricted, "
+               "platform.openai.com -> Settings -> Organization -> Admin keys -> Restricted, "
                "Usage API Scope = Read"),
-              ("x_acct1_bearer", "X (account 1)", "developer.x.com → your app → Bearer Token"),
-              ("x_acct2_bearer", "X (account 2)", "developer.x.com → second app → Bearer Token")]
+              ("x_acct1_bearer", "X (account 1)", "developer.x.com -> your app -> Bearer Token"),
+              ("x_acct2_bearer", "X (account 2)", "developer.x.com -> second app -> Bearer Token")]
     for k, label, how in checks:
         if creds.get(k):
             print(f"     {s.ok}●{s.r} {label:<14} configured")
         else:
             print(f"     {s.faint}○ {label:<14} not set{s.r}")
             print(f"       {s.gry}{how}{s.r}")
+    for name, mod in api_providers().items():
+        ok = False
+        if hasattr(mod, "detect"):
+            try:
+                ok = bool(mod.detect())
+            except Exception as e:
+                SCAN_ERRORS.append(f"{name}: detect() raised {type(e).__name__}: {e}")
+        if ok:
+            print(f"     {s.ok}●{s.r} {name:<14} configured (provider)")
+        else:
+            print(f"     {s.faint}○ {name:<14} not set (provider){s.r}")
     if not all(creds.get(k) for k, _, _ in checks):
         print(f"       {s.accent}omnigauge --setup{s.r} {s.gry}(hidden input, stored 0600){s.r}")
 
@@ -1522,7 +1629,9 @@ def main():
     register_provider_quota()
     all_agents()
     p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.")
-    p.add_argument("--refresh", nargs="?", const="claude,codex,grok", metavar="AGENTS")
+    p.add_argument("--refresh", nargs="?", const="@all", metavar="AGENTS",
+                   help="re-scrape quota; bare --refresh takes every installed agent, "
+                        "providers included")
     p.add_argument("--since", default="24h", choices=["24h", "7d", "30d", "today", "all"])
     p.add_argument("--lifetime", action="store_true",
                    help="(now on by default; kept for compatibility)")
@@ -1592,7 +1701,8 @@ def main():
         return
 
     if a.refresh:
-        which = [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS]
+        which = ([w for w in AGENTS if installed(w)] if a.refresh == "@all"
+                 else [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS])
         print(f"\n  {s.b}refreshing quota{s.r} {s.gry}({', '.join(which)} · ~30s each){s.r}")
         refresh(which)
 

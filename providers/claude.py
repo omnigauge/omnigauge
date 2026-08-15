@@ -41,15 +41,16 @@ def scan(path, since=0):
             continue
         try:
             d = json.loads(line)
-        except Exception:
+        except ValueError:
             continue
         msg = d.get("message") or {}
         u = msg.get("usage")
         if not isinstance(u, dict):
             continue
-        ts = d.get("timestamp", "")
-        if since and ts and og._epoch(ts) < since:
-            continue
+        if since:
+            ep = og._epoch(d.get("timestamp", ""))
+            if ep is not None and ep < since:
+                continue
         t["msgs"] += 1
         t["tin"] += u.get("input_tokens", 0)
         t["tout"] += u.get("output_tokens", 0)
@@ -137,10 +138,11 @@ def scrape_cwd():
     best, newest = None, 0
     for f in glob.glob(os.path.expanduser("~/.claude/sessions/*.json")):
         try:
-            d = json.load(io.open(f, encoding="utf-8"))
+            with io.open(f, encoding="utf-8") as fh:
+                d = json.load(fh)
             cwd, st = d.get("cwd"), os.path.getmtime(f)
             if cwd and os.path.isdir(cwd) and st > newest:
                 best, newest = cwd, st
-        except Exception:
+        except (OSError, ValueError):
             continue
     return best or os.getcwd()
