@@ -32,10 +32,14 @@ fallback face with a different advance and silently ragged the layout.
     npx wrangler pages deploy site --project-name=omnigauge --branch=main
 
 Served by Cloudflare Pages — no origin server at all. `_headers` carries the
-security headers and `_redirects` the www→apex hop; **neither file may
-contain comment lines** — the Pages parser silently ignores the whole file,
-and the only symptom is the platform's default headers where yours should be.
-Measured, the hard way.
+security headers; **neither it nor `_redirects` may contain comment lines** —
+the Pages parser silently ignores the whole file, and the only symptom is the
+platform's default headers where yours should be. Measured, the hard way.
+
+Measured equally: the `_redirects` host-source rule (www → apex) does NOT
+fire on Pages — www serves the site directly at 200. The canonical link in
+the page head carries canonicalization instead; a zone-level Single Redirect
+is the upgrade path if the 301 is ever wanted (needs that token permission).
 
 The old nginx origin remains configured on its box as the instant rollback:
 one DNS change (CNAME back to an A record at the origin) restores it.
