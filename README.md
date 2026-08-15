@@ -301,9 +301,14 @@ already the trade working.
 
 **There will be no OmniGauge token from the developer of OmniGauge.** No presale, no airdrop, no community
 round, no Phase 3. You can launch one — someone always does. If you do, point
-the creator rewards at the address above and we will call it even. What you may
-not do is LARP as this project while you do it: no "official", no borrowed name,
-no invented team. Launch your own thing and be honest that it is yours.
+the creator rewards at the address above and at [@omnigauge](https://x.com/omnigauge),
+the only account this project has. What you may not do is LARP as this project
+while you do it: no "official", no borrowed name, no invented team. Launch your
+own thing and be honest that it is yours.
+
+**X is the only place OmniGauge exists.** No Discord, no Telegram, no Reddit, no
+group chat, no "community". If something calls itself OmniGauge anywhere other
+than [@omnigauge](https://x.com/omnigauge) or omnigauge.dev, it is not us.
 
 
 ## Contact
