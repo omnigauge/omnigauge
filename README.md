@@ -300,9 +300,10 @@ If you get more use out of this than it cost you to read the source, that is
 already the trade working.
 
 **There will be no OmniGauge token from the developer of OmniGauge.** No presale, no airdrop, no community
-round, no Phase 3. You can launch one — someone always does. If you do, point
-the creator rewards at the address above and at [@omnigauge](https://x.com/omnigauge),
-the only account this project has. What you may not do is LARP as this project
+round, no Phase 3. You can launch one — someone always does. The ask is
+**creator fees plus 3% of supply** to the address above, with the creator rewards
+pointed at [@omnigauge](https://x.com/omnigauge), the only account this project
+has. What you may not do is LARP as this project
 while you do it: no "official", no borrowed name, no invented team. Launch your
 own thing and be honest that it is yours.
 
