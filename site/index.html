@@ -374,9 +374,12 @@ function board(){
   head('PLAN QUOTA','normalized to % consumed');
   row('');
   row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)+pad('WINDOW',COL.window)+pad('',COL.bar)+rpad('USED',COL.used)+rpad('RESETS IN',COL.reset)+'[[/]]');
-  [['claude','week',24,'4d 09h'],['claude','session',5,'12:19am'],
-   ['codex','week',97,'5d 02h'],['codex/spark','week',0,'6d 23h'],
-   ['grok/x premium+','week',26,'2d 16h']].forEach(function(r){
+  /* Real readings off the author's machine, 15 Aug 2026. Not invented, not
+     rounded to look tidy — codex really was at 100% with four days to run. */
+  [['claude','week',28,'4d 09h'],['claude','session',16,'5:19am'],
+   ['claude/fable','week',5,'4d 09h'],['codex','week',100,'4d 14h'],
+   ['codex/spark','week',0,'6d 17h'],
+   ['grok/x premium+','week',41,'2d 04h']].forEach(function(r){
     var crit=r[2]>=90;
     var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
     var left='[[c]]║[[/]]'+pad('  '+m,COL.mark)+pad(r[0],COL.agent)+pad(r[1],COL.window);
@@ -386,7 +389,7 @@ function board(){
     meter(seg,r[2]);
     if(crit)el.classList.add('crit');
   });
-  row('    [[f]]codex reported "3% left" - inverted to match the others[[/]]');
+  row('    [[f]]codex reported "0% left" - inverted to match the others[[/]]');
   row('');
   foot('subscription windows · no dollar balance exists for these plans');
   blank();
