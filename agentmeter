@@ -553,6 +553,121 @@ def lifetime_totals(agent, con, progress=False):
     return t
 
 
+# ──────────────────────────── API spend & credits ─────────────────────────────
+#
+# SEPARATE from plan quota, always. A subscription window and a dollar balance
+# are different products; blending them into one "remaining" number would be
+# fiction. These are real money and they deplete.
+
+CREDS = os.path.join(DATA, "credentials.json")
+
+
+def load_creds():
+    """Keys come from a 0600 file or the environment — never from argv, which
+    would put them in shell history and in the process table."""
+    c = {}
+    if os.path.exists(CREDS):
+        try:
+            st = os.stat(CREDS)
+            if st.st_mode & 0o077:
+                print(f"  {s.crit}refusing to read {CREDS}: mode {oct(st.st_mode & 0o777)} "
+                      f"is group/world readable. chmod 600 it.{s.r}", file=sys.stderr)
+            else:
+                c = json.load(io.open(CREDS, encoding="utf-8"))
+        except Exception as e:
+            print(f"  {s.crit}credentials unreadable: {e}{s.r}", file=sys.stderr)
+    for k, env in (("openai_admin_key", "OPENAI_ADMIN_KEY"),
+                   ("x_acct1_bearer", "X_ACCT1_BEARER"),
+                   ("x_acct2_bearer", "X_ACCT2_BEARER")):
+        if os.environ.get(env):
+            c[k] = os.environ[env]
+    return c
+
+
+def _get(url, token, timeout=20):
+    import urllib.request, urllib.error
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode()), None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:200]
+        hint = ""
+        if "api.usage.read" in body:
+            hint = " — needs an ADMIN key with the api.usage.read scope"
+        return None, f"HTTP {e.code}{hint}"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
+def openai_spend(key, days=30):
+    """Real dollars. /v1/organization/costs is authoritative for reconciling to
+    an invoice; usage/completions gives requests and tokens."""
+    start = int(time.time()) - days * 86400
+    out = dict(source="openai", spend_usd=None, requests=None, tokens=None, err=None)
+    d, err = _get(f"https://api.openai.com/v1/organization/costs?start_time={start}&limit=180", key)
+    if err:
+        out["err"] = err
+        return out
+    total = 0.0
+    for bucket in (d.get("data") or []):
+        for r in (bucket.get("results") or []):
+            amt = (r.get("amount") or {}).get("value")
+            if isinstance(amt, (int, float)):
+                total += amt
+    out["spend_usd"] = round(total, 4)
+    d, err = _get(f"https://api.openai.com/v1/organization/usage/completions"
+                  f"?start_time={start}&limit=180", key)
+    if not err and d:
+        req = tok = 0
+        for bucket in (d.get("data") or []):
+            for r in (bucket.get("results") or []):
+                req += r.get("num_model_requests") or 0
+                tok += (r.get("input_tokens") or 0) + (r.get("output_tokens") or 0)
+        out["requests"], out["tokens"] = req, tok
+    return out
+
+
+def x_usage(token, label):
+    """X post-cap consumption.
+
+    VERIFIED 2026-08-14: calling this does NOT draw against the post cap — two
+    consecutive calls left project_usage unchanged. It has its own limit of 50
+    per window, so it must not be polled aggressively.
+
+    It reports POSTS, not the dollar balance shown in the developer console.
+    No public endpoint for that balance has been found, so it is not invented
+    here; the console remains the source for money.
+    """
+    out = dict(source="x", label=label, used=None, cap=None, pct=None,
+               spend_usd=None, requests=None, tokens=None, err=None)
+    d, err = _get("https://api.x.com/2/usage/tweets", token)
+    if err:
+        out["err"] = err
+        return out
+    u = (d or {}).get("data") or {}
+    try:
+        out["used"] = int(u.get("project_usage") or 0)
+        out["cap"] = int(u.get("project_cap") or 0)
+        if out["cap"]:
+            out["pct"] = out["used"] / out["cap"] * 100
+    except Exception as e:
+        out["err"] = f"unexpected shape: {e}"
+    return out
+
+
+def collect_api(con):
+    creds = load_creds()
+    rows = []
+    if creds.get("openai_admin_key"):
+        r = openai_spend(creds["openai_admin_key"])
+        rows.append(("openai", "org · 30d", r))
+    for label, k in (("x/acct1", "x_acct1_bearer"), ("x/acct2", "x_acct2_bearer")):
+        if creds.get(k):
+            rows.append((label, "posts · cap", x_usage(creds[k], label)))
+    return rows, creds
+
+
 # ─────────────────────────── CLI scrape: plan quota ───────────────────────────
 
 def _cap(session):
@@ -771,6 +886,11 @@ def render(args):
 
     q = quota_rows(con)
     flat = [(a_, r) for a_ in ("claude", "codex", "grok") for r in q.get(a_, [])]
+    if not flat and not any(SCANNERS[a_][0]() for a_ in SCANNERS):
+        print(f"\n  {s.b}Nothing to show yet.{s.r}")
+        print(f"  {s.gry}omnigauge reads what your agent CLIs already write to disk.{s.r}")
+        print(f"  {s.accent}omnigauge --doctor{s.r}{s.gry}  shows what is connected and what to do next{s.r}\n")
+        con.close(); return
 
     # ── headline: the single thing worth knowing
     if flat:
@@ -864,6 +984,32 @@ def render(args):
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
             mid()
             bot("codex rollups are attributed to the LAST model seen in the file")
+
+    api_rows, creds = collect_api(con)
+    if api_rows or not creds:
+        top("API SPEND & CREDITS", "real dollars · never merged with plan quota")
+        mid()
+        if not api_rows:
+            mid(f"  {s.gry}no API credentials configured{s.r}")
+            mid(f"  {s.gry}add one with{s.r} {s.accent}omnigauge --setup{s.r}"
+                f"{s.gry} — needs an OpenAI ADMIN key (scope api.usage.read){s.r}")
+        for name, window, r in api_rows:
+            if r.get("err"):
+                mid(f"  {s.crit}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
+                    f"{s.crit}{r['err'][:60]}{s.r}")
+                continue
+            if r.get("cap"):
+                mid(f"  {s.accent}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
+                    f"{bar(r['pct'] or 0, 14)} {s.wht}{r['pct']:>5.2f}%{s.r}"
+                    f"{s.gry}  {r['used']:,} / {human(r['cap'])} posts{s.r}")
+                continue
+            spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "—"
+            mid(f"  {s.accent}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
+                f"{s.wht}{spend:>10}{s.r}{s.gry}"
+                f"{(f"  {r['requests']:,} req" if r.get('requests') else ''):<14}"
+                f"{(f"  {human(r['tokens'])} tok" if r.get('tokens') else '')}{s.r}")
+        mid()
+        bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
     ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
     if ins:
@@ -1019,6 +1165,74 @@ def interactive(args):
         print()
 
 
+def doctor():
+    """What is connected, what is not, and the exact next command for each gap.
+
+    Written for someone who has never seen this tool: no step assumes knowledge
+    of where a vendor hides its keys or why quota has to be scraped.
+    """
+    creds = load_creds()
+    print(f"\n {s.b}{s.wht}OMNIGAUGE — setup check{s.r}")
+    print(f" {s.faint}{'━' * (W - 2)}{s.r}\n")
+
+    print(f"  {s.b}1. Agent CLIs{s.r} {s.gry}— token counts come from files these already write{s.r}")
+    any_cli = False
+    for a in ("claude", "codex", "grok"):
+        n = len(SCANNERS[a][0]())
+        if installed(a):
+            any_cli = True
+            print(f"     {s.ok}●{s.r} {a:<8} installed · {n:,} transcript file(s) readable")
+        elif n:
+            print(f"     {s.warn}●{s.r} {a:<8} not on PATH, but {n:,} transcript(s) found — counts still work")
+        else:
+            print(f"     {s.faint}○ {a:<8} not installed — skipped{s.r}")
+    if not any_cli:
+        print(f"     {s.warn}no agent CLIs found. Install at least one, then re-run.{s.r}")
+
+    print(f"\n  {s.b}2. Plan quota{s.r} {s.gry}— scraped from each CLI; no vendor offers an API for it{s.r}")
+    if not shutil.which("tmux"):
+        print(f"     {s.crit}● tmux missing{s.r} — required to read the CLIs' usage panels")
+        print(f"       {s.accent}sudo apt install tmux{s.r}")
+    else:
+        con = db()
+        have = {r[0] for r in con.execute("SELECT DISTINCT agent FROM snapshots "
+                                          "WHERE usage_type='plan_quota'")}
+        con.close()
+        for a in ("claude", "codex", "grok"):
+            if not installed(a):
+                print(f"     {s.faint}○ {a:<8} n/a{s.r}"); continue
+            if a in have:
+                print(f"     {s.ok}●{s.r} {a:<8} collected")
+            else:
+                print(f"     {s.warn}●{s.r} {a:<8} never collected — {s.accent}omnigauge --refresh {a}{s.r}")
+
+    print(f"\n  {s.b}3. API spend{s.r} {s.gry}— optional; real dollars, separate from plan quota{s.r}")
+    checks = [("openai_admin_key", "OpenAI",
+               "platform.openai.com → Settings → Organization → Admin keys → Restricted, "
+               "Usage API Scope = Read"),
+              ("x_acct1_bearer", "X (account 1)", "developer.x.com → your app → Bearer Token"),
+              ("x_acct2_bearer", "X (account 2)", "developer.x.com → second app → Bearer Token")]
+    for k, label, how in checks:
+        if creds.get(k):
+            print(f"     {s.ok}●{s.r} {label:<14} configured")
+        else:
+            print(f"     {s.faint}○ {label:<14} not set{s.r}")
+            print(f"       {s.gry}{how}{s.r}")
+    if not all(creds.get(k) for k, _, _ in checks):
+        print(f"       {s.accent}omnigauge --setup{s.r} {s.gry}(hidden input, stored 0600){s.r}")
+
+    if os.path.exists(CREDS):
+        mode = os.stat(CREDS).st_mode & 0o777
+        ok = not (mode & 0o077)
+        print(f"\n  {s.b}4. Credential file{s.r}")
+        print(f"     {s.ok if ok else s.crit}●{s.r} {CREDS}")
+        print(f"       mode {oct(mode)} — {'owner only' if ok else 'TOO OPEN, run: chmod 600 ' + CREDS}")
+
+    print(f"\n  {s.b}Next{s.r}")
+    print(f"     {s.accent}omnigauge{s.r}          {s.gry}the board — press ? for keys{s.r}")
+    print(f"     {s.accent}omnigauge --refresh{s.r} {s.gry}pull fresh quota (~30s per agent){s.r}\n")
+
+
 def parse_every(v):
     m = re.match(r"^(\d+)\s*([smh]?)$", str(v).strip(), re.I)
     if not m: raise argparse.ArgumentTypeError("use e.g. 30, 90s, 15m, 1h")
@@ -1067,6 +1281,10 @@ def main():
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
                    help="how often --watch re-scrapes quota (default 15m; 0 = never)")
+    p.add_argument("--doctor", action="store_true",
+                   help="what is connected, what is missing, and how to fix it")
+    p.add_argument("--setup", action="store_true",
+                   help="store API credentials (hidden input, 0600 file)")
     p.add_argument("--once", action="store_true",
                    help="print once and exit instead of the interactive board")
     p.add_argument("--cwd", metavar="DIR",
@@ -1076,6 +1294,30 @@ def main():
     CWD_OVERRIDE = a.cwd
     if a.no_color: S.on = False
     S.theme = a.theme
+
+    if a.doctor:
+        doctor(); return
+
+    if a.setup:
+        import getpass
+        os.makedirs(DATA, exist_ok=True)
+        cur = load_creds()
+        print("\n  Credentials are stored 0600 in", CREDS)
+        print("  Leave blank to keep the current value. Input is hidden.\n")
+        fields = [("openai_admin_key", "OpenAI ADMIN key (sk-admin-…, scope api.usage.read)"),
+                  ("x_acct1_bearer", "X developer bearer — first X account"),
+                  ("x_acct2_bearer", "X developer bearer — second X account")]
+        for k, prompt in fields:
+            have = " [set]" if cur.get(k) else ""
+            v = getpass.getpass(f"  {prompt}{have}: ").strip()
+            if v:
+                cur[k] = v
+        fd = os.open(CREDS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            json.dump(cur, fh, indent=2)
+        os.chmod(CREDS, 0o600)
+        print(f"\n  saved {CREDS} (mode 600)\n")
+        return
 
     if a.refresh:
         which = [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS]

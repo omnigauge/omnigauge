@@ -59,6 +59,20 @@ kinds of number and never adds them together or reconciles them into one total.
 **Subscriptions have no dollar balance**, so none is shown. Plan usage and API spend are
 different products; blending them into one "remaining" figure would be fiction.
 
+## Quickstart
+
+```bash
+git clone https://github.com/YOU/omnigauge.git && cd omnigauge
+./install.sh
+omnigauge --doctor      # what is connected, what is missing, how to fix it
+omnigauge --refresh     # pull your plan quota (~30s per agent)
+omnigauge               # the board — press ? for keys
+```
+
+`--doctor` is the one to run first. It checks each agent CLI, tells you whether
+quota has ever been collected, shows which optional API credentials are set, and
+prints the exact next command for every gap. Nothing else needs to be memorised.
+
 ## Install
 
 Requires Python 3.8+ and `tmux` (only for quota scraping).
@@ -161,6 +175,31 @@ Everything lives in `${XDG_DATA_HOME:-~/.local/share}/omnigauge/` (override with
   never rescanned; `insights` keeps the vendor's own "what is driving usage" notes.
 
 Nothing leaves the machine.
+
+## API spend and credits (optional)
+
+Separate panel, separate product — never merged into plan quota. A subscription
+window is a time-based percentage; these are real money.
+
+| Source | What you get | Credential |
+|---|---|---|
+| OpenAI | 30-day spend, requests, tokens | **Admin** key, Restricted, `Usage API Scope = Read` |
+| X / Twitter | post consumption against your project cap | app Bearer Token, one per account |
+
+```bash
+omnigauge --setup      # hidden input, written 0600, refuses to read looser modes
+```
+
+Two things worth knowing:
+
+**Checking X usage does not consume your post cap.** Verified empirically rather
+than from documentation — two consecutive calls to `/2/usage/tweets` left
+`project_usage` unchanged. It has its own limit of 50 per window, so it is polled
+on the slow clock, never per redraw.
+
+**X dollar balances are console-only.** The developer console shows a balance;
+no public endpoint for it has been found, so omnigauge reports post consumption
+and leaves the money figure to the console rather than inventing one.
 
 ## Not implemented, on purpose
 
