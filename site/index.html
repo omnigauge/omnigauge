@@ -95,8 +95,12 @@ b{font-weight:400}
 a{color:var(--cyan)}
 
 /* Turbo Vision drew its shadow with ░ characters. This is that idea with alpha. */
-.pan{display:block;width:max-content;background:var(--panel);background-image:none;padding:.2em .6em;
-  box-shadow:.5em .32em 0 var(--shadow);border:0;margin:.15em 0 .5em}
+/* No horizontal padding. The box-drawing characters ARE the border, so any
+   inset pushes a panel's left edge right of every line that is not in a panel —
+   boot text, the prompt, loose lines — and the page gets a zigzag left margin
+   instead of one edge running top to bottom. */
+.pan{display:block;width:max-content;background:var(--panel);background-image:none;
+  padding:.2em 0;box-shadow:.5em .32em 0 var(--shadow);border:0;margin:.15em 0 .5em}
 
 .ln{display:flex;align-items:baseline;gap:0;margin-top:.9em;flex-wrap:wrap;
   border-top:1px solid rgba(120,150,220,.10);padding-top:.75em}
