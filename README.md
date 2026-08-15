@@ -1,4 +1,20 @@
-# omnigauge
+<p align="center">
+  <img src="assets/logo-400.png" width="120" alt="omnigauge">
+</p>
+
+<h1 align="center">omnigauge</h1>
+
+<p align="center">
+  <em>One gauge for every AI agent and API account you run.</em><br>
+  <sub>Plan quota · token volume · burn rate · exhaustion forecast · spend — in your terminal</sub>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="python" src="https://img.shields.io/badge/python-3.8%2B-blue.svg">
+  <img alt="dependencies" src="https://img.shields.io/badge/dependencies-none-brightgreen.svg">
+</p>
+
 
 One dashboard for **Claude Code**, **OpenAI Codex** and **Grok CLI** usage — plan quota and
 token volume, side by side, in your terminal.
@@ -274,6 +290,13 @@ both expose real spend, but they need an org **admin** key — a credential wort
 tool. The schema already carries `cost_usd` and a `source` column, so it is a clean addition if
 you want it. It would be a separate panel, never merged into plan quota.
 
+
+## Contact
+
+- Bugs and provider requests → [issues](../../issues)
+- Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
+- Anything else → **dev@omnigauge.dev**
+
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. Use it, fork it, ship it.

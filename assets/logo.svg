@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="omnigauge">
+  <title>omnigauge</title>
+
+  <!--
+    Two concentric gauge arcs: many providers, one instrument.
+
+    Each spans 270 degrees with the gap at the bottom, which is what makes it
+    read as a GAUGE rather than a progress spinner — a full ring is a loading
+    indicator, an interrupted one is a dial.
+
+    The fills are real readings, not decoration: outer 94%, inner 38%. Drawn
+    with stroke-dasharray over the circumference so the angles are exact.
+
+    Two rings rather than three on purpose. Three carried more meaning and lost
+    it below about 40px, which is the size this spends most of its life at.
+
+    currentColor on the tracks means one file works on light and dark.
+
+      outer r=98  C=615.75  track=461.81 (270deg)  fill=434.10 (94%)
+      inner r=62  C=389.56  track=292.17 (270deg)  fill=111.02 (38%)
+  -->
+
+  <g transform="rotate(135 128 128)" fill="none"
+     stroke-linecap="round" stroke-width="22">
+
+    <!-- unfilled tracks -->
+    <g stroke="currentColor" opacity="0.22">
+      <circle cx="128" cy="128" r="98" stroke-dasharray="461.81 615.75"/>
+      <circle cx="128" cy="128" r="62" stroke-dasharray="292.17 389.56"/>
+    </g>
+
+    <!-- readings -->
+    <circle cx="128" cy="128" r="98" stroke="#38BDF8" stroke-dasharray="434.10 615.75"/>
+    <circle cx="128" cy="128" r="62" stroke="#38BDF8" opacity="0.75"
+            stroke-dasharray="111.02 389.56"/>
+  </g>
+</svg>
