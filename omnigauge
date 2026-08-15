@@ -1641,8 +1641,7 @@ def privacy_panel():
     mid()
     mid(f"  {s.wht}It will not ask for a key to read your agents.{s.r}")
     mid(f"  {s.gry}You are already logged into these tools. It reads what they{s.r}")
-    mid(f"  {s.gry}write to your own disk. The optional spend panel takes keys -{s.r}")
-    mid(f"  {s.gry}yours, stored 0600, for reading your own billing.{s.r}")
+    mid(f"  {s.gry}write to your own disk. There is no credential to lose.{s.r}")
     mid()
     mid(f"  {s.wht}It will not phone home.{s.r}")
     mid(f"  {s.gry}No telemetry, no account, no server. What you spend is{s.r}")
@@ -1652,7 +1651,7 @@ def privacy_panel():
     mid(f"  {s.gry}When a parse fails you get{s.r} {s.crit}NO QUOTA PARSED{s.r}{s.gry} and the raw{s.r}")
     mid(f"  {s.gry}screen - never a plausible number with nothing behind it.{s.r}")
     mid()
-    bot()
+    bot("the optional spend panel takes keys - yours, 0600, your own billing")
 
 
 def donate_panel():
