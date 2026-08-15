@@ -184,6 +184,12 @@ Run it bare in a terminal and it is **interactive** — no flags to remember:
 | `t` | cycle theme |
 | `s` | cycle window (24h · 7d · 30d · today · all) |
 | `b` | brief — hide lifetime and by-model |
+| `l` | providers legend — what each source gets, and cannot |
+| `d` | doctor |
+| `y` | why this exists |
+| `p` | privacy — what it refuses to do |
+| `a` | about |
+| `g` | donate |
 | `?` | key help |
 | `q` | quit |
 

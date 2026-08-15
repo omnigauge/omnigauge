@@ -1614,14 +1614,98 @@ def drain():
         os.read(fd, 64)
 
 
+# ── content panels - the site mirrors these; the doctrine lives here ─────────
+
+def why_panel():
+    top("FOUR VENDORS. FOUR DIALECTS.")
+    mid()
+    mid(f"  {s.gry}Ask each one how much you have left. Every answer is honest,{s.r}")
+    mid(f"  {s.gry}and useless beside the others:{s.r}")
+    mid()
+    for name, said, note in (("codex", "38% left", "counts down · 5h rolling"),
+                             ("claude", "87% used", "counts up · calendar week"),
+                             ("grok", "2.1M / 35M", "raw tokens · month"),
+                             ("gemini", '"limited"', "no number at all")):
+        mid(f"    {s.warn}{name:<9}{s.r}{s.wht}{said:<13}{s.r}{s.faint}{note}{s.r}")
+    mid()
+    mid(f"  {s.gry}One counts down. One counts up. One hands you arithmetic{s.r}")
+    mid(f"  {s.gry}homework. One shrugs. Here, every window is percent consumed -{s.r}")
+    mid(f"  {s.gry}and the question that matters gets answered: do you run dry{s.r}")
+    mid(f"  {s.gry}BEFORE the reset does.{s.r}")
+    mid()
+    bot("it is usually not the plan you were worried about")
+
+
+def privacy_panel():
+    top("THINGS IT WILL NOT DO")
+    mid()
+    mid(f"  {s.wht}It will not ask for a key to read your agents.{s.r}")
+    mid(f"  {s.gry}You are already logged into these tools. It reads what they{s.r}")
+    mid(f"  {s.gry}write to your own disk. The optional spend panel takes keys -{s.r}")
+    mid(f"  {s.gry}yours, stored 0600, for reading your own billing.{s.r}")
+    mid()
+    mid(f"  {s.wht}It will not phone home.{s.r}")
+    mid(f"  {s.gry}No telemetry, no account, no server. What you spend is{s.r}")
+    mid(f"  {s.gry}nobody's business.{s.r}")
+    mid()
+    mid(f"  {s.wht}It will not guess.{s.r}")
+    mid(f"  {s.gry}When a parse fails you get{s.r} {s.crit}NO QUOTA PARSED{s.r}{s.gry} and the raw{s.r}")
+    mid(f"  {s.gry}screen - never a plausible number with nothing behind it.{s.r}")
+    mid()
+    bot()
+
+
+def donate_panel():
+    top("DONATE", "optional, and it changes nothing")
+    mid()
+    mid(f"  {s.gry}MIT, no paid tier, nothing gated on this.{s.r}")
+    mid()
+    mid(f"  {s.wht}Solana{s.r}")
+    mid(f"  {s.warn}BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx{s.r}")
+    mid()
+    mid(f"  {s.gry}There will be no OmniGauge token from the developer of{s.r}")
+    mid(f"  {s.gry}OmniGauge. No presale, no airdrop, no Phase 3.{s.r}")
+    mid()
+    bot("if it saved you something, the trade already worked")
+
+
+def about_panel():
+    top("ABOUT OMNIGAUGE")
+    mid()
+    mid(f"  {s.b}{s.wht}OmniGauge 1.0{s.r} {s.gry}- one gauge for every AI plan you pay for{s.r}")
+    mid()
+    mid(f"  {s.gry}Reads what your agent CLIs already write. Normalizes every{s.r}")
+    mid(f"  {s.gry}vendor's counter to percent consumed. Invents nothing.{s.r}")
+    mid()
+    mid(f"  {s.gry}Written by Claude Opus 5.0. Maintained by Claude Fable 5.{s.r}")
+    mid(f"  {s.gry}MIT · one Python file · github.com/omnigauge/omnigauge{s.r}")
+    mid()
+    bot("read it before you run it")
+
+
 KEYS = [("r", "refresh quota - all agents"),
         ("1 2 3", "refresh claude / codex / grok only"),
         ("w", "watch mode - auto redraw"),
         ("t", "cycle theme (ink · steel · mono · muted · vivid)"),
         ("s", "cycle window (24h · 7d · 30d · today · all)"),
         ("b", "brief - hide lifetime and by-model"),
+        ("l", "legend - what each provider gets, and cannot"),
+        ("d", "doctor - what is connected, what is missing"),
+        ("y", "why this exists - the four dialects"),
+        ("p", "privacy - what it refuses to do"),
+        ("a", "about"),
+        ("g", "donate"),
         ("?", "this help"),
         ("q", "quit")]
+
+
+def page(fn):
+    """Clear, render one content panel, wait for a key, return to the board -
+    the CLI's version of the site's pull-down menus."""
+    sys.stdout.write("\033[2J\033[H")
+    fn()
+    print(f"\n {s.gry}any key to return{s.r}")
+    getkey()
 
 
 def keybar(args, watching=False):
@@ -1684,6 +1768,12 @@ def interactive(args):
                 args.since = spans[(spans.index(args.since) + 1) % len(spans)]
                 memo_clear()
             elif k == "b": args.brief = not args.brief
+            elif k == "l": page(legend)
+            elif k == "d": page(doctor)
+            elif k == "y": page(why_panel)
+            elif k == "p": page(privacy_panel)
+            elif k == "a": page(about_panel)
+            elif k == "g": page(donate_panel)
             elif k == "?": helpscreen()
       except KeyboardInterrupt:
         pass

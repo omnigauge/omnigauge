@@ -539,6 +539,32 @@ class TestProviderConformance(unittest.TestCase):
         self.assertIn("grok-4", t["models"])
 
 
+class TestContentPanels(unittest.TestCase):
+    """The site mirrors these panels; here they obey the same laws as every
+    other panel - measured frames at both widths, no fallback-risk glyphs."""
+
+    BANNED = set("—–‘’“”→▟▛▎▋▁▂▃▄▅▆▇")
+
+    def test_panels_measure_and_stay_ascii(self):
+        og.S.on = True
+        try:
+            for fn in (og.why_panel, og.privacy_panel, og.donate_panel, og.about_panel):
+                for W in (80, 100):
+                    og.W, og.IN = W, W - 3
+                    lines = render_lines(fn)
+                    widths = frame_widths(lines)
+                    self.assertTrue(widths, fn.__name__)
+                    target = widths[0][0]
+                    for w, t in widths:
+                        self.assertEqual(w, target, f"{fn.__name__} ragged at W={W}:\n{t!r}")
+                        self.assertLessEqual(w, W)
+                    for l in lines:
+                        hits = self.BANNED & set(strip_ansi(l))
+                        self.assertFalse(hits, f"{fn.__name__}: {hits} in {l!r}")
+        finally:
+            og.W, og.IN = 100, 97
+
+
 class TestCapabilities(unittest.TestCase):
     """The legend's honesty layer: every shipping source declares all seven
     capabilities in a legal state; mirrors match built-ins; a third-party
