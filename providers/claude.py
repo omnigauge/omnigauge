@@ -62,10 +62,15 @@ def scan(path, since=0):
         u = msg.get("usage")
         if not isinstance(u, dict):
             continue
-        if since:
-            ep = og._epoch(d.get("timestamp", ""))
-            if ep is not None and ep < since:
-                continue
+        # Record the newest timestamp regardless of the window. The core uses it
+        # to decide whether skipping this file on mtime is provably safe — mtime
+        # is a claim about when the file was written, this is a fact about what
+        # is in it, and a restore or a skewed clock makes them disagree.
+        ep = og._epoch(d.get("timestamp", ""))
+        if ep is not None and ep > (t.get("last_ts") or 0):
+            t["last_ts"] = ep
+        if since and ep is not None and ep < since:
+            continue
         t["msgs"] += 1
         t["tin"] += u.get("input_tokens", 0)
         t["tout"] += u.get("output_tokens", 0)

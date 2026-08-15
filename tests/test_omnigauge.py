@@ -1097,3 +1097,77 @@ class TestInstall(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWindowGateTrustsTheWrongClock(unittest.TestCase):
+    """The window gate skips a file when its mtime predates the window.
+
+    mtime is a proxy for "when was this last written", and the scanner reads the
+    timestamp INSIDE the file. Those come from two different clocks and they can
+    disagree — a restored backup, an rsync -a, a tar -x, a container with a
+    skewed clock. When they disagree the file is skipped and its tokens vanish
+    from the window with no error beside them.
+
+    The tool holds the contradiction in its own hands: lifetime does not use the
+    gate, so it reports the very messages the window just dropped.
+    """
+
+    def _corpus(self, home, minutes_ago=10):
+        d = os.path.join(home, ".claude", "projects", "-p")
+        os.makedirs(d, exist_ok=True)
+        f = os.path.join(d, "s.jsonl")
+        now = time.time()
+        rows = []
+        for i in range(5):
+            ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z",
+                               time.gmtime(now - minutes_ago * 60 + i))
+            rows.append(json.dumps({"timestamp": ts, "message": {
+                "model": "claude-x",
+                "usage": {"input_tokens": 100, "output_tokens": 200,
+                          "cache_read_input_tokens": 50,
+                          "cache_creation_input_tokens": 10}}}))
+        with io.open(f, "w") as fh:
+            fh.write("\n".join(rows) + "\n")
+        return f
+
+    def _window(self, home, data, since_s=86400):
+        env = dict(os.environ, HOME=home, OMNIGAUGE_HOME=data)
+        out = subprocess.run([sys.executable, os.path.join(ROOT, "omnigauge"),
+                              "--json", "--lifetime", "--since", "24h"],
+                             capture_output=True, text=True, env=env, timeout=120)
+        d = json.loads(out.stdout)
+        w = (d.get("window") or {}).get("claude") or {}
+        l = (d.get("lifetime") or {}).get("claude") or {}
+        return w, l
+
+    def test_an_mtime_older_than_the_content_does_not_erase_the_window(self):
+        tmp = tempfile.mkdtemp(prefix="og-clockskew-")
+        home, data = os.path.join(tmp, "home"), os.path.join(tmp, "data")
+        os.makedirs(home); os.makedirs(data)
+        f = self._corpus(home)
+
+        w, _ = self._window(home, data)
+        self.assertEqual(w.get("msgs"), 5, "control: an honest mtime is counted")
+
+        # The only change: the filesystem's idea of when this was written.
+        # Not one byte of content differs.
+        old = time.time() - 2 * 86400
+        os.utime(f, (old, old))
+        # Drop every cache so the second run cannot be answered from the first.
+        # (The db is usage.db, not omnigauge.db — guessing the name made this a
+        # no-op the first time and the test still passed, which is its own
+        # lesson: a cleanup step that silently does nothing looks like one that
+        # worked.)
+        for name in os.listdir(data):
+            if name.endswith((".db", ".db-wal", ".db-shm")):
+                os.remove(os.path.join(data, name))
+
+        w, l = self._window(home, data)
+        self.assertEqual(
+            w.get("msgs"), 5,
+            "five messages timestamped ten minutes ago must appear in a 24h "
+            "window regardless of what mtime claims; the scanner already reads "
+            "the timestamp inside the file")
+        self.assertEqual(
+            (w.get("msgs") or 0) > 0, (l.get("msgs") or 0) > 0,
+            "window and lifetime must not contradict each other silently")

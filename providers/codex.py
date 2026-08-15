@@ -91,6 +91,13 @@ def scan(path, since=0):
         tail, events = whole, _events(whole)
     if not events:
         return t
+    # Newest stamped event in this file, recorded whatever the window is. The
+    # core needs a FACT about the contents to justify skipping the file on mtime;
+    # mtime is only a claim about when it was written, and a restore or a skewed
+    # clock makes the two disagree.
+    _st = [ep for ep, _ in events if ep is not None]
+    if _st:
+        t["last_ts"] = max(_st)
     model = None
     mm = re.findall(r'"model":"([^"]+)"', tail)
     if mm: model = mm[-1]          # rollouts can span models; attribute to the last

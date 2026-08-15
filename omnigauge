@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS insights (
 
 # (table, column, type) added after the first release. CREATE TABLE IF NOT EXISTS
 # silently does nothing when the table already exists, so new columns need ALTER.
-MIGRATIONS = [("filecache", "models", "TEXT")]
+MIGRATIONS = [("filecache", "models", "TEXT"),
+              ("filecache", "last_ts", "REAL")]
 
 
 def db():
@@ -548,6 +549,10 @@ def merge(dst, src):
             for mo, mv in v.items():
                 d = dst["models"].setdefault(mo, dict(out=0, total=0, msgs=0))
                 for kk in mv: d[kk] += mv[kk]
+        elif k == "last_ts":
+            # A timestamp is not a quantity. Summing it across files produced a
+            # number in the year 60,000 and nothing complained.
+            if v: dst[k] = max(dst.get(k) or 0, v)
         elif k != "files":
             dst[k] += v
 
@@ -561,9 +566,13 @@ def scan_claude(path, since=0):
         msg = d.get("message") or {}
         u = msg.get("usage")
         if not isinstance(u, dict): continue
-        if since:
-            ep = _epoch(d.get("timestamp", ""))
-            if ep is not None and ep < since: continue
+        # Newest timestamp regardless of window — the core needs a fact about the
+        # contents before it may skip this file on mtime alone. Kept identical to
+        # providers/claude.py; the conformance tests lock the two together.
+        ep = _epoch(d.get("timestamp", ""))
+        if ep is not None and ep > (t.get("last_ts") or 0):
+            t["last_ts"] = ep
+        if since and ep is not None and ep < since: continue
         t["msgs"] += 1
         t["tin"] += u.get("input_tokens", 0)
         t["tout"] += u.get("output_tokens", 0)
@@ -640,6 +649,11 @@ def scan_codex(path, since=0):
         tail, events = whole, _codex_events(whole)
     if not events:
         return t
+    # Newest stamped event, recorded whatever the window is. Kept identical to
+    # providers/codex.py; the conformance tests lock the two together.
+    _st = [ep for ep, _ in events if ep is not None]
+    if _st:
+        t["last_ts"] = max(_st)
     model = None
     mm = re.findall(r'"model":"([^"]+)"', tail)
     if mm: model = mm[-1]          # rollouts can span models; attribute to the last
@@ -928,9 +942,33 @@ def window_totals(agent, since):
         return _MEMO[key]
     files, scan = SCANNERS[agent]
     t = blank()
+    # What the last full scan actually FOUND in each file, keyed by the identity
+    # of the file at that moment. mtime alone is a claim about when something was
+    # written; last_ts is a fact about what is inside it.
+    known = {}
+    try:
+        with db() as _c:
+            for _p, _m, _z, _l in _c.execute(
+                    "SELECT path,mtime,size,last_ts FROM filecache WHERE agent=?", (agent,)):
+                known[_p] = (_m, _z, _l)
+    except Exception:
+        pass
     for f in files():
         try:
-            if os.path.getmtime(f) < since: continue
+            if os.path.getmtime(f) < since:
+                # mtime says this predates the window. Skip it ONLY with proof:
+                # the file is byte-identical to the one we scanned, and that scan
+                # found nothing newer than `since`. Without proof, read it.
+                #
+                # mtime and the timestamps inside the file come from different
+                # clocks. A restored backup, rsync -a, tar -x, or a container with
+                # a skewed clock makes mtime older than the content, and the
+                # window silently loses every token in the file.
+                st = os.stat(f)
+                k = known.get(f)
+                if (k and k[2] is not None and abs((k[0] or 0) - st.st_mtime) < 1
+                        and k[1] == st.st_size and k[2] < since):
+                    continue
             # since goes to EVERY scanner. Passing 0 to the rest attributed a
             # rollout's whole cumulative history to the window whenever its
             # mtime was recent - and quietly disabled the correct since
@@ -988,11 +1026,12 @@ def lifetime_totals(agent, con, progress=False):
             vals["models"] = r.get("models", {})
             con.execute(
                 "INSERT OR REPLACE INTO filecache(path,agent,mtime,size,tin,tout,"
-                "cache_read,cache_write,think,total,msgs,scanned_at,models) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "cache_read,cache_write,think,total,msgs,scanned_at,models,last_ts) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (f, agent, st.st_mtime, st.st_size, vals["tin"], vals["tout"],
                  vals["cache_read"], vals["cache_write"], vals["think"],
-                 vals["total"], vals["msgs"], NOW, json.dumps(vals["models"])))
+                 vals["total"], vals["msgs"], NOW, json.dumps(vals["models"]),
+                 r.get("last_ts")))
         if vals["msgs"]:
             t["files"] += 1
             merge(t, vals)
