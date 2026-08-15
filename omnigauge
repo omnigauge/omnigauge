@@ -15,7 +15,14 @@ No telemetry either way.
   omnigauge --watch         live redraw (tokens every tick, quota on a slower clock)
   omnigauge --watch 5 --quota-every 10m
   omnigauge --json          machine-readable
+  omnigauge --scan-roots    hunt mounted drives for stores discovery misses
   omnigauge --no-color
+
+STORES ON ANOTHER DRIVE
+  Add a HOME-like path (the directory holding .claude/.codex/...) one per line
+  to DATA/roots, or set OMNIGAUGE_ROOTS. Roots are scanned like a second home;
+  when the drive is out, the board and --check SAY its history is excluded
+  instead of quietly shrinking.
 
 REFRESH RATES ARE NOT THE SAME FOR BOTH HALVES
   token volume  read from local files — cheap, so it can update every few seconds.
@@ -384,28 +391,70 @@ def windows_homes(sub):
     return [p for p in glob.glob(f"/mnt/*/Users/*/{sub}") if os.path.isdir(p)]
 
 
+def config_roots():
+    """Extra HOME-like roots the user pointed at - a dev SSD, a second profile,
+    a backup. One path per line in DATA/roots (# comments allowed), plus
+    OMNIGAUGE_ROOTS (os.pathsep-separated). A root is a directory that CONTAINS
+    agent stores (.claude, .codex, ...) - a home, wherever it is mounted."""
+    out = []
+    try:
+        for line in io.open(os.path.join(DATA, "roots")):
+            line = line.strip()
+            if line and not line.startswith("#"):
+                out.append(line)
+    except OSError:
+        pass
+    env = os.environ.get("OMNIGAUGE_ROOTS", "")
+    out += [x for x in env.split(os.pathsep) if x]
+    return [os.path.expanduser(x) for x in out]
+
+
+def missing_roots():
+    """Configured roots that are not mounted right now. A removable drive that
+    is out means its history is EXCLUDED this run - that must be said out loud,
+    never left to read as 'usage went down'."""
+    return [r for r in config_roots() if not os.path.isdir(r)]
+
+
+def all_homes(sub):
+    """Every place a store named `sub` may live: the real home, Windows-side
+    homes on WSL, and every configured root. Existing directories only."""
+    out = []
+    h = os.path.expanduser(f"~/{sub}")
+    if os.path.isdir(h):
+        out.append(h)
+    out += windows_homes(sub)
+    for r in config_roots():
+        c = os.path.join(r, sub)
+        if os.path.isdir(c) and c not in out:
+            out.append(c)
+    return out
+
+
 def claude_files():
     # Recursive, because transcripts do not all sit one level down:
     # subagent runs write project/<session>/subagents/agent-*.jsonl, and a
     # one-level glob silently dropped 39 files, ~1,500 messages and every
-    # haiku token on this very machine. Windows homes for the same reason
-    # codex scans them - a separate store is not an absent store.
-    out = glob.glob(os.path.expanduser("~/.claude/projects/**/*.jsonl"),
-                    recursive=True)
-    for h in windows_homes(".claude"):
+    # haiku token on this very machine. all_homes covers the Windows side
+    # and every user-configured root the same way.
+    out = []
+    for h in all_homes(".claude"):
         out += glob.glob(f"{h}/projects/**/*.jsonl", recursive=True)
     return out
 
 
 def codex_files():
-    out = glob.glob(os.path.expanduser("~/.codex/sessions/**/*.jsonl"), recursive=True)
-    for h in windows_homes(".codex"):
+    out = []
+    for h in all_homes(".codex"):
         out += glob.glob(f"{h}/sessions/**/*.jsonl", recursive=True)
     return out
 
 
 def grok_files():
-    return glob.glob(os.path.expanduser("~/.grok/sessions/*/*/updates.jsonl"))
+    out = []
+    for h in all_homes(".grok"):
+        out += glob.glob(f"{h}/sessions/*/*/updates.jsonl")
+    return out
 
 
 def scrape_cwd(agent):
@@ -1505,6 +1554,13 @@ def render(args):
             print(f" {s.bgrn}▲  headroom everywhere · tightest is "
                   f"{short_model(ag, r['model'])} at {r['pct']:.0f}% ({when}){s.r}")
 
+    # A configured root that is not mounted (a dev SSD pulled out) means its
+    # history is missing from every panel below. Say so, or the board reads
+    # as "usage went down" - a silent wrong answer.
+    for _r in missing_roots():
+        print(f" {s.warn}▲  configured root not mounted: {_r} "
+              f"- its history is excluded this run{s.r}")
+
     # ── quota panel
     top("PLAN QUOTA", "normalized to % consumed")
     mid()
@@ -1907,6 +1963,39 @@ def interactive(args):
         print()
 
 
+def scan_roots():
+    """Hunt likely mount points for agent stores that discovery does not
+    already cover, and print exactly how to add each find. Read-only, bounded
+    to shallow globs, and user-invoked - never part of a render."""
+    print(f"\n {s.b}{s.wht}OMNIGAUGE - store scan{s.r}")
+    print(f" {s.faint}{'━' * (W - 2)}{s.r}\n")
+    sigs = ((".claude", "projects"), (".codex", "sessions"), (".grok", "sessions"))
+    known = {h for sub, _ in sigs for h in all_homes(sub)}
+    pats = []
+    for base in ("/mnt/*", "/media/*", "/media/*/*", "/run/media/*/*", "/Volumes/*"):
+        for depth in ("", "*", "*/*"):
+            pats.append(os.path.join(base, depth) if depth else base)
+    hits = {}
+    for pat in pats:
+        for sub, sig in sigs:
+            for d in glob.glob(os.path.join(pat, sub, sig)):
+                store = os.path.dirname(d)
+                if store in known or not os.path.isdir(d):
+                    continue
+                hits.setdefault(os.path.dirname(store), set()).add(sub)
+    if not hits:
+        print(f"  {s.gry}No stores found outside the ones already scanned.{s.r}")
+        print(f"  {s.gry}If yours lives somewhere unusual, add its HOME-like parent "
+              f"(the directory holding .claude/.codex/...) as a line in{s.r}")
+        print(f"  {s.accent}{os.path.join(DATA, 'roots')}{s.r}\n")
+        return
+    for home, subs in sorted(hits.items()):
+        print(f"  {s.ok}●{s.r} {s.b}{home}{s.r}  {s.gry}holds {', '.join(sorted(subs))}{s.r}")
+        print(f"    {s.gry}add it:{s.r} {s.accent}echo '{home}' >> {os.path.join(DATA, 'roots')}{s.r}")
+    print(f"\n  {s.gry}Roots are scanned like a second home. When the drive is out, the "
+          f"board says so instead of quietly shrinking.{s.r}\n")
+
+
 def doctor():
     """What is connected, what is not, and the exact next command for each gap.
 
@@ -1930,6 +2019,20 @@ def doctor():
             print(f"     {s.faint}○ {a:<8} not installed - skipped{s.r}")
     if not any_cli:
         print(f"     {s.warn}no agent CLIs found. Install at least one, then re-run.{s.r}")
+
+    roots = config_roots()
+    if roots:
+        print(f"\n     {s.gry}extra roots ({os.path.join(DATA, 'roots')} + OMNIGAUGE_ROOTS):{s.r}")
+        for r in roots:
+            if os.path.isdir(r):
+                print(f"     {s.ok}●{s.r} {r}  mounted, scanned")
+            else:
+                print(f"     {s.warn}●{s.r} {r}  {s.warn}NOT MOUNTED{s.r} - its history is "
+                      f"excluded until it returns")
+    else:
+        print(f"     {s.faint}○ no extra roots configured. Stores on another drive?{s.r}")
+        print(f"       {s.accent}omnigauge --scan-roots{s.r}{s.gry} hunts mounts, or add a home-like "
+              f"path per line to {os.path.join(DATA, 'roots')}{s.r}")
 
     print(f"\n  {s.b}2. Plan quota{s.r} {s.gry}- scraped from each CLI; no vendor offers an API for it{s.r}")
     if not shutil.which("tmux"):
@@ -2051,6 +2154,8 @@ def main():
     p.add_argument("--providers", action="store_true",
                    help="the providers legend: what each source gets, could get, "
                         "and cannot get - with reasons")
+    p.add_argument("--scan-roots", action="store_true",
+                   help="hunt mounted drives for agent stores discovery does not cover")
     p.add_argument("--doctor", action="store_true",
                    help="what is connected, what is missing, and how to fix it")
     p.add_argument("--setup", action="store_true",
@@ -2072,6 +2177,11 @@ def main():
         cfg = load_alerts()
         sev, msgs = evaluate_alerts(con, cfg)
         con.close()
+        # A pulled drive is worth a line in cron mail, but not an alarm:
+        # exit stays as the thresholds decided.
+        for _r in missing_roots():
+            print(f"NOTICE: configured root not mounted: {_r} "
+                  "- its history is excluded")
         if msgs:
             for m in msgs:
                 print(("CRITICAL: " if sev >= 2 else "WARNING: ") + m)
@@ -2086,6 +2196,8 @@ def main():
 
     if a.doctor:
         doctor(); return
+    if a.scan_roots:
+        scan_roots(); return
 
     if a.setup:
         import getpass

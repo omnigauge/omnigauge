@@ -549,6 +549,67 @@ class TestProviderConformance(unittest.TestCase):
         self.assertEqual(og.scan_grok(p, 1500), self.plug_grok.scan(p, 1500),
                          "grok since drift: builtin vs mirror")
 
+    def test_configured_roots_extend_discovery_through_both_copies(self):
+        """A removable dev drive is POINTED AT, not guessed: OMNIGAUGE_ROOTS
+        adds HOME-like roots and discovery for every agent unions them - via
+        the builtin AND the mirror that overrides it at load."""
+        root = os.path.join(_TMP, "ssd-root")
+        os.makedirs(os.path.join(root, ".claude", "projects", "-p"), exist_ok=True)
+        os.makedirs(os.path.join(root, ".codex", "sessions", "2026"), exist_ok=True)
+        os.makedirs(os.path.join(root, ".grok", "sessions", "a", "b"), exist_ok=True)
+        cf = os.path.join(root, ".claude", "projects", "-p", "s.jsonl")
+        xf = os.path.join(root, ".codex", "sessions", "2026", "r.jsonl")
+        gf = os.path.join(root, ".grok", "sessions", "a", "b", "updates.jsonl")
+        for p in (cf, xf, gf):
+            with open(p, "w") as fh:
+                fh.write("{}\n")
+        old = os.environ.get("OMNIGAUGE_ROOTS")
+        os.environ["OMNIGAUGE_ROOTS"] = root
+        try:
+            self.assertIn(cf, og.claude_files())
+            self.assertIn(xf, og.codex_files())
+            self.assertIn(gf, og.grok_files())
+            self.assertEqual(sorted(og.claude_files()), sorted(self.plug.files()))
+            self.assertEqual(sorted(og.codex_files()),
+                             sorted(self.plug_codex.files()))
+            self.assertEqual(sorted(og.grok_files()),
+                             sorted(self.plug_grok.files()))
+        finally:
+            if old is None: os.environ.pop("OMNIGAUGE_ROOTS", None)
+            else: os.environ["OMNIGAUGE_ROOTS"] = old
+
+    def test_unplugged_root_is_named_not_silent(self):
+        gone = os.path.join(_TMP, "unplugged-ssd")
+        old = os.environ.get("OMNIGAUGE_ROOTS")
+        os.environ["OMNIGAUGE_ROOTS"] = gone
+        try:
+            self.assertIn(gone, og.missing_roots())
+        finally:
+            if old is None: os.environ.pop("OMNIGAUGE_ROOTS", None)
+            else: os.environ["OMNIGAUGE_ROOTS"] = old
+
+    def test_roots_file_comments_and_blanks(self):
+        old_data = og.DATA
+        og.DATA = os.path.join(_TMP, "roots-data")
+        os.makedirs(og.DATA, exist_ok=True)
+        with open(os.path.join(og.DATA, "roots"), "w") as fh:
+            fh.write("# a comment\n\n/somewhere/drive\n")
+        try:
+            self.assertIn("/somewhere/drive", og.config_roots())
+        finally:
+            og.DATA = old_data
+
+    def test_check_names_unplugged_root_in_cron_output(self):
+        env = dict(os.environ,
+                   OMNIGAUGE_HOME=os.path.join(_TMP, "chk-home"),
+                   OMNIGAUGE_ROOTS=os.path.join(_TMP, "chk-not-there"))
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "omnigauge"),
+                            "--check", "--quiet"],
+                           capture_output=True, text=True, env=env, timeout=60)
+        self.assertIn("NOTICE: configured root not mounted", r.stdout)
+        self.assertEqual(r.returncode, 0,
+                         "an unplugged drive is a notice, not an alarm")
+
     def test_claude_files_discovery_matches_builtin_and_descends(self):
         """The mirror OVERRIDES the built-in at load, so a discovery fix that
         lands in only one of them silently unfixes itself on the next install.

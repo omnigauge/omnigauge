@@ -37,8 +37,8 @@ CAPS = dict(tokens="obtained: last cumulative total per rollout",
 def files():
     """WSL keeps TWO stores — ~/.codex and the Windows-side install. Searching
     one and declaring the other absent is a mistake that has been made here."""
-    out = glob.glob(os.path.expanduser("~/.codex/sessions/**/*.jsonl"), recursive=True)
-    for h in og.windows_homes(".codex"):
+    out = []
+    for h in og.all_homes(".codex"):
         out += glob.glob(f"{h}/sessions/**/*.jsonl", recursive=True)
     return out
 

@@ -41,6 +41,8 @@ def files():
     for pat in ("/mnt/*/Users/*/AppData/Local/Block/goose/data/sessions/sessions.db",
                 "/mnt/*/Users/*/AppData/Roaming/Block/goose/data/sessions/sessions.db"):
         candidates += glob.glob(pat)
+    for r in og.config_roots():
+        candidates.append(os.path.join(r, ".local/share/goose/sessions/sessions.db"))
     return [p for p in candidates if os.path.exists(p)]
 
 

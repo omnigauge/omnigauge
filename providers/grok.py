@@ -27,7 +27,10 @@ CAPS = dict(tokens="obtained: session totals only", quota="obtained",
 # ── presence ────────────────────────────────────────────────────────────────
 
 def files():
-    return glob.glob(os.path.expanduser("~/.grok/sessions/*/*/updates.jsonl"))
+    out = []
+    for h in og.all_homes(".grok"):
+        out += glob.glob(f"{h}/sessions/*/*/updates.jsonl")
+    return out
 
 
 # ── token counting ──────────────────────────────────────────────────────────

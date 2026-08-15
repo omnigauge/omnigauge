@@ -41,9 +41,8 @@ def files():
     haiku token while the built-in had already been fixed — the mirror OVERRIDES
     the built-in at load, so the two must change together. Windows homes for the
     same reason codex scans them."""
-    out = glob.glob(os.path.expanduser("~/.claude/projects/**/*.jsonl"),
-                    recursive=True)
-    for h in og.windows_homes(".claude"):
+    out = []
+    for h in og.all_homes(".claude"):
         out += glob.glob(f"{h}/projects/**/*.jsonl", recursive=True)
     return out
 

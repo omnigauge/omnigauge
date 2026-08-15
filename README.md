@@ -158,6 +158,19 @@ omnigauge               # the board — press ? for keys
 quota has ever been collected, shows which optional API credentials are set, and
 prints the exact next command for every gap. Nothing else needs to be memorised.
 
+## Stores on another drive
+
+Transcripts do not have to live in `~`. If yours sit on a dev SSD, a second
+profile, or anywhere else, point at the HOME-like directory that *contains* the
+stores (`.claude`, `.codex`, …): one path per line in
+`~/.local/share/omnigauge/roots`, or `OMNIGAUGE_ROOTS` (path-separated).
+`omnigauge --scan-roots` hunts mounted drives for stores discovery is not
+already reading and prints the exact line to add.
+
+Roots are scanned like a second home. When the drive is unplugged, the board
+and `--check` say its history is excluded this run — the numbers never just
+quietly shrink — and `--doctor` shows every root as mounted or missing.
+
 ## Install
 
 Requires Python 3.8+ and `tmux` (only for quota scraping).
