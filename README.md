@@ -334,6 +334,12 @@ it will save you the work.
 Everything here is MIT. Your contribution comes in under the same licence, and
 you keep the copyright to what you wrote.
 
+**Not a Python person?** Chip in a Sol or two instead. It buys you nothing — no
+tier, no badge, no priority support, no role in a Discord that does not exist —
+which is precisely what makes it a donation and not a purchase. Details under
+[Donations](#donations), and the address is right there in the terminal too:
+`omnigauge` → press `F7`.
+
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
