@@ -208,7 +208,7 @@ omnigauge --refresh</pre>
   <b>F9</b><i data-c="help">Cmds</i>
   <span class="sp"></span>
   <b>F10</b><i data-c="github">GitHub</i>
-  <b>F11</b><i data-c="saver">Saver</i>
+  <b>Alt+S</b><i data-c="saver">Saver</i>
 </div>
 
 <script>
@@ -344,7 +344,7 @@ var C={
    ['privacy','what it refuses to do'],['doctor','what it finds on your machine'],
    ['open','why MIT is the whole point'],['donate','if it saved you something'],
    ['copy','install lines to clipboard'],['wallet','address to clipboard'],
-   ['saver','the screen goes dark'],
+   ['saver','the screen goes dark (Alt+S)'],
    ['github','open the repository'],['cls','clear the screen']]
   .forEach(function(c){row('  [[y]]'+pad(c[0],12)+'[[/]][[d]]'+c[1]+'[[/]]');});
   row('');foot('function keys along the bottom do the same');blank();},
@@ -501,14 +501,15 @@ inp.addEventListener('keydown',function(e){
 });
 var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
 addEventListener('keydown',function(e){
-  if(e.key==='F11'){
-    e.preventDefault();
-    var el=document.documentElement;
-    if(!document.fullscreenElement && el.requestFullscreen)
-      el.requestFullscreen().catch(function(){});
-    marquee();
-    return;
+  /* Alt+S, not F11. F11 belongs to the browser chrome — Firefox handles it
+     before the page is dispatched at all, so preventDefault has nothing to
+     prevent and the keydown simply never arrives. F11 is still attempted for
+     the browsers that do deliver it, but Alt+S is the one that is advertised
+     because it is the one that always works. */
+  if((e.key==='s'||e.key==='S')&&e.altKey&&!e.ctrlKey&&!e.metaKey){
+    e.preventDefault(); goDark(); return;
   }
+  if(e.key==='F11'){ e.preventDefault(); goDark(); return; }
   if(modal.classList.contains('on')){
     if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();} return;}
   if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
@@ -605,6 +606,12 @@ var saver=document.getElementById('saver'),sv=document.getElementById('sv'),
    for the corner, and almost nobody has seen it — so it is worth counting. */
 var PAL=['#5aa6c9','#c9974f','#6ea888','#c47070','#8d9cbe','#a98fc4','#c9c07a'],
     pi=0, corners=0, bounced=0;
+function goDark(){
+  var el=document.documentElement;
+  if(!document.fullscreenElement && el.requestFullscreen)
+    el.requestFullscreen().catch(function(){});   /* refused is fine, saver runs anyway */
+  marquee();
+}
 function marquee(){
   if(saver.classList.contains('on')) return;
   clearInterval(sTimer);
