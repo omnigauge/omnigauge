@@ -21,7 +21,6 @@ No API keys. No telemetry. No network calls of its own. It reads the files those
 already write to your disk, and asks each CLI for its own quota panel.
 
 ```
-
  ▐▌ OMNIGAUGE  one gauge, every provider                         my-box · 20:31 UTC
  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▲  codex is at 97% — 5d 15h to reset · tightest window
@@ -357,4 +356,5 @@ A usage meter for AI tools, written by one. The source is right there either way
 
 ## Licence
 
-MIT. Use it, fork it, ship it.
+MIT. Use it, fork it, ship it. The code is yours under that licence; the name
+is not — see [TRADEMARK.md](TRADEMARK.md).
