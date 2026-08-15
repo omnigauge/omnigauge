@@ -59,20 +59,37 @@ def _q(s):
     return urllib.parse.quote(str(s), safe="-._~")
 
 
-def _auth_header(method, url, creds):
+def _oauth_params(creds, nonce=None, stamp=None):
+    """The six oauth_* protocol params. nonce/stamp are injectable so the
+    signing math can be asserted against the published test vector."""
     ck, cs, tok, ts = creds
-    p = {
+    return {
         "oauth_consumer_key": ck,
-        "oauth_nonce": secrets.token_hex(16),
+        "oauth_nonce": nonce or secrets.token_hex(16),
         "oauth_signature_method": "HMAC-SHA1",
-        "oauth_timestamp": str(int(time.time())),
+        "oauth_timestamp": stamp or str(int(time.time())),
         "oauth_token": tok,
         "oauth_version": "1.0",
     }
+
+
+def _base_string(method, url, params):
+    """RFC 5849 signature base: METHOD & enc(url) & enc(sorted k=v pairs)."""
+    norm = "&".join(f"{_q(k)}={_q(params[k])}" for k in sorted(params))
+    return f"{method}&{_q(url)}&{_q(norm)}"
+
+
+def _auth_header(method, url, creds, extra_params=None, nonce=None, stamp=None):
     # The JSON body is NOT part of the signature base for v2 — only oauth
-    # params and any query string. Including it is the other common 401.
-    norm = "&".join(f"{_q(k)}={_q(p[k])}" for k in sorted(p))
-    base = f"{method}&{_q(url)}&{_q(norm)}"
+    # params and any query/form params. Including the body is the other
+    # common 401. extra_params exists for form-encoded endpoints and for the
+    # documented test vector; the v2 JSON path passes none.
+    if "?" in url:
+        raise ValueError("query strings are not signed here - "
+                         "pass query params via extra_params instead")
+    ck, cs, tok, ts = creds
+    p = _oauth_params(creds, nonce=nonce, stamp=stamp)
+    base = _base_string(method, url, dict(p, **(extra_params or {})))
     key = f"{_q(cs)}&{_q(ts)}".encode()
     sig = base64.b64encode(hmac.new(key, base.encode(), hashlib.sha1).digest()).decode()
     p["oauth_signature"] = sig
