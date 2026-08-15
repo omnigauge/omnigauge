@@ -17,9 +17,12 @@
 One dashboard for **Claude Code**, **OpenAI Codex** and **Grok CLI** usage — plan quota and
 token volume, side by side, in your terminal.
 
-No API keys required. No telemetry. No network calls of its own. It reads the files
-those tools already write to your disk, and asks each CLI for its own quota panel.
-(The optional spend panel takes keys — yours, stored 0600, read-your-own-billing only.)
+No keys for the part that matters — plan quota and token volume come from files
+those tools already write to your disk, and from each CLI's own quota panel.
+API dollar spend is optional and does need a key for whichever vendor you want
+it from: stored 0600, never passed as an argument, refused outright if the file
+is group- or world-readable. Leave spend off and no credential — and no network
+call — is involved at all. No telemetry either way.
 
 ```
  ▐▌ OMNIGAUGE  one gauge, every provider                         my-box · 20:31 UTC

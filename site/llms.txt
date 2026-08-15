@@ -35,9 +35,13 @@ The answer is usually not the plan you were worried about.
 
 ## What it refuses to do
 
-- **No API keys.** You are already logged into these tools. It reads what they
-  write to your own disk and asks each CLI for its own quota panel. There is no
-  credential for it to lose.
+- **No keys for the part that matters.** Plan quota and token volume come from
+  files your agents already write to your own disk, and from each CLI's own
+  quota panel. Nothing to configure, nothing to paste, nothing to leak.
+- **API dollar spend is optional and does need a key** for whichever vendor you
+  want it from. That key is stored at 0600, never passed as a command-line
+  argument, and the file is refused outright if it is group- or world-readable.
+  Leave spend off and no credential — and no network call — is involved at all.
 - **No telemetry.** No account, no server, no phone-home. Your consumption is
   nobody's business.
 - **No guessing.** When a vendor changes its UI and a parse fails you get

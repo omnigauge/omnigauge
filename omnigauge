@@ -2,8 +2,10 @@
 """omnigauge — one gauge for every AI agent and API account you run.
 
 Reads plan quota straight from each CLI and token volume straight from the
-transcripts those tools already write to disk. No API keys, no telemetry, no
-network calls of its own.
+transcripts those tools already write to disk. Keyless and offline for quota
+and tokens. The optional spend panel is the exception: vendor keys, stored
+0600 and never passed as arguments, used for the only network calls it makes.
+No telemetry either way.
 
   omnigauge                 dashboard (cached quota + live token counts)
   omnigauge --refresh       re-scrape plan quota from every installed CLI
@@ -1640,8 +1642,14 @@ def privacy_panel():
     top("THINGS IT WILL NOT DO")
     mid()
     mid(f"  {s.wht}It will not ask for a key to read your agents.{s.r}")
-    mid(f"  {s.gry}You are already logged into these tools. It reads what they{s.r}")
-    mid(f"  {s.gry}write to your own disk. There is no credential to lose.{s.r}")
+    mid(f"  {s.gry}Plan quota and token volume come from files your agents{s.r}")
+    mid(f"  {s.gry}already write to your own disk. Nothing to paste, nothing{s.r}")
+    mid(f"  {s.gry}to leak.{s.r}")
+    mid()
+    mid(f"  {s.wht}The optional spend panel is the exception.{s.r}")
+    mid(f"  {s.gry}Dollar spend needs a vendor key: stored 0600, never passed{s.r}")
+    mid(f"  {s.gry}as an argument, refused outright if group- or world-readable.{s.r}")
+    mid(f"  {s.gry}Leave spend off and no credential is involved at all.{s.r}")
     mid()
     mid(f"  {s.wht}It will not phone home.{s.r}")
     mid(f"  {s.gry}No telemetry, no account, no server. What you spend is{s.r}")
