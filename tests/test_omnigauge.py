@@ -157,12 +157,24 @@ class TestPanelWidths(unittest.TestCase):
         class A:
             since, brief, theme = "24h", True, "ink"
         og.W, og.IN = 100, 97
+        # EVERY line, not just frame lines - checking only panels left five
+        # survivors on the site, one inside a panel header. Same rule here.
         banned = set("—–‘’“”→▟▛▎▋▁▂▃▄▅▆▇")
         for l in render_lines(og.render, A):
             p = strip_ansi(l)
-            if p.strip()[:1] in ("╭", "│", "╰"):
-                hits = banned & set(p)
-                self.assertFalse(hits, f"fallback-risk glyph {hits} in frame line:\n{p!r}")
+            hits = banned & set(p)
+            self.assertFalse(hits, f"fallback-risk glyph {hits} in line:\n{p!r}")
+
+    def test_no_fallback_glyphs_in_doctor_or_legend(self):
+        banned = set("—–‘’“”→▟▛▎▋▁▂▃▄▅▆▇")
+        env = dict(os.environ, OMNIGAUGE_HOME=tempfile.mkdtemp(prefix="og-doc-"))
+        for flag in ("--doctor", "--providers"):
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "omnigauge"), flag],
+                               capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            for l in r.stdout.splitlines():
+                hits = banned & set(strip_ansi(l))
+                self.assertFalse(hits, f"{flag}: glyph {hits} in line:\n{l!r}")
 
 
 class TestParsers(unittest.TestCase):
@@ -525,6 +537,179 @@ class TestProviderConformance(unittest.TestCase):
         t = og.scan_grok(p, 0)
         self.assertEqual(t["total"], 4260)
         self.assertIn("grok-4", t["models"])
+
+
+class TestCapabilities(unittest.TestCase):
+    """The legend's honesty layer: every shipping source declares all seven
+    capabilities in a legal state; mirrors match built-ins; a third-party
+    provider appears in the legend automatically."""
+
+    PROVIDER_FILES = ("claude", "codex", "grok", "openrouter", "moonshot", "deepseek")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mods = {}
+        for name in cls.PROVIDER_FILES:
+            spec = importlib.util.spec_from_file_location(
+                f"caps_{name}", os.path.join(ROOT, "providers", f"{name}.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            cls.mods[name] = mod
+
+    def assert_caps_legal(self, caps, who):
+        self.assertEqual(set(caps), set(og.CAPABILITIES), who)
+        for c, v in caps.items():
+            self.assertIn(og.cap_state(v), og.CAP_STATES, f"{who}/{c}: {v!r}")
+
+    def test_every_shipping_provider_declares_legal_caps(self):
+        for name, mod in self.mods.items():
+            self.assert_caps_legal(mod.CAPS, name)
+
+    def test_builtin_caps_legal(self):
+        for name, caps in og.BUILTIN_CAPS.items():
+            self.assert_caps_legal(caps, f"builtin:{name}")
+
+    def test_mirror_caps_match_builtin(self):
+        for name in ("claude", "codex", "grok"):
+            self.assertEqual(self.mods[name].CAPS, og.BUILTIN_CAPS[name],
+                             f"caps drift in {name}")
+
+    def test_third_party_provider_appears_in_legend(self):
+        import types
+        fake = types.ModuleType("fakeprov")
+        fake.KIND = "api"
+        fake.CAPS = dict.fromkeys(og.CAPABILITIES, "unavailable: a test double")
+        og.PROVIDERS["zzz-fake"] = fake
+        try:
+            names = [n for n, _, _ in og.legend_rows()]
+            self.assertIn("zzz-fake", names)
+            self.assertEqual(og.caps_for("zzz-fake"), fake.CAPS)
+        finally:
+            del og.PROVIDERS["zzz-fake"]
+
+    def test_legend_renders_within_frame(self):
+        og.S.on = True
+        added = []
+        for name, mod in self.mods.items():
+            if name not in og.PROVIDERS:
+                og.PROVIDERS[name] = mod; added.append(name)
+        try:
+            for W in (80, 100):
+                og.W, og.IN = W, W - 3
+                lines = render_lines(og.legend)
+                widths = frame_widths(lines)
+                self.assertTrue(widths)
+                target = widths[0][0]
+                for w, t in widths:
+                    self.assertEqual(w, target, f"ragged legend at W={W}:\n{t!r}")
+                    self.assertLessEqual(w, W, t)
+        finally:
+            for name in added:
+                del og.PROVIDERS[name]
+            og.W, og.IN = 100, 97
+
+
+class TestApiProviders(unittest.TestCase):
+    """Spend providers against fixture replies. Shapes were verified from the
+    vendors' docs 2026-08-15; a live key exercises them later. What is
+    asserted here: correct mapping, and errors that surface loudly."""
+
+    @classmethod
+    def setUpClass(cls):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(
+                f"api_{name}", os.path.join(ROOT, "providers", f"{name}.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        cls.orr, cls.moon, cls.dsk = load("openrouter"), load("moonshot"), load("deepseek")
+
+    def with_reply(self, fn, reply, err=None):
+        old = og._get
+        og._get = lambda url, key, timeout=20: (reply, err)
+        try:
+            return fn()
+        finally:
+            og._get = old
+
+    def test_openrouter_with_limit(self):
+        r = self.with_reply(lambda: self.orr.api_usage({"openrouter_api_key": "k"}),
+                            {"data": {"usage": 25.75, "limit": 100.5, "is_free_tier": False}})
+        self.assertIsNone(r["err"])
+        self.assertEqual(r["spend_usd"], 25.75)
+        self.assertAlmostEqual(r["pct"], 25.62, places=1)
+        self.assertEqual(r["unit"], "credits")
+
+    def test_openrouter_uncapped_is_spend_only(self):
+        r = self.with_reply(lambda: self.orr.api_usage({"openrouter_api_key": "k"}),
+                            {"data": {"usage": 3.5, "limit": None}})
+        self.assertEqual((r["spend_usd"], r["cap"], r["err"]), (3.5, None, None))
+
+    def test_openrouter_error_surfaces(self):
+        r = self.with_reply(lambda: self.orr.api_usage({"openrouter_api_key": "k"}),
+                            None, err="HTTP 401")
+        self.assertEqual(r["err"], "HTTP 401")
+
+    def test_moonshot_ok_and_negative_cash_note(self):
+        r = self.with_reply(lambda: self.moon.api_usage({"moonshot_api_key": "k"}),
+                            {"code": 0, "status": True, "data": {
+                                "available_balance": 49.58894,
+                                "voucher_balance": 51.0, "cash_balance": -1.41}})
+        self.assertIsNone(r["err"])
+        self.assertEqual(r["balance"], 49.59)
+        self.assertEqual(r["note"], "cash balance is negative")
+
+    def test_moonshot_bad_code_is_error(self):
+        r = self.with_reply(lambda: self.moon.api_usage({"moonshot_api_key": "k"}),
+                            {"code": 7, "status": False})
+        self.assertIn("code=7", r["err"])
+
+    def test_deepseek_ok_with_currency(self):
+        r = self.with_reply(lambda: self.dsk.api_usage({"deepseek_api_key": "k"}),
+                            {"is_available": True, "balance_infos": [
+                                {"currency": "CNY", "total_balance": "110.00"}]})
+        self.assertEqual((r["balance"], r["currency"], r["err"]), (110.0, "CNY", None))
+
+    def test_deepseek_depleted_carries_note(self):
+        r = self.with_reply(lambda: self.dsk.api_usage({"deepseek_api_key": "k"}),
+                            {"is_available": False, "balance_infos": [
+                                {"currency": "USD", "total_balance": "0.00"}]})
+        self.assertEqual(r["note"], "balance too low for API calls")
+
+    def test_no_key_fails_closed(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("OPENROUTER_API_KEY", "MOONSHOT_API_KEY", "DEEPSEEK_API_KEY")}
+        old = dict(os.environ)
+        os.environ.clear(); os.environ.update(env)
+        try:
+            for mod in (self.orr, self.moon, self.dsk):
+                r = mod.api_usage({})
+                self.assertIn("no key", r["err"])
+        finally:
+            os.environ.clear(); os.environ.update(old)
+
+    def test_api_rows_render_within_frame(self):
+        og.S.on = True
+        rows = [
+            ("openrouter", "credits", dict(spend_usd=25.75, used=25.75, cap=100.5,
+                                           pct=25.62, unit="credits", err=None)),
+            ("moonshot", "balance", dict(balance=49.59, currency=None,
+                                         note="cash balance is negative", err=None)),
+            ("deepseek", "balance", dict(balance=110.0, currency="CNY", note=None, err=None)),
+            ("openai", "org · 30d", dict(spend_usd=12.34, requests=100, tokens=5_000_000, err=None)),
+            ("x/acct1", "posts · cap", dict(err="HTTP 401 - needs a valid bearer")),
+        ]
+        for W in (80, 100):
+            og.W, og.IN = W, W - 3
+            texts = [og.api_row_text(n, w, r) for n, w, r in rows]
+            lines = render_lines(lambda: (og.top("API SPEND & CREDITS", "x"),
+                                          [og.mid(t) for t in texts], og.bot("y")))
+            widths = frame_widths(lines)
+            target = widths[0][0]
+            for w, t in widths:
+                self.assertEqual(w, target, f"ragged api panel at W={W}:\n{t!r}")
+                self.assertLessEqual(w, W)
+        og.W, og.IN = 100, 97
 
 
 class TestInstall(unittest.TestCase):

@@ -24,6 +24,13 @@ import omnigauge as og
 NAME = "codex"
 KIND = "agent"
 
+CAPS = dict(tokens="obtained: last cumulative total per rollout",
+            quota="obtained: percent remaining, inverted", reset="obtained",
+            models="obtained: attributed to the last model in the file",
+            lifetime="obtained",
+            spend="unavailable: subscription plans have no dollar balance",
+            burn="obtained: derived from the quota series")
+
 
 # ── presence ────────────────────────────────────────────────────────────────
 

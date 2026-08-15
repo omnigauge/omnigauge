@@ -17,6 +17,11 @@ import omnigauge as og
 NAME = "claude"
 KIND = "agent"
 
+CAPS = dict(tokens="obtained", quota="obtained", reset="obtained",
+            models="obtained", lifetime="obtained",
+            spend="unavailable: subscription plans have no dollar balance",
+            burn="obtained: derived from the quota series")
+
 
 # ── presence ────────────────────────────────────────────────────────────────
 

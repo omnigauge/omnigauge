@@ -17,6 +17,12 @@ import omnigauge as og
 NAME = "grok"
 KIND = "agent"
 
+CAPS = dict(tokens="obtained: session totals only", quota="obtained",
+            reset="obtained", models="obtained: from the session summary",
+            lifetime="obtained",
+            spend="unavailable: subscription plans have no dollar balance",
+            burn="obtained: derived from the quota series")
+
 
 # ── presence ────────────────────────────────────────────────────────────────
 

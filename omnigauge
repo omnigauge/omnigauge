@@ -604,6 +604,113 @@ def all_agents():
     return out
 
 
+# ─────────────────────────────── capabilities ────────────────────────────────
+#
+# Three states, not two. "obtained" is on your board now. "available" means
+# the vendor exposes it and this provider does not read it yet. "unavailable"
+# means the vendor does not expose it - with the reason stated, because the
+# reason is the useful part: "the vendor writes the schema and zeroes every
+# value" saves the next person a day, where a blank cell says nothing.
+# A state may carry a note after a colon: "obtained: session totals only".
+
+CAPABILITIES = ("tokens", "quota", "reset", "models", "lifetime", "spend", "burn")
+CAP_STATES = ("obtained", "available", "unavailable")
+
+_NO_SPEND = "unavailable: subscription plans have no dollar balance"
+_API_ACCT = "unavailable: an API account, not a local agent"
+
+BUILTIN_CAPS = {
+    "claude": dict(tokens="obtained", quota="obtained", reset="obtained",
+                   models="obtained", lifetime="obtained", spend=_NO_SPEND,
+                   burn="obtained: derived from the quota series"),
+    "codex": dict(tokens="obtained: last cumulative total per rollout",
+                  quota="obtained: percent remaining, inverted", reset="obtained",
+                  models="obtained: attributed to the last model in the file",
+                  lifetime="obtained", spend=_NO_SPEND,
+                  burn="obtained: derived from the quota series"),
+    "grok": dict(tokens="obtained: session totals only", quota="obtained",
+                 reset="obtained", models="obtained: from the session summary",
+                 lifetime="obtained", spend=_NO_SPEND,
+                 burn="obtained: derived from the quota series"),
+    # the two built-in spend sources are part of the board and belong here too
+    "openai": dict(tokens="obtained: 30-day organization totals",
+                   quota="unavailable: admin keys expose spend, not plan windows",
+                   reset="unavailable: no window to reset",
+                   models="unavailable: not broken out by the usage API",
+                   lifetime="available: the API takes wider date ranges",
+                   spend="obtained: organization costs, 30 days",
+                   burn="unavailable: no quota series to derive from"),
+    "x": dict(tokens=_API_ACCT,
+              quota="obtained: posts against the project cap",
+              reset="unavailable: the usage endpoint does not state the window end",
+              models=_API_ACCT, lifetime=_API_ACCT,
+              spend="unavailable: dollar balances are console-only, verified",
+              burn="unavailable: no series is kept for post caps"),
+}
+
+
+def cap_state(v):
+    return (v or "").split(":", 1)[0].strip()
+
+
+def caps_for(name):
+    """A provider's declared CAPS wins; built-ins carry theirs here. The
+    legend walks the LOADED registry, so a third-party provider that declares
+    CAPS appears automatically - that is the whole promise of the plugin
+    system, and hardcoding this table in a view would quietly break it."""
+    mod = PROVIDERS.get(name)
+    if mod is not None and isinstance(getattr(mod, "CAPS", None), dict):
+        return mod.CAPS
+    return BUILTIN_CAPS.get(name, {})
+
+
+def legend_rows():
+    """(name, kind, caps) for every source that ships, agents first."""
+    rows = [(a, "agent", caps_for(a)) for a in agent_order()]
+    seen = {n for n, _, _ in rows}
+    for name in ("openai", "x"):
+        rows.append((name, "api", caps_for(name)))
+    for name, mod in sorted(PROVIDERS.items()):
+        if getattr(mod, "KIND", "") == "api" and name not in seen:
+            rows.append((name, "api", caps_for(name)))
+    return rows
+
+
+def legend():
+    """The providers legend: what each source actually gets, could get, and
+    cannot get. ● obtained · ○ available, not read yet · - unavailable."""
+    top("PROVIDERS", "what ships, what it gets, and what it cannot get")
+    mid()
+    short = {"lifetime": "LIFE", "models": "MODEL"}
+    hdr = "  " + f"{'SOURCE':<11}{'KIND':<6}" + "".join(
+        f"{short.get(c, c).upper():>8}" for c in CAPABILITIES)
+    mid(f"{s.gry}{hdr}{s.r}")
+    notes = []
+    for name, kind, caps in legend_rows():
+        cells = ""
+        for c in CAPABILITIES:
+            v = caps.get(c, "")
+            st = cap_state(v)
+            mark = {"obtained": f"{s.ok}●{s.r}", "available": f"{s.warn}○{s.r}",
+                    "unavailable": f"{s.faint}-{s.r}"}.get(st, f"{s.crit}?{s.r}")
+            cells += f"{'':>7}" + mark
+            if ":" in (v or "") or st not in CAP_STATES:
+                notes.append((name, c, v))
+        mid(f"  {s.b}{name:<11.11}{s.r}{s.gry}{kind:<6}{s.r}{cells}")
+    mid()
+    bot("● obtained · ○ available, not read yet · - unavailable")
+    if notes:
+        top("THE REASONS", "the third state is the honest one")
+        mid()
+        for name, c, v in notes:
+            st, _, why = (v or "").partition(":")
+            mark = {"obtained": s.ok, "available": s.warn}.get(st.strip(), s.faint)
+            mid(f"  {mark}{name}/{c}{s.r}{s.gry}: {st.strip()}{(' -' + why) if why else ''}{s.r}")
+        mid()
+        bot()
+    print()
+
+
 def agent_order():
     """Every agent the board renders: built-ins in their canonical order, then
     provider agents alphabetically. The render loops iterate THIS — a provider
@@ -817,7 +924,10 @@ def load_creds():
             print(f"  {s.crit}credentials unreadable: {e}{s.r}", file=sys.stderr)
     for k, env in (("openai_admin_key", "OPENAI_ADMIN_KEY"),
                    ("x_acct1_bearer", "X_ACCT1_BEARER"),
-                   ("x_acct2_bearer", "X_ACCT2_BEARER")):
+                   ("x_acct2_bearer", "X_ACCT2_BEARER"),
+                   ("openrouter_api_key", "OPENROUTER_API_KEY"),
+                   ("moonshot_api_key", "MOONSHOT_API_KEY"),
+                   ("deepseek_api_key", "DEEPSEEK_API_KEY")):
         if os.environ.get(env):
             c[k] = os.environ[env]
     return c
@@ -1059,7 +1169,7 @@ def refresh(which):
     for agent in which:
         spec = AGENTS[agent]
         if not installed(agent):
-            print(f"  {s.gry}{agent:<8} not installed — skipped{s.r}")
+            print(f"  {s.gry}{agent:<8} not installed - skipped{s.r}")
             continue
         print(f"  {agent:<8} scraping…", end="", flush=True)
         screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"],
@@ -1068,7 +1178,7 @@ def refresh(which):
                                        or (spec["cwd"]() if spec.get("cwd") else None)
                                        or scrape_cwd(agent)))
         if err:
-            print(f" {s.bred}FAILED{s.r} — {err}"); continue
+            print(f" {s.bred}FAILED{s.r} - {err}"); continue
         try:
             rows = spec["parse"](screen)
         except Exception as e:
@@ -1077,7 +1187,7 @@ def refresh(which):
         if not rows:
             with io.open(dump, "w", encoding="utf-8") as fh:
                 fh.write(screen or "")
-            print(f" {s.bred}NO QUOTA PARSED{s.r}{' — ' + err if err else ''}")
+            print(f" {s.bred}NO QUOTA PARSED{s.r}{' - ' + err if err else ''}")
             print(f"           raw screen -> {dump}")
             continue
         got = {(r["window"], r["model"]) for r in rows}
@@ -1102,10 +1212,10 @@ def refresh(which):
         if missing:
             with io.open(dump, "w", encoding="utf-8") as fh:
                 fh.write(screen)
-            print(f" {s.byel}PARTIAL{s.r} — {len(rows)} row(s), missing {missing}")
+            print(f" {s.byel}PARTIAL{s.r} - {len(rows)} row(s), missing {missing}")
             print(f"           raw screen -> {dump}")
         else:
-            print(f" {s.bgrn}ok{s.r} — {len(rows)} window(s)")
+            print(f" {s.bgrn}ok{s.r} - {len(rows)} window(s)")
     con.close()
 
 
@@ -1161,6 +1271,27 @@ def burn(con, agent, window, model, pct_now, at_now, lookback=6 * 3600):
     remaining = max(0.0, 100.0 - pct_now)
     out["dry_in"] = int(remaining / rate * 3600) if rate > 0 else None
     return out
+
+
+def api_row_text(name, window, r):
+    """One API SPEND panel row. Four shapes, in precedence order: an error
+    (loud, never a zero), a balance (prepaid vendors), usage against a cap,
+    or plain spend. Factored so the widths are assertable like quota rows."""
+    lead = f"  {s.accent}▸{s.r} {s.b}{name:<12.12}{s.r}{s.gry}{window:<12.12}{s.r}"
+    if r.get("err"):
+        return (f"  {s.crit}▸{s.r} {s.b}{name:<12.12}{s.r}{s.gry}{window:<12.12}{s.r}"
+                f"{s.crit}{r['err'][:44]}{s.r}")
+    if r.get("balance") is not None:
+        cur = f" {r['currency']}" if r.get("currency") else ""
+        note = f"  {r['note']}" if r.get("note") else ""
+        return lead + f"{s.wht}{r['balance']:>10}{s.r}{s.gry}{cur} balance{note}{s.r}"
+    if r.get("cap"):
+        return (lead + f"{bar(r['pct'] or 0, 14)} {s.wht}{r['pct']:>5.2f}%{s.r}"
+                f"{s.gry}  {r['used']:,.0f} / {human(r['cap'])} {r.get('unit', 'posts')}{s.r}")
+    spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "-"
+    return (lead + f"{s.wht}{spend:>10}{s.r}{s.gry}"
+            f"{(f'  {r["requests"]:,} req' if r.get('requests') else ''):<14}"
+            f"{(f'  {human(r["tokens"])} tok' if r.get('tokens') else '')}{s.r}")
 
 
 def since_epoch(name):
@@ -1232,7 +1363,7 @@ def render(args):
         when = f"{cd} to reset" if cd else (short_reset(r["reset"]) or "")
         if r["pct"] >= 90:
             print(f" {s.bred}▲  {short_model(ag, r['model'])} is at {r['pct']:.0f}% "
-                  f"— {when} · tightest window{s.r}")
+                  f"- {when} · tightest window{s.r}")
         else:
             print(f" {s.bgrn}▲  headroom everywhere · tightest is "
                   f"{short_model(ag, r['model'])} at {r['pct']:.0f}% ({when}){s.r}")
@@ -1330,20 +1461,7 @@ def render(args):
             mid(f"  {s.gry}add one with{s.r} {s.accent}omnigauge --setup{s.r}"
                 f"{s.gry} - needs an OpenAI ADMIN key (scope api.usage.read){s.r}")
         for name, window, r in api_rows:
-            if r.get("err"):
-                mid(f"  {s.crit}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
-                    f"{s.crit}{r['err'][:60]}{s.r}")
-                continue
-            if r.get("cap"):
-                mid(f"  {s.accent}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
-                    f"{bar(r['pct'] or 0, 14)} {s.wht}{r['pct']:>5.2f}%{s.r}"
-                    f"{s.gry}  {r['used']:,} / {human(r['cap'])} posts{s.r}")
-                continue
-            spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "-"
-            mid(f"  {s.accent}▸{s.r} {s.b}{name:<12}{s.r}{s.gry}{window:<12}{s.r}"
-                f"{s.wht}{spend:>10}{s.r}{s.gry}"
-                f"{(f"  {r['requests']:,} req" if r.get('requests') else ''):<14}"
-                f"{(f"  {human(r['tokens'])} tok" if r.get('tokens') else '')}{s.r}")
+            mid(api_row_text(name, window, r))
         mid()
         bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
@@ -1437,12 +1555,12 @@ def drain():
         os.read(fd, 64)
 
 
-KEYS = [("r", "refresh quota — all agents"),
+KEYS = [("r", "refresh quota - all agents"),
         ("1 2 3", "refresh claude / codex / grok only"),
-        ("w", "watch mode — auto redraw"),
+        ("w", "watch mode - auto redraw"),
         ("t", "cycle theme (ink · steel · mono · muted · vivid)"),
         ("s", "cycle window (24h · 7d · 30d · today · all)"),
-        ("b", "brief — hide lifetime and by-model"),
+        ("b", "brief - hide lifetime and by-model"),
         ("?", "this help"),
         ("q", "quit")]
 
@@ -1458,7 +1576,7 @@ def keybar(args, watching=False):
 
 def helpscreen():
     sys.stdout.write("\033[2J\033[H")
-    print(f"\n {s.b}{s.wht}OMNIGAUGE — keys{s.r}\n")
+    print(f"\n {s.b}{s.wht}OMNIGAUGE - keys{s.r}\n")
     for k, d in KEYS:
         print(f"   {s.accent}{k:<7}{s.r}{d}")
     print(f"\n {s.gry}Flags still work for scripting:{s.r}")
@@ -1521,10 +1639,10 @@ def doctor():
     of where a vendor hides its keys or why quota has to be scraped.
     """
     creds = load_creds()
-    print(f"\n {s.b}{s.wht}OMNIGAUGE — setup check{s.r}")
+    print(f"\n {s.b}{s.wht}OMNIGAUGE - setup check{s.r}")
     print(f" {s.faint}{'━' * (W - 2)}{s.r}\n")
 
-    print(f"  {s.b}1. Agent CLIs{s.r} {s.gry}— token counts come from files these already write{s.r}")
+    print(f"  {s.b}1. Agent CLIs{s.r} {s.gry}- token counts come from files these already write{s.r}")
     any_cli = False
     for a in agent_order():
         n = len(SCANNERS[a][0]())
@@ -1532,15 +1650,15 @@ def doctor():
             any_cli = True
             print(f"     {s.ok}●{s.r} {a:<8} installed · {n:,} transcript file(s) readable")
         elif n:
-            print(f"     {s.warn}●{s.r} {a:<8} not on PATH, but {n:,} transcript(s) found — counts still work")
+            print(f"     {s.warn}●{s.r} {a:<8} not on PATH, but {n:,} transcript(s) found - counts still work")
         else:
-            print(f"     {s.faint}○ {a:<8} not installed — skipped{s.r}")
+            print(f"     {s.faint}○ {a:<8} not installed - skipped{s.r}")
     if not any_cli:
         print(f"     {s.warn}no agent CLIs found. Install at least one, then re-run.{s.r}")
 
-    print(f"\n  {s.b}2. Plan quota{s.r} {s.gry}— scraped from each CLI; no vendor offers an API for it{s.r}")
+    print(f"\n  {s.b}2. Plan quota{s.r} {s.gry}- scraped from each CLI; no vendor offers an API for it{s.r}")
     if not shutil.which("tmux"):
-        print(f"     {s.crit}● tmux missing{s.r} — required to read the CLIs' usage panels")
+        print(f"     {s.crit}● tmux missing{s.r} - required to read the CLIs' usage panels")
         print(f"       {s.accent}sudo apt install tmux{s.r}")
     else:
         con = db()
@@ -1553,9 +1671,9 @@ def doctor():
             if a in have:
                 print(f"     {s.ok}●{s.r} {a:<8} collected")
             else:
-                print(f"     {s.warn}●{s.r} {a:<8} never collected — {s.accent}omnigauge --refresh {a}{s.r}")
+                print(f"     {s.warn}●{s.r} {a:<8} never collected - {s.accent}omnigauge --refresh {a}{s.r}")
 
-    print(f"\n  {s.b}3. API spend{s.r} {s.gry}— optional; real dollars, separate from plan quota{s.r}")
+    print(f"\n  {s.b}3. API spend{s.r} {s.gry}- optional; real dollars, separate from plan quota{s.r}")
     checks = [("openai_admin_key", "OpenAI",
                "platform.openai.com -> Settings -> Organization -> Admin keys -> Restricted, "
                "Usage API Scope = Read"),
@@ -1586,10 +1704,10 @@ def doctor():
         ok = not (mode & 0o077)
         print(f"\n  {s.b}4. Credential file{s.r}")
         print(f"     {s.ok if ok else s.crit}●{s.r} {CREDS}")
-        print(f"       mode {oct(mode)} — {'owner only' if ok else 'TOO OPEN, run: chmod 600 ' + CREDS}")
+        print(f"       mode {oct(mode)} - {'owner only' if ok else 'TOO OPEN, run: chmod 600 ' + CREDS}")
 
     print(f"\n  {s.b}Next{s.r}")
-    print(f"     {s.accent}omnigauge{s.r}          {s.gry}the board — press ? for keys{s.r}")
+    print(f"     {s.accent}omnigauge{s.r}          {s.gry}the board - press ? for keys{s.r}")
     print(f"     {s.accent}omnigauge --refresh{s.r} {s.gry}pull fresh quota (~30s per agent){s.r}\n")
 
 
@@ -1649,6 +1767,9 @@ def main():
     p.add_argument("--check", action="store_true",
                    help="headless: evaluate alerts, notify, exit 0/1/2 (for cron)")
     p.add_argument("--quiet", action="store_true", help="with --check, print only on alert")
+    p.add_argument("--providers", action="store_true",
+                   help="the providers legend: what each source gets, could get, "
+                        "and cannot get - with reasons")
     p.add_argument("--doctor", action="store_true",
                    help="what is connected, what is missing, and how to fix it")
     p.add_argument("--setup", action="store_true",
@@ -1673,9 +1794,12 @@ def main():
                 print(("CRITICAL: " if sev >= 2 else "WARNING: ") + m)
             notify(cfg, msgs, sev)
         elif not a.quiet:
-            print("ok — every window within thresholds")
+            print("ok - every window within thresholds")
         # exit code IS the interface: 0 fine, 1 warning, 2 critical
         sys.exit(sev)
+
+    if a.providers:
+        legend(); return
 
     if a.doctor:
         doctor(); return
@@ -1687,8 +1811,11 @@ def main():
         print("\n  Credentials are stored 0600 in", CREDS)
         print("  Leave blank to keep the current value. Input is hidden.\n")
         fields = [("openai_admin_key", "OpenAI ADMIN key (sk-admin-…, scope api.usage.read)"),
-                  ("x_acct1_bearer", "X developer bearer — first X account"),
-                  ("x_acct2_bearer", "X developer bearer — second X account")]
+                  ("x_acct1_bearer", "X developer bearer - first X account"),
+                  ("x_acct2_bearer", "X developer bearer - second X account"),
+                  ("openrouter_api_key", "OpenRouter API key (credits + usage)"),
+                  ("moonshot_api_key", "Moonshot/Kimi API key (balance)"),
+                  ("deepseek_api_key", "DeepSeek API key (balance)")]
         for k, prompt in fields:
             have = " [set]" if cur.get(k) else ""
             v = getpass.getpass(f"  {prompt}{have}: ").strip()
