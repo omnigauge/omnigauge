@@ -1317,10 +1317,10 @@ def api_row_text(name, window, r):
     """One API SPEND panel row. Four shapes, in precedence order: an error
     (loud, never a zero), a balance (prepaid vendors), usage against a cap,
     or plain spend. Factored so the widths are assertable like quota rows."""
-    lead = f"  {s.accent}▸{s.r} {s.b}{name:<12.12}{s.r}{s.gry}{window:<12.12}{s.r}"
+    lead = f"  {s.accent}▸{s.r} {s.b}{name:<16.16}{s.r}{s.gry}{window:<12.12}{s.r}"
     if r.get("err"):
-        return (f"  {s.crit}▸{s.r} {s.b}{name:<12.12}{s.r}{s.gry}{window:<12.12}{s.r}"
-                f"{s.crit}{r['err'][:44]}{s.r}")
+        return (f"  {s.crit}▸{s.r} {s.b}{name:<16.16}{s.r}{s.gry}{window:<12.12}{s.r}"
+                f"{s.crit}{r['err'][:40]}{s.r}")
     if r.get("balance") is not None:
         cur = f" {r['currency']}" if r.get("currency") else ""
         note = f"  {r['note']}" if r.get("note") else ""
@@ -1718,15 +1718,21 @@ def doctor():
     print(f"\n  {s.b}3. API spend{s.r} {s.gry}- optional; real dollars, separate from plan quota{s.r}")
     checks = [("openai_admin_key", "OpenAI",
                "platform.openai.com -> Settings -> Organization -> Admin keys -> Restricted, "
-               "Usage API Scope = Read"),
-              ("x_acct1_bearer", "X (account 1)", "developer.x.com -> your app -> Bearer Token"),
-              ("x_acct2_bearer", "X (account 2)", "developer.x.com -> second app -> Bearer Token")]
+               "Usage API Scope = Read")]
     for k, label, how in checks:
         if creds.get(k):
             print(f"     {s.ok}●{s.r} {label:<14} configured")
         else:
             print(f"     {s.faint}○ {label:<14} not set{s.r}")
             print(f"       {s.gry}{how}{s.r}")
+    x_named = sorted(k[2:-7] for k in creds
+                     if re.fullmatch(r"x_(\w+)_bearer", k) and creds[k])
+    if x_named:
+        for n in x_named:
+            print(f"     {s.ok}●{s.r} {('x/' + n):<14} configured")
+    else:
+        print(f"     {s.faint}○ {'x accounts':<14} none - name one in "
+              f"{s.accent}omnigauge --setup{s.r}")
     for name, mod in api_providers().items():
         ok = False
         if hasattr(mod, "detect"):
@@ -1853,8 +1859,6 @@ def main():
         print("\n  Credentials are stored 0600 in", CREDS)
         print("  Leave blank to keep the current value. Input is hidden.\n")
         fields = [("openai_admin_key", "OpenAI ADMIN key (sk-admin-…, scope api.usage.read)"),
-                  ("x_acct1_bearer", "X developer bearer - first X account"),
-                  ("x_acct2_bearer", "X developer bearer - second X account"),
                   ("openrouter_api_key", "OpenRouter API key (credits + usage)"),
                   ("moonshot_api_key", "Moonshot/Kimi API key (balance)"),
                   ("deepseek_api_key", "DeepSeek API key (balance)")]
@@ -1863,12 +1867,12 @@ def main():
             v = getpass.getpass(f"  {prompt}{have}: ").strip()
             if v:
                 cur[k] = v
-        # X accounts are not a fixed pair. Name one, paste its bearer, repeat.
-        extra = sorted(k[2:-7] for k in cur
-                       if re.fullmatch(r"x_(\w+)_bearer", k)
-                       and k not in ("x_acct1_bearer", "x_acct2_bearer"))
-        if extra:
-            print(f"  additional X accounts already set: {', '.join(extra)}")
+        # X accounts are named, not numbered - the name is what the board
+        # shows, so make it the one you want to read.
+        have_x = sorted(k[2:-7] for k in cur if re.fullmatch(r"x_(\w+)_bearer", k))
+        if have_x:
+            print(f"  X accounts set: {', '.join(have_x)} "
+                  "(re-enter a name to update its bearer)")
         while True:
             label = input("  add another X account? short NAME only, e.g. acct3 - "
                           "the bearer comes next, hidden (blank to finish): ").strip().lower()
