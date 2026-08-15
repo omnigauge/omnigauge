@@ -1,0 +1,3 @@
+# www -> apex, one canonical address — nginx did this with a vhost; Pages
+# does it here.
+https://www.omnigauge.dev/* https://omnigauge.dev/:splat 301
