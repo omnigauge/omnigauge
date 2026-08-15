@@ -302,14 +302,14 @@ already the trade working.
 **There will be no OmniGauge token from the developer of OmniGauge.** No presale, no airdrop, no community
 round, no Phase 3. You can launch one — someone always does. The ask is
 **creator fees plus 3% of supply** to the address above, and the token socials
-pointed at [@omnigauge](https://x.com/omnigauge) and omnigauge.dev — the only two
+pointed at [@OmniGauge](https://x.com/OmniGauge) and omnigauge.dev — the only two
 places this project exists. What you may not do is LARP as this project
 while you do it: no "official", no borrowed name, no invented team. Launch your
 own thing and be honest that it is yours.
 
 **X is the only place OmniGauge exists.** No Discord, no Telegram, no Reddit, no
 group chat, no "community". If something calls itself OmniGauge anywhere other
-than [@omnigauge](https://x.com/omnigauge) or omnigauge.dev, it is not us.
+than [@OmniGauge](https://x.com/OmniGauge) or omnigauge.dev, it is not us.
 
 **If you do launch one, come and say so.** The email on the GitHub profile is the
 channel that counts. If it checks out — you are not a known scammer, and you are
@@ -320,8 +320,8 @@ ends up on this page. A listing is not an endorsement. DYOR.
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
-- Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
-- Anything else → **dev@omnigauge.dev**
+- Security → **security@OmniGauge.dev** (see [SECURITY.md](SECURITY.md))
+- Anything else → **dev@OmniGauge.dev**
 
 ## Licence
 

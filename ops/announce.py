@@ -138,7 +138,7 @@ def main():
         print("  dry run. add --post to send.\n")
         return 0
     tid = post(text)
-    print(f"  posted — https://x.com/omnigauge/status/{tid}\n" if tid else "")
+    print(f"  posted — https://x.com/OmniGauge/status/{tid}\n" if tid else "")
     return 0 if tid else 1
 
 
