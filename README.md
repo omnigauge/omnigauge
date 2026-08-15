@@ -305,8 +305,8 @@ already the trade working.
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
-- Security → [private vulnerability reporting](../../security/advisories/new) (see [SECURITY.md](SECURITY.md))
-- Anything else → [discussions](../../discussions) or an issue
+- Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
+- Anything else → **dev@omnigauge.dev**
 
 ## Licence
 

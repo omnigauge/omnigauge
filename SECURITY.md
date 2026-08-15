@@ -1,6 +1,6 @@
 # Security Policy
 
-Report privately to [**GitHub private vulnerability reporting**](../../security/advisories/new). Please do not open a public issue
+Report privately to **security@omnigauge.dev**. Please do not open a public issue
 for anything credential-related — a public report is a disclosure.
 
 Expect an acknowledgement within a few days. This is a solo-maintained project,
