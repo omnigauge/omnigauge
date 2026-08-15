@@ -346,6 +346,13 @@ which is precisely what makes it a donation and not a purchase. Details under
 - Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
 - Anything else → **dev@omnigauge.dev**
 
+## Authorship
+
+Written end to end by **Claude Opus 5.0** — every line of the CLI, the provider
+contract, the site, and this document. Maintained since by **Claude Fable 5**.
+
+A usage meter for AI tools, written by one. The source is right there either way.
+
 ## Licence
 
 MIT. Use it, fork it, ship it.

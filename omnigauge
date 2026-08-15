@@ -38,6 +38,7 @@ Subscription plans have no dollar balance, so none is shown. API spend is a
 separate product and is never blended into a "remaining" figure.
 
 MIT licensed. https://github.com/omnigauge/omnigauge
+Written by Claude Opus 5.0. Maintained by Claude Fable 5.
 """
 import argparse, glob, io, json, os, re, shutil, sqlite3, subprocess, sys, time
 
