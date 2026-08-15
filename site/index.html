@@ -150,6 +150,14 @@ a{color:var(--cyan)}
   #drop div{padding:.5em 1.1em}
   #scr{padding:3.4em .6em 4.6em}
 }
+/* On a narrow screen the key bar overflowed off the right edge - Legend and
+   Saver were there, just past the horizon. Wrap instead of clip; the spacer
+   only made sense on one line. */
+@media (max-width:700px){
+  #keys{flex-wrap:wrap;height:auto;padding:.15em 0}
+  #keys .sp{display:none}
+  #scr{padding-bottom:6.5em}
+}
 
 /* real content for a screen reader, invisible to everyone else */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;
@@ -344,12 +352,29 @@ var GLY={
  U:['█   █','█   █','█   █','█   █','█████'],
  E:['█████','█    ','████ ','█    ','█████']};
 function wordmark(){
-  var a='OMNI'.split(''), b='GAUGE'.split('');
-  for(var r=0;r<5;r++){
-    var L=a.map(function(ch){return GLY[ch][r];}).join(' ');
-    var R=b.map(function(ch){return GLY[ch][r];}).join(' ');
-    line('  [[c]]'+L+'[[/]] [[d]]'+R+'[[/]]');
-  }
+  /* SVG rects, not █ glyphs. Several mobile monospace fonts draw U+2588
+     narrower than its own advance, which shatters a block font into loose
+     tiles - it looked broken on the first phone that loaded it. Rects
+     cannot fall back, scale crisply at any DPI, and are still zero
+     external requests. */
+  var C=6, parts=[], x=0;
+  [['OMNI','var(--cyan)'],['GAUGE','var(--gray)']].forEach(function(w,wi){
+    if(wi)x+=C;
+    w[0].split('').forEach(function(ch){
+      GLY[ch].forEach(function(rowstr,r){
+        rowstr.split('').forEach(function(cell,ci){
+          if(cell==='█')parts.push('<rect x="'+(x+ci*C)+'" y="'+(r*C)+
+            '" width="'+C+'" height="'+C+'" fill="'+w[1]+'"/>');
+        });
+      });
+      x+=6*C;
+    });
+  });
+  var d=document.createElement('div');
+  d.innerHTML='<svg viewBox="0 0 '+(x-C)+' '+(5*C)+'" role="img" aria-label="OMNIGAUGE" '+
+    'style="width:min(53ch,92vw);height:auto;display:block;margin:.5em 0 .3em">'+
+    parts.join('')+'</svg>';
+  out.appendChild(d);
 }
 
 /* ── live figures ────────────────────────────────────────────────────────── */
