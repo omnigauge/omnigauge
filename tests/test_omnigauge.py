@@ -1429,3 +1429,54 @@ class TestCodexResetUndercountsBothWindowAndLifetime(unittest.TestCase):
         for fn in (self._codex().scan, og.scan_codex):
             self.assertEqual(fn(f, now - 86400)["tin"], 1_500_000)
             self.assertEqual(fn(f, 0)["tin"], 1_500_000)
+
+
+class TestCacheSurvivesAScannerChange(unittest.TestCase):
+    """The cache is keyed on (mtime, size) — properties of the FILE.
+
+    Nothing records which version of the scanner produced a cached row, so
+    changing how a file is counted leaves every unchanged file answering with
+    the old arithmetic. After the codex step-sum fix the board was still
+    0.09% below an independent re-derivation, and would have stayed there until
+    each file happened to be written again.
+
+    A cached number must know which code made it.
+    """
+
+    def test_a_row_from_an_older_scanner_epoch_is_rescanned(self):
+        data = tempfile.mkdtemp(prefix="og-epoch-")
+        home = tempfile.mkdtemp(prefix="og-epoch-home-")
+        d = os.path.join(home, ".claude", "projects", "-p")
+        os.makedirs(d)
+        f = os.path.join(d, "s.jsonl")
+        with io.open(f, "w") as fh:
+            fh.write(json.dumps({"timestamp": "2026-08-15T10:00:00Z", "message": {
+                "model": "m", "usage": {"input_tokens": 42, "output_tokens": 0}}}) + "\n")
+
+        old_scanners = dict(og.SCANNERS)
+        og.SCANNERS["claude"] = (lambda: [f], og.scan_claude)
+        try:
+            con = sqlite3.connect(os.path.join(data, "t.db"))
+            con.executescript(og.SCHEMA)
+            for table, col, typ in og.MIGRATIONS:
+                have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+                if col not in have:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+
+            self.assertEqual(og.lifetime_totals("claude", con)["tin"], 42)
+
+            # Simulate a row left behind by an earlier version of the scanner:
+            # the file is untouched, but the number in the cache is not what
+            # today's code would produce.
+            con.execute("UPDATE filecache SET tin=999999, scan_epoch=?",
+                        (og.SCAN_EPOCH - 1,))
+            con.commit()
+            og.memo_clear()
+
+            self.assertEqual(
+                og.lifetime_totals("claude", con)["tin"], 42,
+                "a row produced by a different scanner version must be "
+                "re-derived, not trusted")
+        finally:
+            og.SCANNERS.clear(); og.SCANNERS.update(old_scanners)
+            og.memo_clear()

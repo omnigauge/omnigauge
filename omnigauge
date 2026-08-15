@@ -83,8 +83,9 @@ CREATE TABLE IF NOT EXISTS filecache (
   tin INTEGER, tout INTEGER, cache_read INTEGER, cache_write INTEGER,
   think INTEGER, total INTEGER, msgs INTEGER, scanned_at INTEGER,
   models TEXT,  -- JSON {model: {out, total, msgs}}; models change over a corpus
-  last_ts REAL  -- newest timestamp SEEN INSIDE the file; NULL = never scanned,
+  last_ts REAL, -- newest timestamp SEEN INSIDE the file; NULL = never scanned,
                 -- 0 = scanned and nothing in it carries a timestamp
+  scan_epoch INTEGER  -- which version of the counting arithmetic produced this
 );
 CREATE TABLE IF NOT EXISTS insights (
   id INTEGER PRIMARY KEY, agent TEXT, text TEXT, collected_at INTEGER
@@ -95,7 +96,15 @@ CREATE TABLE IF NOT EXISTS insights (
 # (table, column, type) added after the first release. CREATE TABLE IF NOT EXISTS
 # silently does nothing when the table already exists, so new columns need ALTER.
 MIGRATIONS = [("filecache", "models", "TEXT"),
-              ("filecache", "last_ts", "REAL")]
+              ("filecache", "last_ts", "REAL"),
+              ("filecache", "scan_epoch", "INTEGER")]
+
+# Bump whenever the ARITHMETIC of any scanner changes. The cache is keyed on
+# mtime and size, which describe the file — nothing described the code. After the
+# codex step-sum fix every unchanged file kept answering with the old numbers and
+# the board sat 0.09% below an independent re-derivation, silently, until each
+# file happened to be written again. A cached number has to know what made it.
+SCAN_EPOCH = 2
 
 
 def db():
@@ -1063,8 +1072,8 @@ def lifetime_totals(agent, con, progress=False):
         return _MEMO[key]
     files, scan = SCANNERS[agent]
     cached = {r[0]: r for r in con.execute(
-        "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs,models "
-        "FROM filecache WHERE agent=?", (agent,))}
+        "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs,models,"
+        "scan_epoch FROM filecache WHERE agent=?", (agent,))}
     t, fresh, n = blank(), 0, 0
     all_files = files()
     for f in all_files:
@@ -1086,7 +1095,7 @@ def lifetime_totals(agent, con, progress=False):
         # checked. A float second survives the round trip through SQLite REAL
         # intact; the epsilon is for the representation, not for the clock.
         if (c and abs(c[1] - st.st_mtime) < 1e-6 and c[2] == st.st_size
-                and c[10] not in (None, "", "{}")):
+                and c[10] not in (None, "", "{}") and c[11] == SCAN_EPOCH):
             vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:10]))
             try: vals["models"] = json.loads(c[10] or "{}")
             except Exception: vals["models"] = {}
@@ -1104,12 +1113,12 @@ def lifetime_totals(agent, con, progress=False):
             vals["models"] = r.get("models", {})
             con.execute(
                 "INSERT OR REPLACE INTO filecache(path,agent,mtime,size,tin,tout,"
-                "cache_read,cache_write,think,total,msgs,scanned_at,models,last_ts) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "cache_read,cache_write,think,total,msgs,scanned_at,models,last_ts,"
+                "scan_epoch) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (f, agent, st.st_mtime, st.st_size, vals["tin"], vals["tout"],
                  vals["cache_read"], vals["cache_write"], vals["think"],
                  vals["total"], vals["msgs"], NOW, json.dumps(vals["models"]),
-                 r.get("last_ts")))
+                 r.get("last_ts"), SCAN_EPOCH))
         if vals["msgs"]:
             t["files"] += 1
             merge(t, vals)
