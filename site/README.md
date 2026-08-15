@@ -29,6 +29,13 @@ fallback face with a different advance and silently ragged the layout.
 
 ## Deploy
 
-    scp site/index.html <host>:/var/www/omnigauge/index.html
+    npx wrangler pages deploy site --project-name=omnigauge --branch=main
 
-Served by nginx over TLS, origin reachable only from Cloudflare ranges.
+Served by Cloudflare Pages — no origin server at all. `_headers` carries the
+security headers and `_redirects` the www→apex hop; **neither file may
+contain comment lines** — the Pages parser silently ignores the whole file,
+and the only symptom is the platform's default headers where yours should be.
+Measured, the hard way.
+
+The old nginx origin remains configured on its box as the instant rollback:
+one DNS change (CNAME back to an A record at the origin) restores it.

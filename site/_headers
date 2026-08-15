@@ -1,5 +1,3 @@
-# Same three headers nginx sent from the old origin — the host changes,
-# the posture does not.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
