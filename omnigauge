@@ -1047,6 +1047,16 @@ def collect_api(con):
     for name, mod in api_providers().items():
         if not hasattr(mod, "api_usage"):
             continue
+        # Unconfigured is absence, not an error: a vendor the user never gave
+        # a key does not belong on the board as a red row. --doctor carries
+        # the not-set hint; detect() is exactly this question.
+        if hasattr(mod, "detect"):
+            try:
+                if not mod.detect():
+                    continue
+            except Exception as e:
+                SCAN_ERRORS.append(f"{name}: detect() raised {type(e).__name__}: {e}")
+                continue
         try:
             r = mod.api_usage(creds)
         except Exception as e:
