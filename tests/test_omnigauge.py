@@ -700,6 +700,24 @@ class TestApiProviders(unittest.TestCase):
         finally:
             os.environ.clear(); os.environ.update(old)
 
+    def test_collect_api_takes_any_x_label(self):
+        """The two-slot X design predates operators with three accounts:
+        any x_<label>_bearer in the creds file becomes a board row."""
+        old_load, old_usage = og.load_creds, og.x_usage
+        og.load_creds = lambda: {"x_acct1_bearer": "a", "x_acct3_bearer": "c",
+                                 "x_empty_bearer": "", "not_a_bearer": "x"}
+        og.x_usage = lambda token, label: dict(source="x", label=label, err=None)
+        try:
+            con = og.db()
+            rows, _ = og.collect_api(con)
+            con.close()
+        finally:
+            og.load_creds, og.x_usage = old_load, old_usage
+        labels = [n for n, _, _ in rows]
+        self.assertIn("x/acct1", labels)
+        self.assertIn("x/acct3", labels)
+        self.assertNotIn("x/empty", labels)
+
     def test_api_rows_render_within_frame(self):
         og.S.on = True
         rows = [

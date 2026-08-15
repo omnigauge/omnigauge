@@ -1037,8 +1037,12 @@ def collect_api(con):
     if creds.get("openai_admin_key"):
         r = openai_spend(creds["openai_admin_key"])
         rows.append(("openai", "org · 30d", r))
-    for label, k in (("x/acct1", "x_acct1_bearer"), ("x/acct2", "x_acct2_bearer")):
-        if creds.get(k):
+    # Any x_<label>_bearer in the credentials file is an X account on the
+    # board - the fixed two-slot design predates operators with three.
+    for k in sorted(creds):
+        m = re.fullmatch(r"x_(\w+)_bearer", k)
+        if m and creds[k]:
+            label = f"x/{m.group(1)}"
             rows.append((label, "posts · cap", x_usage(creds[k], label)))
     for name, mod in api_providers().items():
         if not hasattr(mod, "api_usage"):
@@ -1849,6 +1853,23 @@ def main():
             v = getpass.getpass(f"  {prompt}{have}: ").strip()
             if v:
                 cur[k] = v
+        # X accounts are not a fixed pair. Name one, paste its bearer, repeat.
+        extra = sorted(k[2:-7] for k in cur
+                       if re.fullmatch(r"x_(\w+)_bearer", k)
+                       and k not in ("x_acct1_bearer", "x_acct2_bearer"))
+        if extra:
+            print(f"  additional X accounts already set: {', '.join(extra)}")
+        while True:
+            label = input("  add another X account? label, e.g. acct3 "
+                          "(blank to finish): ").strip().lower()
+            if not label:
+                break
+            if not re.fullmatch(r"\w+", label):
+                print("  letters, digits and _ only")
+                continue
+            v = getpass.getpass(f"  X developer bearer - {label}: ").strip()
+            if v:
+                cur[f"x_{label}_bearer"] = v
         fd = os.open(CREDS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as fh:
             json.dump(cur, fh, indent=2)
