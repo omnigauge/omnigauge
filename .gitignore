@@ -3,3 +3,26 @@ __pycache__/
 *.db
 last-scrape-*.txt
 .venv/
+
+# Design exploration — concept sheets, generator output, rejected marks, size
+# tests. These are the trail, not the deliverable. The shipped art is the small
+# set of logo-*.png / logo.svg / x-header-*.png files that are tracked.
+assets/concept-*.png
+assets/gen-*.png
+assets/gk*.png
+assets/mark-*.png
+assets/mk-*.png
+assets/refine-*.png
+assets/finalists.png
+assets/banner-*.png
+assets/x-header-preview.png
+assets/grok/
+assets/grok-contact*.png
+ops/__pycache__/
+assets/concepts*.png
+assets/*-sizetest.png
+assets/master-C-*.png
+assets/master-D-*.png
+assets/logo-arcs.svg
+assets/logo-bars.svg
+assets/logo-level-ring.svg
