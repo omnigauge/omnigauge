@@ -36,9 +36,13 @@
   --panel:#0e1b3c;      /* raised surface, barely above the field */
   --edge:#22345f;       /* panel border */
   --shadow:rgba(1,4,14,.45);
-  --white:#dbe3f2; --cyan:#5aa6c9; --yellow:#c9974f; --gray:#7d8cae;
-  --dim:#4e5c7d; --red:#c47070; --green:#6ea888;
-  --barbg:#8d9cbe; --barink:#091228; --hot:#7d2f2f;
+  /* Measured against WCAG AA, not eyeballed. On --panel: white 13.1, cyan 6.2,
+     yellow 6.5, gray 5.8, dim 4.6, red 4.8, green 6.1 - all >= 4.5. The old
+     dim (#4e5c7d) sat at 2.5 on panel: atmospheric, and unreadable in sunlight.
+     Recovery is luminance-only - same hues, same restraint, more light. */
+  --white:#dbe3f2; --cyan:#5aa6c9; --yellow:#c9974f; --gray:#8a98b6;
+  --dim:#7686aa; --red:#c47070; --green:#6ea888;
+  --barbg:#8d9cbe; --barink:#091228; --hot:#582121;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,"DejaVu Sans Mono",Consolas,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -70,15 +74,15 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
 #menu span{cursor:pointer;user-select:none;padding:0 .35em}
 #menu span:hover{background:var(--barink);color:var(--barbg)}
 #menu u{color:var(--hot);text-decoration:none}
-#menu .rt{margin-left:auto;color:#4a5c8c}
+#menu .rt{margin-left:auto;color:#29324d}   /* 4.6:1 on the bar; was 2.4 */
 #menu span.on{background:var(--barink);color:var(--barbg)}
 #drop{position:fixed;z-index:70;background:var(--barbg);color:var(--barink);
   box-shadow:.5em .3em 0 var(--shadow);border:1px solid #8fa0c8;display:none;
   padding:.25em 0;min-width:15em;font-size:.96em}
 #drop div{padding:.12em 1.1em;cursor:pointer;white-space:nowrap}
-#drop div:hover{background:var(--barink);color:var(--barbg)}
+#drop div:hover,#drop div.sel{background:var(--barink);color:var(--barbg)}
 #drop u{color:var(--hot);text-decoration:none}
-#drop div:hover u{color:var(--yellow)}
+#drop div:hover u,#drop div.sel u{color:var(--yellow)}
 #drop hr{border:0;border-top:1px solid #8fa0c8;margin:.25em 0}
 
 /* ── screen ───────────────────────────────────────────────────────────────── */
@@ -131,7 +135,24 @@ a{color:var(--cyan)}
 #keys i:hover{background:var(--white)}
 #keys .sp{flex:1;background:var(--field)}
 
-@media (prefers-reduced-motion:reduce){#cur{animation:none}body::after{display:none}}
+@media (prefers-reduced-motion:reduce){
+  #cur,.crit b.r:first-child{animation:none}body::after{display:none}}
+
+/* On a touch screen the chrome gets real targets. The 78-column grid is the
+   page CONTENT and is untouched - the menu and key bars are fixed chrome
+   outside the grid, so they can grow without costing a single column. */
+@media (pointer:coarse){
+  #menu{font-size:max(.94em,13px);height:2.1em}
+  #keys{font-size:max(.9em,13px);height:3em}
+  #keys i{padding:0 .9em}
+  #drop{font-size:max(.96em,14px)}
+  #drop div{padding:.5em 1.1em}
+  #scr{padding:3.4em .6em 4.6em}
+}
+
+/* real content for a screen reader, invisible to everyone else */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap}
 /* the Turbo Vision dialog: centred, double border, hard shadow, one button
    that already has focus — because in 1985 you could not assume a mouse */
 #modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;
@@ -148,8 +169,11 @@ a{color:var(--cyan)}
   padding:.15em 2.2em;cursor:pointer;box-shadow:.35em .25em 0 var(--shadow)}
 #modal button:hover,#modal button:focus{background:var(--white);outline:0}
 
-/* a critical reading should not sit there politely */
-@keyframes bk{0%,100%{opacity:1}50%{opacity:.55}}
+/* A critical reading should not sit there politely. It pulses BRIGHTER, not
+   dimmer: fading to opacity .55 blended the red into the panel at 2.3:1 - the
+   moment of emphasis was the moment it became unreadable. The bright phase
+   stays above 4.5:1 the whole cycle. */
+@keyframes bk{0%,100%{color:var(--red)}50%{color:#e2a5a5}}
 .crit b.r:first-child{animation:bk 1.9s ease-in-out infinite}
 /* the address is the one string here anybody needs to move; make it behave
    like something you can pick up */
@@ -177,14 +201,15 @@ noscript h1{color:var(--white);font-size:1.5em;margin-bottom:.4em}
 noscript pre{color:var(--cyan);margin:.8em 0}
 </style>
 
-<div id="crt"></div>
-<div id="menu">
-  <span data-m="gauge"><u>G</u>auge</span>
-  <span data-m="view"><u>V</u>iew</span>
-  <span data-m="help"><u>H</u>elp</span>
+<div id="crt" aria-hidden="true"></div>
+<div id="menu" role="menubar" aria-label="menu">
+  <span data-m="gauge" role="button" tabindex="0"><u>G</u>auge</span>
+  <span data-m="view" role="button" tabindex="0"><u>V</u>iew</span>
+  <span data-m="help" role="button" tabindex="0"><u>H</u>elp</span>
   <span class="rt" id="clock">--:--</span>
 </div>
-<div id="drop"></div>
+<div id="drop" role="menu"></div>
+<div id="sr" class="sr" aria-live="polite"></div>
 
 <div id="scr">
 <noscript><div>
@@ -210,25 +235,25 @@ omnigauge --refresh</pre>
 </div>
 </div></div>
 
-<div id="modal"><div class="box" role="dialog" aria-modal="true">
-  <div class="tb"><span id="mt">About</span><u data-close>■</u></div>
+<div id="modal"><div class="box" role="dialog" aria-modal="true" aria-labelledby="mt">
+  <div class="tb"><span id="mt">About</span><u data-close tabindex="0" role="button" aria-label="close">■</u></div>
   <div class="bd" id="mb"></div>
   <div class="bt"><button id="mok">&nbsp;OK&nbsp;</button></div>
 </div></div>
-<div id="saver"><div id="sv"></div></div>
-<div id="keys">
-  <b>F1</b><i data-c="about">About</i>
-  <b>F2</b><i data-c="why">Why</i>
-  <b>F3</b><i data-c="board">Board</i>
-  <b>F4</b><i data-c="install">Install</i>
-  <b>F5</b><i data-c="providers">Providers</i>
-  <b>F6</b><i data-c="privacy">Privacy</i>
-  <b>F7</b><i data-c="donate">Donate</i>
-  <b>F8</b><i data-c="open">Source</i>
-  <b>F9</b><i data-c="help">Cmds</i>
+<div id="saver" aria-hidden="true"><div id="sv"></div></div>
+<div id="keys" role="toolbar" aria-label="function keys">
+  <b>F1</b><i data-c="about" role="button" tabindex="0">About</i>
+  <b>F2</b><i data-c="why" role="button" tabindex="0">Why</i>
+  <b>F3</b><i data-c="board" role="button" tabindex="0">Board</i>
+  <b>F4</b><i data-c="install" role="button" tabindex="0">Install</i>
+  <b>F5</b><i data-c="providers" role="button" tabindex="0">Providers</i>
+  <b>F6</b><i data-c="privacy" role="button" tabindex="0">Privacy</i>
+  <b>F7</b><i data-c="donate" role="button" tabindex="0">Donate</i>
+  <b>F8</b><i data-c="open" role="button" tabindex="0">Source</i>
+  <b>F9</b><i data-c="help" role="button" tabindex="0">Cmds</i>
   <span class="sp"></span>
-  <b>F10</b><i data-c="github">GitHub</i>
-  <b>Alt+S</b><i data-c="saver">Saver</i>
+  <b>F10</b><i data-c="github" role="button" tabindex="0">GitHub</i>
+  <b>Alt+S</b><i data-c="saver" role="button" tabindex="0">Saver</i>
 </div>
 
 <script>
@@ -261,19 +286,35 @@ function put(s){var d=document.createElement('div');d.innerHTML=paint(s||' ');
   (open||out).appendChild(d);return d;}
 function head(t,sub){
   pan();
+  headsSince.push(t.toLowerCase());
   var l='[[c]]╔══[[/]][[w]]▌ '+t+' ▐[[/]]', r=sub?'[[d]] '+sub+' [[/]]':'';
   put(l+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(l)-vis(r)+1))+'[[/]]'+r+'[[c]]╗[[/]]');
 }
 function row(t){return put('[[c]]║[[/]]'+pad(t||'',IN)+'[[c]]║[[/]]');}
 /* A meter that is simply present has no weight. Filling it costs 420ms and
-   makes the number feel measured rather than asserted. */
-function meter(el,build,target){
-  if(RM){el.innerHTML=paint(build(target));return;}
+   makes the number feel measured rather than asserted.
+
+   Only the 28 columns that move - the bar and the percentage - are rewritten
+   per frame. The frame, labels and reset column paint once. The old version
+   rebuilt, re-escaped and re-parsed the entire row every frame of every
+   meter: ~125 full-row innerHTML parses per board. */
+function meterRow(el,left,right){
+  el.innerHTML=paint(left);
+  var seg=document.createElement('b');
+  el.appendChild(seg);
+  var tail=document.createElement('b');
+  tail.innerHTML=paint(right);
+  el.appendChild(tail);
+  return seg;
+}
+function meter(seg,target){
+  var draw=function(v){seg.innerHTML=paint(bar(v)+rpad(Math.round(v)+'%',COL.used));};
+  if(RM){draw(target);return;}
   var t0=null;
   requestAnimationFrame(function step(t){
     if(t0===null)t0=t;
     var k=Math.min(1,(t-t0)/420), e=1-Math.pow(1-k,3);
-    el.innerHTML=paint(build(target*e));
+    draw(target*e);
     if(k<1)requestAnimationFrame(step);
   });
 }
@@ -311,6 +352,12 @@ function wordmark(){
 
 /* ── live figures ────────────────────────────────────────────────────────── */
 var S={dry:15120,tok:2.032,burn:180};
+/* The ticker rewrites exactly these two rows. The old version ran
+   querySelectorAll over every panel row ever printed, every second, reading
+   each one's textContent - a cost that grew with the scrollback forever. */
+var LIVE={dry:null,today:null};
+function dryRow(){return '  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]';}
+function todayRow(){return '  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]';}
 /* Height was the obvious way to draw a week, and it cost seven partial-block
    glyphs — the same family that rendered the CLI panels ragged, because a font
    without them substitutes a face with a different advance. Intensity carries
@@ -331,13 +378,12 @@ function board(){
    ['codex','week',97,'5d 02h'],['codex/spark','week',0,'6d 23h'],
    ['grok/x premium+','week',26,'2d 16h']].forEach(function(r){
     var crit=r[2]>=90;
-    var build=function(v){
-      var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
-      return '[[c]]║[[/]]'+pad(pad('  '+m,COL.mark)+pad(r[0],COL.agent)
-        +pad(r[1],COL.window)+bar(v)
-        +rpad(Math.round(v)+'%',COL.used)+rpad(r[3],COL.reset),IN)+'[[c]]║[[/]]';
-    };
-    var el=row(''); meter(el,build,r[2]);
+    var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
+    var left='[[c]]║[[/]]'+pad('  '+m,COL.mark)+pad(r[0],COL.agent)+pad(r[1],COL.window);
+    var fill=IN-COL.mark-COL.agent-COL.window-COL.bar-COL.used-COL.reset;
+    var right=rpad(r[3],COL.reset)+' '.repeat(Math.max(0,fill))+'[[c]]║[[/]]';
+    var el=row(''), seg=meterRow(el,left,right);
+    meter(seg,r[2]);
     if(crit)el.classList.add('crit');
   });
   row('    [[f]]codex reported "3% left" - inverted to match the others[[/]]');
@@ -347,10 +393,10 @@ function board(){
   head('LIVE','this page is doing the arithmetic, not showing a picture');
   row('');
   row('  [[f]]burn rate[[/]]      [[c]]'+S.burn+'K[[/]] [[d]]tokens/hour[[/]]');
-  row('  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]');
-  row('  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]');
+  LIVE.dry=row(dryRow());
+  LIVE.today=row(todayRow());
   row('');
-  row('  [[f]]last 7 days[[/]]    [[c]]'+spark([31,44,38,72,66,91,97])+'  [[f]]Mon - Sun[[/]]');
+  row('  [[f]]last 7 days[[/]]    '+spark([31,44,38,72,66,91,97])+'  [[f]]Mon - Sun[[/]]');
   row('');
   foot('representative figures · the tool reads yours');
 }
@@ -513,14 +559,20 @@ C.omnigauge=C.board; C.clear=C.cls; C['?']=C.help;
 C.w=C.wallet; C.source=C.open; C.license=C.open;
 C.screensaver=C.saver; C.ss=C.saver; C.dvd=C.saver;
 
+var sr=document.getElementById('sr'), headsSince=[];
+function announce(t){sr.textContent=t;}
 function run(raw){
   var c=raw.trim().toLowerCase();
   line('[[y]]C:\\OMNIGAUGE>[[/]] '+raw);
   if(!c)return;
-  if(C[c])C[c]();
+  headsSince=[];
+  if(C[c]){C[c]();announce(headsSince.join(', ')||c);}
   else{blank();
-    line('  [[r]]Bad command or file name[[/]] — [[w]]'+esc(raw.trim())+'[[/]]');
-    line('  [[f]]It refuses to guess what you meant. Type[[/]] [[y]]help[[/]][[f]].[[/]]');blank();}
+    /* no esc() here: line() already escapes through paint(). Escaping twice
+       showed the entities - typing & echoed as &amp;. */
+    line('  [[r]]Bad command or file name[[/]] — [[w]]'+raw.trim()+'[[/]]');
+    line('  [[f]]It refuses to guess what you meant. Type[[/]] [[y]]help[[/]][[f]].[[/]]');blank();
+    announce('Bad command: '+raw.trim());}
 }
 
 var hist=[],hi=-1;
@@ -552,7 +604,27 @@ addEventListener('keydown',function(e){
   }
   if(e.key==='F11'){ e.preventDefault(); goDark(); return; }
   if(modal.classList.contains('on')){
-    if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();} return;}
+    if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();}
+    else if(e.key==='Tab'){
+      /* the trap: focus cycles between the two controls and cannot fall
+         through to the page behind the dialog */
+      e.preventDefault();
+      var f=[document.getElementById('mok'),modal.querySelector('[data-close]')];
+      var i=f.indexOf(document.activeElement);
+      f[e.shiftKey?(i<=0?f.length-1:i-1):(i+1)%f.length].focus();}
+    return;}
+  if(menuOpen){
+    var items=[].slice.call(drop.querySelectorAll('[data-c]'));
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();
+      var cur=items.indexOf(drop.querySelector('.sel'));
+      items.forEach(function(x){x.classList.remove('sel');});
+      items[e.key==='ArrowDown'?(cur+1)%items.length
+                               :(cur<=0?items.length-1:cur-1)].classList.add('sel');
+      return;}
+    if(e.key==='Enter'){var sel=drop.querySelector('.sel');
+      if(sel){e.preventDefault();closeMenu();inp.value='';resize();
+        run(sel.dataset.c);bottom();inp.focus();return;}}
+  }
   if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
     if(m){e.preventDefault();openMenu(document.querySelector('[data-m='+m+']'));return;}}
   if(FK[e.key]){e.preventDefault();inp.value='';resize();run(FK[e.key]);bottom();return;}
@@ -597,6 +669,12 @@ function wire(el){el.addEventListener('click',function(e){
   var t=e.target.closest('[data-c]'); if(!t)return;
   inp.value='';resize();run(t.dataset.c);bottom();inp.focus();});}
 wire(document.getElementById('keys'));
+/* role="button" is a promise: Enter and Space must work wherever a finger would */
+function keyable(el){el.addEventListener('keydown',function(e){
+  if((e.key==='Enter'||e.key===' ')&&e.target.closest('[role=button]')){
+    e.preventDefault();e.stopPropagation();e.target.click();}});}
+keyable(document.getElementById('keys'));
+keyable(document.getElementById('menu'));
 /* double-click anywhere on the address copies it — the selection the browser
    makes on dblclick stops at punctuation, so copying by hand gets a fragment */
 out.addEventListener('dblclick',function(e){
@@ -762,7 +840,7 @@ clock();setInterval(clock,20000);
 var POST=[
  '[[w]]OmniGauge BIOS v1.0[[/]] [[f]]· one gauge for every plan you pay for[[/]]',
  '',
- '[[d]]Counting tokens ...[[/]] [[w]]<i id="cnt">0</i>[[/]] [[g]]OK[[/]]',
+ '[[d]]Counting tokens ...[[/]] [[CNT]] [[g]]OK[[/]]',
  '',
  '[[d]]Detecting agents ...[[/]]',
  '  claude   [[g]]OK[[/]]   [[f]]342 transcripts[[/]]',
@@ -775,20 +853,29 @@ var POST=[
  '',
  '[[f]]MIT · one file · 1,600 lines · read it before you run it[[/]]',
  ''];
+/* paint() escapes '<' - which is correct everywhere and means a POST line can
+   never smuggle real markup through it. The counter's <i> is injected AFTER
+   painting, via the [[CNT]] token, or it would render as literal tag text. */
+function final(txt){
+  return paint(txt).replace('[[CNT]]','<b class="w"><i id="cnt">0</i></b>');
+}
+var postSkip=false;
 function start(){
   blank(); wordmark(); blank(); blank();
+  addEventListener('keydown',function skip(){
+    postSkip=true;removeEventListener('keydown',skip);});
   var i=0;
   (function step(){
     if(i<POST.length){
       var txt=POST[i++], el=line('');
-      if(RM||!txt.trim()){el.innerHTML=paint(txt||' ');bottom();setTimeout(step,0);return;}
-      var plain=txt.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,''), j=0;
+      if(RM||postSkip||!txt.trim()){el.innerHTML=final(txt||' ');bottom();setTimeout(step,0);return;}
+      var plain=txt.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').replace('[[CNT]]','0'), j=0;
       (function type(){
-        j+=2;
-        el.innerHTML=paint(txt).replace(/(<[^>]*>)|./g,function(m,tag,off){return m;});
+        if(postSkip){el.innerHTML=final(txt);bottom();setTimeout(step,0);return;}
+        j+=3;
         el.textContent=plain.slice(0,j);
-        if(j<plain.length){setTimeout(type,9);}
-        else{el.innerHTML=paint(txt);bottom();setTimeout(step,55);}
+        if(j<plain.length){setTimeout(type,7);}
+        else{el.innerHTML=final(txt);bottom();setTimeout(step,40);}
       })();
       bottom();return;}
     var cn=document.getElementById('cnt');
@@ -806,14 +893,15 @@ function start(){
 }
 function tick(){
   S.dry=Math.max(0,S.dry-1); S.tok+=S.burn/3600/1e6;
-  out.querySelectorAll('.pan div').forEach(function(el){
-    var t=el.textContent;
-    if(t.indexOf('║  dry in')===0)
-      el.innerHTML=paint('[[c]]║[[/]]'+pad('  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]',IN)+'[[c]]║[[/]]');
-    else if(t.indexOf('║  today')===0)
-      el.innerHTML=paint('[[c]]║[[/]]'+pad('  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]',IN)+'[[c]]║[[/]]');
-  });
+  if(document.hidden)return;               /* nobody is watching; count silently */
+  if(LIVE.dry&&LIVE.dry.isConnected)
+    LIVE.dry.innerHTML=paint('[[c]]║[[/]]'+pad(dryRow(),IN)+'[[c]]║[[/]]');
+  if(LIVE.today&&LIVE.today.isConnected)
+    LIVE.today.innerHTML=paint('[[c]]║[[/]]'+pad(todayRow(),IN)+'[[c]]║[[/]]');
 }
 start();
+/* headless deploy gate: lets tests/site_harness.js drive the real renderer
+   and measure real rendered rows. Not an API; do not build on it. */
+window.__og={run:run,out:out,vis:vis};
 })();
 </script>
