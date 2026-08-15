@@ -299,6 +299,12 @@ will be, with no paid tier and no telemetry.
 If you get more use out of this than it cost you to read the source, that is
 already the trade working.
 
+**There will be no OmniGauge token.** No presale, no airdrop, no community
+round, no Phase 3. You can launch one — someone always does. If you do, point
+the creator rewards at the address above and we will call it even. What you may
+not do is LARP as this project while you do it: no "official", no borrowed name,
+no invented team. Launch your own thing and be honest that it is yours.
+
 
 ## Contact
 
