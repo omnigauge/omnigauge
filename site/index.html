@@ -498,7 +498,7 @@ C.screensaver=C.saver; C.ss=C.saver; C.dvd=C.saver;
 
 function run(raw){
   var c=raw.trim().toLowerCase();
-  line('[[y]]C:\\OMNIGAUGE>[[/]] '+esc(raw));
+  line('[[y]]C:\\OMNIGAUGE>[[/]] '+raw);
   if(!c)return;
   if(C[c])C[c]();
   else{blank();
@@ -520,7 +520,7 @@ inp.addEventListener('keydown',function(e){
     var p=inp.value.trim().toLowerCase(),
         m=Object.keys(C).filter(function(k){return k.indexOf(p)===0&&k.length>1;});
     if(m.length===1){inp.value=m[0];resize();}
-    else if(m.length>1){line('[[y]]C:\\OMNIGAUGE>[[/]] '+esc(inp.value));
+    else if(m.length>1){line('[[y]]C:\\OMNIGAUGE>[[/]] '+inp.value);
       line('  [[d]]'+m.join('   ')+'[[/]]');bottom();}}
 });
 var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
