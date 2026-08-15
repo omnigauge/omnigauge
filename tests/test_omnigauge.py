@@ -438,10 +438,16 @@ class TestProviderConformance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "omnigauge_provider_claude", os.path.join(ROOT, "providers", "claude.py"))
-        cls.plug = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.plug)
+        def load(name):
+            spec = importlib.util.spec_from_file_location(
+                f"omnigauge_provider_{name}",
+                os.path.join(ROOT, "providers", f"{name}.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        cls.plug = load("claude")
+        cls.plug_codex = load("codex")
+        cls.plug_grok = load("grok")
 
     def test_parse_quota_matches_builtin(self):
         self.assertEqual(self.plug.parse_quota(TestParsers.CLAUDE),
@@ -467,6 +473,58 @@ class TestProviderConformance(unittest.TestCase):
         for since in (0, 10, 32503680000):
             self.assertEqual(self.plug.scan(p, since), og.scan_claude(p, since),
                              f"drift in scan(since={since})")
+
+    def test_codex_parse_and_spec_match_builtin(self):
+        self.assertEqual(self.plug_codex.parse_quota(TestParsers.CODEX),
+                         og.parse_codex(TestParsers.CODEX))
+        for k in ("argv", "keys", "ready", "done", "expect"):
+            self.assertEqual(self.plug_codex.QUOTA[k], og.AGENTS["codex"][k],
+                             f"codex drift in QUOTA[{k!r}]")
+
+    def test_grok_parse_and_spec_match_builtin(self):
+        self.assertEqual(self.plug_grok.parse_quota(TestParsers.GROK),
+                         og.parse_grok(TestParsers.GROK))
+        for k in ("argv", "keys", "ready", "done", "expect"):
+            self.assertEqual(self.plug_grok.QUOTA[k], og.AGENTS["grok"][k],
+                             f"grok drift in QUOTA[{k!r}]")
+
+    def test_codex_scan_matches_builtin_including_tail_path(self):
+        small = os.path.join(_TMP, "codex-small.jsonl")
+        with open(small, "w") as fh:
+            fh.write('{"model":"gpt-x"}\n')
+            fh.write(json.dumps({"info": {"total_token_usage": {
+                "input_tokens": 10, "output_tokens": 5, "cached_input_tokens": 3,
+                "reasoning_output_tokens": 2, "total_tokens": 20}}}) + "\n")
+            fh.write(json.dumps({"info": {"total_token_usage": {
+                "input_tokens": 100, "output_tokens": 50, "cached_input_tokens": 30,
+                "reasoning_output_tokens": 20, "total_tokens": 200}}}) + "\n")
+        big = os.path.join(_TMP, "codex-big.jsonl")
+        with open(big, "w") as fh:
+            pad = json.dumps({"noise": "x" * 200})
+            for _ in range(6000):                    # >1MB: forces the tail read
+                fh.write(pad + "\n")
+            fh.write('{"model":"gpt-y"}\n')
+            fh.write(json.dumps({"info": {"total_token_usage": {
+                "total_tokens": 777, "input_tokens": 7, "output_tokens": 7}}}) + "\n")
+        for p in (small, big):
+            self.assertEqual(self.plug_codex.scan(p, 0), og.scan_codex(p, 0), p)
+        self.assertEqual(og.scan_codex(small, 0)["total"], 200)   # last total wins
+        self.assertEqual(og.scan_codex(big, 0)["total"], 777)
+        self.assertIn("gpt-y", og.scan_codex(big, 0)["models"])
+
+    def test_grok_scan_matches_builtin(self):
+        d = os.path.join(_TMP, "grok-sess")
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, "updates.jsonl")
+        with open(p, "w") as fh:
+            fh.write(json.dumps({"usage": {"totalTokens": 100}}) + "\n")
+            fh.write(json.dumps({"usage": {"totalTokens": 4260}}) + "\n")
+        with open(os.path.join(d, "summary.json"), "w") as fh:
+            json.dump({"current_model_id": "grok-4"}, fh)
+        self.assertEqual(self.plug_grok.scan(p, 0), og.scan_grok(p, 0))
+        t = og.scan_grok(p, 0)
+        self.assertEqual(t["total"], 4260)
+        self.assertIn("grok-4", t["models"])
 
 
 class TestInstall(unittest.TestCase):

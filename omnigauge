@@ -555,7 +555,8 @@ def scan_grok(path, since=0):
     try:
         smry = os.path.join(os.path.dirname(path), "summary.json")
         if os.path.exists(smry):
-            model = json.load(io.open(smry, encoding="utf-8")).get("current_model_id")
+            with io.open(smry, encoding="utf-8") as fh:
+                model = json.load(fh).get("current_model_id")
     except (OSError, ValueError):
         pass
     for line in io.open(path, errors="replace"):

@@ -8,9 +8,12 @@ special-case your vendor.
 ## Adding a provider
 
 Read [`providers/README.md`](providers/README.md) for the contract, then copy
-[`providers/claude.py`](providers/claude.py) — it is the reference and exercises
-every part of it. Drop your file in `providers/`, run `omnigauge --doctor`, and
-it appears.
+whichever of [`claude.py`](providers/claude.py), [`codex.py`](providers/codex.py)
+or [`grok.py`](providers/grok.py) is closest to your vendor — three references,
+each a different shape: line-based parsing that survives injected promo lines,
+a tail-read over huge files plus the percent-remaining inversion, and a
+collapsed-whitespace parse for a panel that wraps. Drop your file in
+`providers/`, run `omnigauge --doctor`, and it appears.
 
 Include in the PR:
 
