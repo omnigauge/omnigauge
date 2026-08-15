@@ -142,7 +142,7 @@ different products; blending them into one "remaining" figure would be fiction.
 ## Quickstart
 
 ```bash
-git clone https://github.com/YOU/omnigauge.git && cd omnigauge
+git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge
 ./install.sh
 omnigauge --doctor      # what is connected, what is missing, how to fix it
 omnigauge --refresh     # pull your plan quota (~30s per agent)
@@ -158,7 +158,7 @@ prints the exact next command for every gap. Nothing else needs to be memorised.
 Requires Python 3.8+ and `tmux` (only for quota scraping).
 
 ```bash
-git clone https://github.com/YOU/omnigauge.git
+git clone https://github.com/omnigauge/omnigauge.git
 install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
 omnigauge --refresh
 ```
