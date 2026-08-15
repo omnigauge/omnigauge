@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OmniGauge — every AI plan you pay for, on one screen</title>
-<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. No API keys, no telemetry, no network calls of its own.">
+<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. No API keys required, no telemetry, no network calls of its own.">
 <link rel="canonical" href="https://omnigauge.dev/">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -521,9 +521,10 @@ var C={
 
  privacy:function(){blank();
   head('THINGS IT WILL NOT DO');row('');
-  row('  [[w]]It will not ask for an API key.[[/]]');
+  row('  [[w]]It will not ask for a key to read your agents.[[/]]');
   row('  [[d]]You are already logged into these tools. It reads what they[[/]]');
-  row('  [[d]]write to your own disk. There is no credential to lose.[[/]]');row('');
+  row('  [[d]]write to your own disk. The optional spend panel takes keys -[[/]]');
+  row('  [[d]]yours, stored 0600, for reading your own billing. Nothing else.[[/]]');row('');
   row('  [[w]]It will not phone home.[[/]]');
   row('  [[d]]No telemetry, no account, no server. What you spend is[[/]]');
   row('  [[d]]nobody\'s business, mine included.[[/]]');row('');
