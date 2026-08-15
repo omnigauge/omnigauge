@@ -180,7 +180,12 @@ def bot(note=""):
         print(f" {s.faint}╰{'─' * IN}╯{s.r}")
 
 
-BLOCKS = " ▏▎▍▌▋▊▉█"
+# Eighth blocks gave sub-character resolution — and cost seven rare glyphs.
+# A font missing any one of them substitutes from a fallback face with a
+# different advance, so that row alone renders wider. The count is identical, so
+# no amount of measuring the string reveals it; it only shows on screen.
+# Full block and middle dot are the two the terminals actually have.
+BLOCKS = " █"
 
 
 def sev(pct):
@@ -188,16 +193,21 @@ def sev(pct):
 
 
 def bar(pct, w=22):
-    """Eighth-block resolution so 24% and 26% are visibly different."""
-    units = max(0.0, min(w * 8.0, pct / 100 * w * 8))
-    full, rem = int(units // 8), int(units % 8)
-    filled = "█" * full + (BLOCKS[rem] if rem and full < w else "")
-    pad = w - full - (1 if rem and full < w else 0)
-    return sev(pct) + filled + s.faint + "·" * max(0, pad) + s.r
+    """Whole cells only, rounded rather than truncated.
+
+    Rounding keeps small readings visible — 1% still lights a cell instead of
+    vanishing — and 24% vs 26% still differ because they round to different
+    cells. Resolution drops from 1/8 of a cell to 1/2, which is the price of
+    every row rendering at the same width in every font.
+    """
+    full = max(0, min(w, int(round(pct / 100 * w))))
+    if pct > 0:
+        full = max(1, full)
+    return sev(pct) + "█" * full + s.faint + "·" * (w - full) + s.r
 
 
 def dur(sec):
-    if sec is None: return "—"
+    if sec is None: return "-"   # ASCII: an em dash is a font-fallback risk
     if sec < 3600: return f"{sec//60}m"
     if sec < 86400: return f"{sec//3600}h {(sec%3600)//60}m"
     return f"{sec//86400}d {(sec%86400)//3600}h"

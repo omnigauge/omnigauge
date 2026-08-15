@@ -28,13 +28,13 @@ already write to your disk, and asks each CLI for its own quota panel.
  ╭─ PLAN QUOTA ───────────────────────────────────────── normalized to % consumed ╮
  │                                                                                │
  │     AGENT            WINDOW                            USED   RESETS IN   READ │
- │  ●  claude           week     █████▎················    24%       4d 9h    now │
- │  ○  claude/fable     week     ······················     0%           —    now │
+ │  ●  claude           week     █████·················    24%       4d 9h    now │
+ │  ○  claude/fable     week     ······················     0%           -    now │
  │  ●  claude           session  █·····················     5%     12:19am    now │
- │  ●  codex            week     █████████████████████▎    97%       5d 2h     7m │
- │                       vendor said "3% left" — inverted                         │
+ │  ●  codex            week     █████████████████████·    97%       5d 2h     7m │
+ │                       vendor said "3% left" - inverted                         │
  │  ○  codex/spark      week     ······················     0%      6d 23h     7m │
- │  ●  grok/x premium+  week     █████▋················    26%      2d 16h     7m │
+ │  ●  grok/x premium+  week     ██████················    26%      2d 16h     7m │
  │                                                                                │
  ╰── subscription windows · no dollar balance exists for these plans ─────────────╯
 
