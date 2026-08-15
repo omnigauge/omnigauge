@@ -172,7 +172,8 @@ a{color:var(--cyan)}
   justify-content:center;background:rgba(4,10,34,.35)}
 #modal.on{display:flex}
 #modal .box{background:var(--panel);box-shadow:.7em .45em 0 var(--shadow);
-  border:1px solid var(--edge);min-width:min(46em,92vw);max-width:92vw}
+  border:1px solid var(--edge);width:fit-content;
+  min-width:min(24em,92vw);max-width:92vw}
 #modal .tb{background:var(--barbg);color:var(--barink);padding:.1em .8em;
   display:flex;justify-content:space-between;align-items:center}
 #modal .tb u{color:var(--hot);text-decoration:none;cursor:pointer;padding:0 .3em}
@@ -792,7 +793,8 @@ C.about=function(){dialog('About OmniGauge',
  'disk. Normalizes four incompatible counters to one denominator.\n'+
  'Asks for no key, reports to nobody, invents nothing.</b>\n\n'+
  '<b class="f">MIT · one Python file · no dependencies</b>\n'+
- '<b class="c">github.com/omnigauge/omnigauge</b>');};
+ '<a href="https://github.com/omnigauge/omnigauge" target="_blank" rel="noopener">github.com/omnigauge/omnigauge</a>\n'+
+ '<a href="https://x.com/OmniGauge" target="_blank" rel="noopener">x.com/OmniGauge</a>');};
 
 /* ── DOS-era commands, answered in character ───────────────────────────────── */
 C.ver=function(){blank();line('  [[w]]OmniGauge [Version 1.0][[/]]');
