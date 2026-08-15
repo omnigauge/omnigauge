@@ -208,6 +208,7 @@ omnigauge --refresh</pre>
   <b>F9</b><i data-c="help">Cmds</i>
   <span class="sp"></span>
   <b>F10</b><i data-c="github">GitHub</i>
+  <b>F11</b><i data-c="saver">Saver</i>
 </div>
 
 <script>
@@ -494,6 +495,14 @@ inp.addEventListener('keydown',function(e){
 });
 var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
 addEventListener('keydown',function(e){
+  if(e.key==='F11'){
+    e.preventDefault();
+    var el=document.documentElement;
+    if(!document.fullscreenElement && el.requestFullscreen)
+      el.requestFullscreen().catch(function(){});
+    marquee();
+    return;
+  }
   if(modal.classList.contains('on')){
     if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();} return;}
   if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
@@ -623,6 +632,8 @@ function marquee(){
 }
 function wake(){if(!saver.classList.contains('on'))return;
   saver.classList.remove('on');clearInterval(sTimer);
+  if(document.fullscreenElement && document.exitFullscreen)
+    document.exitFullscreen().catch(function(){});
   if(bounced){
     blank();
     line('  [[d]]'+bounced+' bounce'+(bounced==1?'':'s')+
