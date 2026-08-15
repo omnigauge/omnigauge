@@ -171,13 +171,19 @@ a{color:var(--cyan)}
 /* Mobile: one calm row of essentials. The F-numbers are a desktop
    affordance; the rest of the commands live in the menus. */
 @media (max-width:700px){
-  #keys{height:2.6em;padding:0 .4em;justify-content:space-around}
+  #keys{height:2.6em;padding:0 .3em;justify-content:space-around;
+    font-size:max(.84em,12px)}
   #keys b,#keys .x,#keys .sp{display:none}
-  #keys i{flex:1;justify-content:center;margin:0 2px}
+  #keys i{flex:1;justify-content:center;margin:0 1px;padding:0 .2em;
+    min-width:0;overflow:hidden}
   #scr{padding-bottom:4.2em}
   /* max-content sizing lets one long copyable line inflate the whole
      column; capped, the line soft-wraps and the screen stays contained */
   #page{max-width:100%}
+}
+@media (max-width:340px){
+  #keys{font-size:11px}
+  #keys i{padding:0 .1em}
 }
 
 /* real content for a screen reader, invisible to everyone else */
@@ -282,7 +288,7 @@ omnigauge --refresh</pre>
   <b>F4</b><i data-c="install" role="button" tabindex="0">Install</i>
   <b>F5</b><i class="x" data-c="providers" role="button" tabindex="0">Providers</i>
   <b>F6</b><i class="x" data-c="privacy" role="button" tabindex="0">Privacy</i>
-  <b>F7</b><i class="x" data-c="donate" role="button" tabindex="0">Donate</i>
+  <b>F7</b><i data-c="donate" role="button" tabindex="0">Donate</i>
   <b>F8</b><i class="x" data-c="open" role="button" tabindex="0">Source</i>
   <b>F9</b><i class="x" data-c="help" role="button" tabindex="0">Cmds</i>
   <span class="sp"></span>
@@ -899,6 +905,13 @@ inp.addEventListener('keydown',function(e){
       line('  [[d]]'+m.join('   ')+'[[/]]');bottom();}}
 });
 var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
+/* The CLI draws its board on the alternate screen so nothing stacks in
+   scrollback. Same doctrine here for touch: a PRESSED panel replaces the
+   screen instead of piling under it. Typed commands still stack - that is
+   what a terminal does. Actions (copy, saver, links, the About dialog)
+   never clear: they annotate the view you are on. */
+var NAV_KEEP={copy:1,wallet:1,w:1,saver:1,screensaver:1,ss:1,dvd:1,github:1,x:1,cls:1,clear:1,about:1};
+function runNav(c){if(MOBILE&&!NAV_KEEP[c])out.innerHTML='';run(c);}
 addEventListener('keydown',function(e){
   /* Alt+S only. F11 belongs to the browser - a person pressing it wants
      fullscreen, and answering with a screensaver hijacks that intent. */
@@ -925,11 +938,11 @@ addEventListener('keydown',function(e){
       return;}
     if(e.key==='Enter'){var sel=drop.querySelector('.sel');
       if(sel){e.preventDefault();closeMenu();inp.value='';resize();
-        run(sel.dataset.c);bottom();if(!MOBILE)inp.focus();return;}}
+        runNav(sel.dataset.c);bottom();if(!MOBILE)inp.focus();return;}}
   }
   if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
     if(m){e.preventDefault();openMenu(document.querySelector('[data-m='+m+']'));return;}}
-  if(FK[e.key]){e.preventDefault();inp.value='';resize();run(FK[e.key]);bottom();return;}
+  if(FK[e.key]){e.preventDefault();inp.value='';resize();runNav(FK[e.key]);bottom();return;}
 });
 /* pull-downs — clicking a title opens it, moving along the bar switches it,
    the way every DOS application behaved */
@@ -965,12 +978,12 @@ document.getElementById('menu').addEventListener('mouseover',function(e){
   if(!menuOpen)return; var sp=e.target.closest('span[data-m]'); if(sp)openMenu(sp);});
 drop.addEventListener('click',function(e){
   var d=e.target.closest('[data-c]'); if(!d)return;
-  closeMenu(); inp.value=''; resize(); run(d.dataset.c); bottom(); if(!MOBILE)inp.focus(); e.stopPropagation();});
+  closeMenu(); inp.value=''; resize(); runNav(d.dataset.c); bottom(); if(!MOBILE)inp.focus(); e.stopPropagation();});
 addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
 
 function wire(el){el.addEventListener('click',function(e){
   var t=e.target.closest('[data-c]'); if(!t)return;
-  inp.value='';resize();run(t.dataset.c);bottom();if(!MOBILE)inp.focus();});}
+  inp.value='';resize();runNav(t.dataset.c);bottom();if(!MOBILE)inp.focus();});}
 wire(document.getElementById('keys'));
 /* role="button" is a promise: Enter and Space must work wherever a finger would */
 function keyable(el){el.addEventListener('keydown',function(e){
@@ -1066,9 +1079,13 @@ var PAL=['#5aa6c9','#c9974f','#6ea888','#c47070','#8d9cbe','#a98fc4','#c9c07a'],
    timeout so the current event finishes first, and refuse to wake within a
    moment of starting, whatever the order turns out to be. */
 var darkAt=0;
+function svHTML(){return MOBILE
+  ? '<b class="c">OMNI</b><b class="y">GAUGE</b>'
+  : '<b class="c">OMNI</b><b class="y">GAUGE</b>'+
+    '<b class="f">   every AI plan you pay for, on one screen</b>';}
 function goDark(){
   var el=document.documentElement;
-  if(!document.fullscreenElement && el.requestFullscreen)
+  if(!MOBILE && !document.fullscreenElement && el.requestFullscreen)
     el.requestFullscreen().catch(function(){});   /* refused is fine, saver runs anyway */
   darkAt=Date.now();
   setTimeout(marquee,0);
@@ -1076,14 +1093,17 @@ function goDark(){
 function marquee(){
   if(saver.classList.contains('on')) return;
   clearInterval(sTimer);
-  sv.innerHTML='<b class="c">OMNI</b><b class="y">GAUGE</b>'+
-    '<b class="f">   every AI plan you pay for, on one screen</b>';
+  sv.innerHTML=svHTML();
   sv.style.color='';
   saver.classList.add('on');
   sTimer=setInterval(function(){
     sx+=dx;sy+=dy;
-    var w=saver.clientWidth-sv.offsetWidth, h=saver.clientHeight-sv.offsetHeight;
-    var hx=(sx<=0||sx>=w), hy=(sy<=0||sy>=h);
+    /* On a screen narrower than the text, w goes negative, the x-flip
+       fires every tick, and the logo just slides down the screen. Clamp,
+       and only bounce on an axis that has room to travel. */
+    var w=Math.max(0,saver.clientWidth-sv.offsetWidth),
+        h=Math.max(0,saver.clientHeight-sv.offsetHeight);
+    var hx=w>0&&(sx<=0||sx>=w), hy=h>0&&(sy<=0||sy>=h);
     if(hx)dx=-dx; if(hy)dy=-dy;
     if(hx||hy){
       bounced++;
@@ -1095,8 +1115,7 @@ function marquee(){
       sv.innerHTML='<b style="color:'+PAL[pi]+'">PERFECT CORNER \u00d7'+corners+'</b>';
       setTimeout(function(){
         if(!saver.classList.contains('on'))return;
-        sv.innerHTML='<b class="c">OMNI</b><b class="y">GAUGE</b>'+
-          '<b class="f">   every AI plan you pay for, on one screen</b>';
+        sv.innerHTML=svHTML();
         sv.querySelectorAll('b').forEach(function(b){b.style.color=PAL[pi];});
       },1400);
     }
