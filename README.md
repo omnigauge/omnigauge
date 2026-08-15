@@ -42,6 +42,35 @@ already write to your disk, and asks each CLI for its own quota panel.
  ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
+## What this does that the others don't
+
+The local-tracker space is well served — [tokscale](https://github.com/junhoyeo/tokscale)
+covers 50+ agents. Its own docs list what it does not do, and that list is this
+project's reason to exist:
+
+| | tokscale | enterprise SaaS | omnigauge |
+|---|---|---|---|
+| token + quota tracking | ✅ | ✅ | ✅ |
+| **burn rate & exhaustion forecast** | ❌ *"cannot predict"* | ✅ | ✅ |
+| **budgets / alerts** | ❌ | ✅ | planned |
+| **non-agent APIs** (org billing, X) | ❌ | partial | ✅ |
+| **multi-account per provider** | ❌ *"picks the active account"* | ✅ | ✅ |
+| runs with no runtime installed | ❌ Node/Bun | ❌ cloud | ✅ stdlib Python |
+| local-only, nothing transmitted | ✅ | ❌ | ✅ |
+
+The question every tracker answers is *"how much have I used"*. The one that
+matters is **"will I run out before it resets"** — and answering it needs the
+quota series and the vendor's reset time together:
+
+```
+codex   week  ████████████████████▌  98%   1.4%/h   1h 26m   5d 1h
+        ▲ runs dry 4d 21h BEFORE the window resets
+```
+
+Forecasting is deliberately conservative: two readings at least ten minutes
+apart or it says nothing, a detected reset truncates the series, and a flat or
+falling rate produces no estimate rather than a fabricated one.
+
 ## Why the numbers are kept apart
 
 This is the whole design, and it is deliberate.

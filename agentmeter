@@ -191,6 +191,13 @@ def bar(pct, w=22):
     return sev(pct) + filled + s.faint + "·" * max(0, pad) + s.r
 
 
+def dur(sec):
+    if sec is None: return "—"
+    if sec < 3600: return f"{sec//60}m"
+    if sec < 86400: return f"{sec//3600}h {(sec%3600)//60}m"
+    return f"{sec//86400}d {(sec%86400)//3600}h"
+
+
 def dot(pct):
     return f"{sev(pct)}{'●' if pct >= 1 else '○'}{s.r}"
 
@@ -199,7 +206,13 @@ _MONTHS = {m: i for i, m in enumerate(
     ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"], 1)}
 
 
-def countdown(text):
+def reset_epoch(text):
+    """Vendor reset wording -> epoch, or None. Shares parsing with countdown()."""
+    secs = countdown(text, _as_seconds=True)
+    return None if secs is None else int(time.time()) + secs
+
+
+def countdown(text, _as_seconds=False):
     """Best-effort 'in 4d 22h' from the vendor's own reset wording.
 
     Formats differ per vendor ('Aug 19, 6pm', '23:04 on 19 Aug', 'August 17,
@@ -216,7 +229,7 @@ def countdown(text):
         m = re.search(r"(\d{1,2})\s+([a-z]{3,9})", t)
         if m and m.group(2)[:3] in _MONTHS:
             day, mon = int(m.group(1)), _MONTHS[m.group(2)[:3]]
-    if not mon: return None
+    if not mon: return None if not _as_seconds else None
     hh = mm = 0
     m = re.search(r"(\d{1,2}):(\d{2})", t)
     if m:
@@ -232,6 +245,8 @@ def countdown(text):
     except Exception:
         return None
     d = int(target - time.time())
+    if _as_seconds:
+        return max(0, d)
     if d < 0: return "due"
     if d < 3600: return f"{d//60}m"
     if d < 86400: return f"{d//3600}h {(d%3600)//60}m"
@@ -834,7 +849,9 @@ def refresh(which):
         missing = [e for e in spec["expect"]
                    if (e[1] is not None and e not in got)
                    or (e[1] is None and not any(w == e[0] for w, _ in got))]
-        con.execute("DELETE FROM snapshots WHERE agent=? AND usage_type='plan_quota'", (agent,))
+        # History is KEPT. Delete-then-insert left exactly one point per window,
+        # which is enough for a status display and useless for a burn rate.
+        # Forecasting is the whole differentiator, so the series is the asset.
         for r in rows:
             con.execute("INSERT INTO snapshots(product,source,agent,window,model,"
                         "usage_type,pct_used,raw_value,reset_at,collected_at) "
@@ -859,12 +876,55 @@ def refresh(which):
 # ────────────────────────────────── render ────────────────────────────────────
 
 def quota_rows(con):
+    """Latest reading per (agent, window, model), plus a burn rate from history."""
     q = {}
-    for r in con.execute("SELECT agent,window,model,pct_used,raw_value,reset_at,collected_at "
-                         "FROM snapshots WHERE usage_type='plan_quota' ORDER BY agent"):
-        q.setdefault(r[0], []).append(dict(window=r[1], model=r[2], pct=r[3],
-                                           raw=r[4], reset=r[5], at=r[6]))
+    seen = set()
+    for r in con.execute(
+            "SELECT agent,window,model,pct_used,raw_value,reset_at,collected_at "
+            "FROM snapshots WHERE usage_type='plan_quota' ORDER BY collected_at DESC"):
+        k = (r[0], r[1], r[2])
+        if k in seen:
+            continue
+        seen.add(k)
+        row = dict(window=r[1], model=r[2], pct=r[3], raw=r[4], reset=r[5], at=r[6])
+        row.update(burn(con, r[0], r[1], r[2], r[3], r[6]))
+        q.setdefault(r[0], []).append(row)
     return q
+
+
+def burn(con, agent, window, model, pct_now, at_now, lookback=6 * 3600):
+    """Percent-per-hour and time-to-empty from the snapshot series.
+
+    Deliberately conservative:
+      · needs two readings at least 10 minutes apart, else no claim is made
+      · a reset (percentage went DOWN) truncates the series — burning through a
+        reset boundary would otherwise read as negative usage
+      · returns None rather than a guess when the rate is flat or falling
+    """
+    out = dict(rate=None, dry_in=None, dry_before_reset=None)
+    rows = list(con.execute(
+        "SELECT pct_used, collected_at FROM snapshots WHERE usage_type='plan_quota' "
+        "AND agent=? AND window=? AND IFNULL(model,'')=IFNULL(?,'') AND collected_at>=? "
+        "ORDER BY collected_at", (agent, window, model, at_now - lookback)))
+    if len(rows) < 2:
+        return out
+    # truncate at the most recent reset
+    start = 0
+    for i in range(1, len(rows)):
+        if rows[i][0] < rows[i - 1][0] - 1:
+            start = i
+    rows = rows[start:]
+    if len(rows) < 2:
+        return out
+    dt = rows[-1][1] - rows[0][1]
+    dp = rows[-1][0] - rows[0][0]
+    if dt < 600 or dp <= 0:
+        return out
+    rate = dp / (dt / 3600.0)
+    out["rate"] = rate
+    remaining = max(0.0, 100.0 - pct_now)
+    out["dry_in"] = int(remaining / rate * 3600) if rate > 0 else None
+    return out
 
 
 def render(args):
@@ -908,8 +968,8 @@ def render(args):
     # ── quota panel
     top("PLAN QUOTA", "normalized to % consumed")
     mid()
-    hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<9}{'':<24}{'USED':>5}"
-           f"{'RESETS IN':>12}{'READ':>9}{s.r}")
+    hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<8}{'':<24}{'USED':>5}"
+           f"{'BURN/h':>9}{'DRY IN':>10}{'RESETS':>10}{s.r}")
     mid(hdr)
     if not flat:
         mid(f"  {s.gry}nothing collected — run{s.r} {s.bcya}omnigauge --refresh{s.r}")
@@ -923,9 +983,18 @@ def render(args):
             nm = short_model(agent, r["model"])
             cd = countdown(r["reset"]) or (short_reset(r["reset"])[:11] if r["reset"] else "—")
             pc = sev(r["pct"]) if r["pct"] >= 70 else s.wht
-            mid(f"  {dot(r['pct'])}  {s.b}{nm:<17}{s.r}{s.gry}{r['window']:<9}{s.r}"
+            rate = f"{r['rate']:.2f}%" if r.get("rate") else "—"
+            dry = dur(r.get("dry_in"))
+            reset_s = countdown(r["reset"], _as_seconds=True) if r["reset"] else None
+            doom = (r.get("dry_in") is not None and reset_s is not None
+                    and r["dry_in"] < reset_s)
+            dcol = s.crit if doom else s.gry
+            mid(f"  {dot(r['pct'])}  {s.b}{nm:<17}{s.r}{s.gry}{r['window']:<8}{s.r}"
                 f"{bar(r['pct'])}  {pc}{r['pct']:>4.0f}%{s.r}"
-                f"{s.gry}{cd:>12}{age(r['at']).replace(' ago',''):>9}{s.r}")
+                f"{s.gry}{rate:>9}{s.r}{dcol}{dry:>10}{s.r}{s.gry}{cd:>10}{s.r}")
+            if doom:
+                short = dur(reset_s - r["dry_in"])
+                mid(f"  {s.crit}{'':<6}▲ runs dry {short} BEFORE the window resets{s.r}")
             if r["raw"] and "left" in (r["raw"] or ""):
                 mid(f"  {s.gry}{'':<21}vendor said “{r['raw']}” — inverted{s.r}")
     mid()
