@@ -166,6 +166,16 @@ If Cursor ever writes real values, this becomes a provider in an afternoon —
 and until then the legend says `unavailable` with this reason instead of
 shipping a tidy row of zeros.
 
+**Antigravity (Google) is the same verdict by a different route**, verified on
+a real session 2026-08-15. Its CLI keeps a per-conversation SQLite store
+(`~/.gemini/antigravity-cli/conversations/*.db`: trajectory/steps/gen_metadata
+tables) plus jsonl transcripts under `brain/`. Every table, every transcript
+line and every metadata blob was read: **zero token counts anywhere** — the
+only "usage" strings in 93KB of generation metadata are prose in its own
+system prompt. Where Cursor writes the schema and zeroes the values,
+Antigravity writes no accounting at all. Both negatives took reading the
+actual bytes; neither could be concluded from a directory listing.
+
 ## Submitting one
 
 Include in the PR: which vendor and which files or command you read, a redacted
