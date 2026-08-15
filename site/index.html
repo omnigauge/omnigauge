@@ -157,16 +157,10 @@ a{color:var(--cyan)}
 /* On a narrow screen the key bar overflowed off the right edge - Legend and
    Saver were there, just past the horizon. Wrap instead of clip; the spacer
    only made sense on one line. */
-#mobnote{display:none}
 @media (max-width:700px){
   #keys{flex-wrap:wrap;height:auto;padding:.15em 0}
   #keys .sp{display:none}
   #scr{padding-bottom:6.5em}
-  #mobnote{display:block;background:var(--panel);color:var(--gray);
-    border:1px solid var(--edge);box-shadow:.4em .25em 0 var(--shadow);
-    padding:.6em .8em;margin:0 0 1em;font-size:12.5px;line-height:1.45;
-    white-space:normal;max-width:92vw}
-  #mobnote b{color:var(--yellow);font-weight:400}
 }
 
 /* real content for a screen reader, invisible to everyone else */
@@ -232,9 +226,6 @@ noscript pre{color:var(--cyan);margin:.8em 0}
 <div id="sr" class="sr" aria-live="polite"></div>
 
 <div id="scr">
-<div id="mobnote" role="note"><b>▌ NOTICE ▐</b> 78 columns is a desktop habit.
-A phone-native build is in progress - until it lands, the full board reads
-best on a big screen.</div>
 <noscript><div>
   <h1>OmniGauge</h1>
   <p>Every AI plan you pay for, on one screen. Claude Code, OpenAI Codex and Grok CLI —
