@@ -544,7 +544,8 @@ class TestCapabilities(unittest.TestCase):
     capabilities in a legal state; mirrors match built-ins; a third-party
     provider appears in the legend automatically."""
 
-    PROVIDER_FILES = ("claude", "codex", "grok", "openrouter", "moonshot", "deepseek")
+    PROVIDER_FILES = ("claude", "codex", "grok", "openrouter", "moonshot",
+                      "deepseek", "goose", "aider")
 
     @classmethod
     def setUpClass(cls):
@@ -573,6 +574,17 @@ class TestCapabilities(unittest.TestCase):
         for name in ("claude", "codex", "grok"):
             self.assertEqual(self.mods[name].CAPS, og.BUILTIN_CAPS[name],
                              f"caps drift in {name}")
+
+    def test_caps_notes_fit_the_reasons_panel(self):
+        """Budget 58: the note prefix is 15 columns and the narrowest board
+        is 76 inside - anything longer wraps, and a wrapped reason reads
+        like a rendering bug. Shorten the note, don't widen the panel."""
+        every = dict(og.BUILTIN_CAPS)
+        every.update({n: m.CAPS for n, m in self.mods.items()})
+        for who, caps in every.items():
+            for c, v in caps.items():
+                note = (v or "").partition(":")[2].strip()
+                self.assertLessEqual(len(note), 58, f"{who}/{c}: {note!r}")
 
     def test_third_party_provider_appears_in_legend(self):
         import types
@@ -710,6 +722,127 @@ class TestApiProviders(unittest.TestCase):
                 self.assertEqual(w, target, f"ragged api panel at W={W}:\n{t!r}")
                 self.assertLessEqual(w, W)
         og.W, og.IN = 100, 97
+
+
+class TestVerifiedAgentProviders(unittest.TestCase):
+    """goose and aider, against fixtures shaped exactly like the real files
+    both were verified on (2026-08-15): a live Goose exchange recorded
+    3,098/2 in usage_ledger; a live aider exchange printed 'Tokens: 797
+    sent, 1 received.' into the project's history file."""
+
+    @classmethod
+    def setUpClass(cls):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(
+                f"agent_{name}", os.path.join(ROOT, "providers", f"{name}.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        cls.goose, cls.aider = load("goose"), load("aider")
+
+    def make_goose_db(self):
+        p = os.path.join(tempfile.mkdtemp(prefix="og-goose-"), "sessions.db")
+        con = sqlite3.connect(p)
+        con.execute("""CREATE TABLE usage_ledger (
+            id INTEGER PRIMARY KEY, session_id TEXT, created_timestamp INTEGER,
+            model TEXT, input_tokens INTEGER, output_tokens INTEGER,
+            total_tokens INTEGER, cache_read_tokens INTEGER,
+            cache_write_tokens INTEGER, cost REAL, cost_source TEXT,
+            is_compaction INTEGER)""")
+        rows = [("s1", 1786790743, "gpt-4o-mini-2024-07-18", 3098, 2, 3100, 0, None, 0.0004659, "estimated", 0),
+                ("s1", 1786790800, "gpt-4o-mini-2024-07-18", 500, 50, 550, 100, None, 0.0001, "estimated", 0),
+                ("s2", 1786700000, "gpt-5.5", 10, 5, 15, 0, 0, 0.0, "estimated", 0)]
+        con.executemany("INSERT INTO usage_ledger(session_id,created_timestamp,model,"
+                        "input_tokens,output_tokens,total_tokens,cache_read_tokens,"
+                        "cache_write_tokens,cost,cost_source,is_compaction) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?,?)", rows)
+        con.commit(); con.close()
+        return p
+
+    def test_goose_sums_ledger(self):
+        t = self.goose.scan(self.make_goose_db(), 0)
+        self.assertEqual((t["msgs"], t["tin"], t["tout"], t["total"]),
+                         (3, 3608, 57, 3665))
+        self.assertEqual(t["models"]["gpt-4o-mini-2024-07-18"]["msgs"], 2)
+        self.assertIn("gpt-5.5", t["models"])
+
+    def test_goose_since_filters_per_event(self):
+        t = self.goose.scan(self.make_goose_db(), 1786790750)
+        self.assertEqual((t["msgs"], t["tin"], t["tout"]), (1, 500, 50))
+
+    def test_goose_null_cache_write_counts_zero(self):
+        t = self.goose.scan(self.make_goose_db(), 0)
+        self.assertEqual(t["cache_write"], 0)
+
+    AIDER = """\
+
+# aider chat started at 2026-08-15 05:44:15
+
+> Aider v0.86.2
+> Model: gpt-4o-mini with whole edit format
+> Added README.md to the chat.
+
+#### Reply with the single word: ok
+
+ok
+
+> Tokens: 797 sent, 1 received. Cost: $0.00012 message, $0.00012 session.
+
+# aider chat started at 2026-08-15 09:00:00
+
+> Model: gpt-5.5 with diff edit format
+
+#### bigger ask
+
+done
+
+> Tokens: 8.6k sent, 1,250 received. Cost: $0.02 message, $0.02 session.
+"""
+
+    def test_aider_parses_both_number_forms(self):
+        p = os.path.join(_TMP, "aider-hist.md")
+        with open(p, "w") as fh:
+            fh.write(self.AIDER)
+        t = self.aider.scan(p, 0)
+        self.assertEqual(t["msgs"], 2)
+        self.assertEqual(t["tin"], 797 + 8600)
+        self.assertEqual(t["tout"], 1 + 1250)
+        self.assertEqual(t["models"]["gpt-4o-mini"]["out"], 1)
+        self.assertEqual(t["models"]["gpt-5.5"]["out"], 1250)
+
+    def test_aider_since_gates_whole_sessions(self):
+        p = os.path.join(_TMP, "aider-hist2.md")
+        with open(p, "w") as fh:
+            fh.write(self.AIDER)
+        cut = time.mktime(time.strptime("2026-08-15 06:00:00", "%Y-%m-%d %H:%M:%S"))
+        t = self.aider.scan(p, cut)
+        self.assertEqual(t["msgs"], 1)
+        self.assertEqual(t["tin"], 8600)
+
+    def test_aider_files_empty_without_env(self):
+        env = {k: v for k, v in os.environ.items() if k != "OMNIGAUGE_AIDER_DIRS"}
+        old = dict(os.environ)
+        os.environ.clear(); os.environ.update(env)
+        try:
+            self.assertEqual(self.aider.files(), [])
+        finally:
+            os.environ.clear(); os.environ.update(old)
+
+    def test_aider_files_reads_named_roots(self):
+        root = tempfile.mkdtemp(prefix="og-aider-")
+        sub = os.path.join(root, "proj"); os.makedirs(sub)
+        for d in (root, sub):
+            with open(os.path.join(d, ".aider.chat.history.md"), "w") as fh:
+                fh.write(self.AIDER)
+        old = os.environ.get("OMNIGAUGE_AIDER_DIRS")
+        os.environ["OMNIGAUGE_AIDER_DIRS"] = root
+        try:
+            self.assertEqual(len(self.aider.files()), 2)
+        finally:
+            if old is None:
+                del os.environ["OMNIGAUGE_AIDER_DIRS"]
+            else:
+                os.environ["OMNIGAUGE_AIDER_DIRS"] = old
 
 
 class TestInstall(unittest.TestCase):

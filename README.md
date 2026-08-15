@@ -218,6 +218,8 @@ age, so a stale number looks stale.
 | Claude Code | `/usage` panel | `~/.claude/projects/*/*.jsonl` → per-message `usage` |
 | OpenAI Codex | `/status` panel | rollout `info.total_token_usage` |
 | Grok CLI | `/usage` panel | session `updates.jsonl` → `totalTokens` |
+| Goose | — (key-based) | `sessions.db` → `usage_ledger`, the vendor's own accounting |
+| Aider | — (key-based) | `.aider.chat.history.md` token lines, in the project roots you name via `OMNIGAUGE_AIDER_DIRS` |
 
 Quota panels are rendered under `tmux` and read back with `capture-pane`. These CLIs draw
 character-by-character with cursor moves; stripping ANSI from a raw pty gives you garbage.

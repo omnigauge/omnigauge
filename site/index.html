@@ -410,7 +410,7 @@ function board(){
    static and cannot read a live registry, so a test (tests/test_site.py)
    fails whenever this block disagrees with the code. Edit providers/, run
    the generator; never edit the data by hand. */
-/*LEGEND-DATA*/var LEGEND=[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator - models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}];/*END-LEGEND-DATA*/
+/*LEGEND-DATA*/var LEGEND=[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per session header, at session resolution","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost lines exist; the spend panel does not read them yet","tokens":"obtained: aider's own token lines; roots via OMNIGAUGE_AIDER_DIRS"},"k":"agent","n":"aider"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per ledger row, dated model ids","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost is recorded; the spend panel does not read it yet","tokens":"obtained: usage_ledger, the vendor's own accounting"},"k":"agent","n":"goose"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator; models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}];/*END-LEGEND-DATA*/
 var CAPORDER=['tokens','quota','reset','models','lifetime','spend','burn'];
 function legendPanel(){
   var short={lifetime:'LIFE',models:'MODEL'};
@@ -427,16 +427,35 @@ function legendPanel(){
   row('');foot('● obtained · ○ available, not read yet · - unavailable');
   blank();
   head('THE REASONS','the third state is the honest one');row('');
-  LEGEND.forEach(function(p){CAPORDER.forEach(function(c){
-    var v=p.c[c]||''; if(v.indexOf(':')<0)return;
-    var st=v.split(':')[0].trim(), why=v.slice(v.indexOf(':')+1).trim();
-    var lead=p.n+'/'+c, rest=st+' - '+why, budget=74-lead.length-2;
-    var first=rest.slice(0,budget);
-    row('  [[w]]'+lead+'[[/]][[d]]: '+first+'[[/]]');
-    for(var off=budget;off<rest.length;off+=70)
-      row('      [[d]]'+rest.slice(off,off+70)+'[[/]]');   /* wrap, never truncate */
-  });});
-  row('');foot('generated from providers/ - the CLI shows the same table');blank();
+  /* Grouped by source; the STATE is the glyph, so the words are only the
+     why. Wraps break on words - a note snapped mid-word reads like a
+     rendering bug - and a repo test caps note length so none wraps today. */
+  var firstDone=false;
+  LEGEND.forEach(function(p){
+    var noted=CAPORDER.filter(function(c){return (p.c[c]||'').indexOf(':')>=0;});
+    if(!noted.length)return;
+    if(firstDone)row('');
+    firstDone=true;
+    row('  [[w]]'+p.n+'[[/]]');
+    noted.forEach(function(c){
+      var v=p.c[c], st=v.split(':')[0].trim(), why=v.slice(v.indexOf(':')+1).trim();
+      var mark=st==='obtained'?'[[g]]●[[/]]':st==='available'?'[[y]]○[[/]]':'[[f]]-[[/]]';
+      var lines=wrapWords(why||st,61);
+      row('  '+mark+' [[d]]'+pad(c,9)+lines[0]+'[[/]]');
+      for(var i=1;i<lines.length;i++)
+        row('               [[d]]'+lines[i]+'[[/]]');
+    });
+  });
+  row('');foot('the glyph is the state; the words are why');blank();
+}
+function wrapWords(t,w){
+  var out=[],cur='';
+  t.split(/\s+/).forEach(function(x){
+    var c=(cur?cur+' ':'')+x;
+    if(c.length<=w||!cur)cur=c; else{out.push(cur);cur=x;}
+  });
+  out.push(cur);
+  return out;
 }
 
 /* ── commands ────────────────────────────────────────────────────────────── */

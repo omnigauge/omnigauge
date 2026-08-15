@@ -702,13 +702,39 @@ def legend():
     if notes:
         top("THE REASONS", "the third state is the honest one")
         mid()
+        last = None
         for name, c, v in notes:
             st, _, why = (v or "").partition(":")
-            mark = {"obtained": s.ok, "available": s.warn}.get(st.strip(), s.faint)
-            mid(f"  {mark}{name}/{c}{s.r}{s.gry}: {st.strip()}{(' -' + why) if why else ''}{s.r}")
+            st, why = st.strip(), why.strip()
+            if name != last:
+                if last is not None:
+                    mid()
+                mid(f"  {s.b}{s.wht}{name}{s.r}")
+                last = name
+            mark = {"obtained": f"{s.ok}●{s.r}", "available": f"{s.warn}○{s.r}"
+                    }.get(st, f"{s.faint}-{s.r}")
+            first, rest = _wrap_note(why or st, IN - 15)
+            mid(f"  {mark} {s.gry}{c:<9}{s.r}{s.gry}{first}{s.r}")
+            for cont in rest:
+                mid(f"{'':<15}{s.gry}{cont}{s.r}")
         mid()
-        bot()
+        bot("the glyph is the state; the words are why")
     print()
+
+
+def _wrap_note(text, width):
+    """(first_line, [continuations]), broken on WORDS. A note that snaps
+    mid-word reads like a rendering bug; a test caps note length so current
+    notes never wrap at all, and this is the net for future ones."""
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        cand = f"{cur} {w}".strip()
+        if len(cand) <= width or not cur:
+            cur = cand
+        else:
+            lines.append(cur); cur = w
+    lines.append(cur)
+    return lines[0], lines[1:]
 
 
 def agent_order():
@@ -1381,6 +1407,8 @@ def render(args):
     for agent in agent_order():
         rows = q.get(agent)
         if not rows:
+            if agent not in AGENTS:
+                continue        # no quota concept (key-based agents): no row to miss
             state = "not collected" if installed(agent) else "not installed"
             mid(f"  {s.gry}○  {agent:<17}{state}{s.r}")
             continue
