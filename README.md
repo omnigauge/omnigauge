@@ -313,7 +313,7 @@ than [@omnigauge](https://x.com/omnigauge) or omnigauge.dev, it is not us.
 **If you do launch one, come and say so.** The email on the GitHub profile is the
 channel that counts. If it checks out — you are not a known scammer, and you are
 not trading on this project's name — there is a good chance the contract address
-ends up on this page. A listing is not an endorsement. Do your own work.
+ends up on this page. A listing is not an endorsement. DYOR.
 
 
 ## Contact
