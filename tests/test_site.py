@@ -36,5 +36,16 @@ class TestSite(unittest.TestCase):
         self.assertIn("OK:", r.stdout)
 
 
+class TestLegendHonesty(unittest.TestCase):
+    """The site's LEGEND block is generated from providers/; this is the test
+    the feature's honesty depends on - without it the static page's copy
+    becomes a lie within two releases."""
+
+    def test_site_legend_matches_providers(self):
+        r = subprocess.run([os.sys.executable, os.path.join(ROOT, "ops", "gen_legend.py"),
+                            "--verify"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, f"\n{r.stdout}\n{r.stderr}")
+
+
 if __name__ == "__main__":
     unittest.main()

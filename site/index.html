@@ -253,6 +253,7 @@ omnigauge --refresh</pre>
   <b>F9</b><i data-c="help" role="button" tabindex="0">Cmds</i>
   <span class="sp"></span>
   <b>F10</b><i data-c="github" role="button" tabindex="0">GitHub</i>
+  <b>·</b><i data-c="legend" role="button" tabindex="0">Legend</i>
   <b>Alt+S</b><i data-c="saver" role="button" tabindex="0">Saver</i>
 </div>
 
@@ -404,12 +405,48 @@ function board(){
   foot('real readings, 15 Aug 2026, one machine - yours will differ');
 }
 
+/* ── providers legend ─────────────────────────────────────────────────────
+   LEGEND is GENERATED from providers/ by ops/gen_legend.py - this page is
+   static and cannot read a live registry, so a test (tests/test_site.py)
+   fails whenever this block disagrees with the code. Edit providers/, run
+   the generator; never edit the data by hand. */
+/*LEGEND-DATA*/var LEGEND=[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator - models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}];/*END-LEGEND-DATA*/
+var CAPORDER=['tokens','quota','reset','models','lifetime','spend','burn'];
+function legendPanel(){
+  var short={lifetime:'LIFE',models:'MODEL'};
+  blank();
+  head('PROVIDERS','what ships, what it gets, and what it cannot get');row('');
+  row('  [[f]]'+pad('SOURCE',11)+pad('KIND',6)+CAPORDER.map(function(c){
+    return rpad((short[c]||c).toUpperCase(),8);}).join('')+'[[/]]');
+  LEGEND.forEach(function(p){
+    var cells=CAPORDER.map(function(c){
+      var st=(p.c[c]||'').split(':')[0].trim();
+      return rpad(st==='obtained'?'[[g]]●[[/]]':st==='available'?'[[y]]○[[/]]'
+                  :'[[f]]-[[/]]',8);}).join('');
+    row('  [[w]]'+pad(p.n.slice(0,11),11)+'[[/]][[d]]'+pad(p.k,6)+'[[/]]'+cells);});
+  row('');foot('● obtained · ○ available, not read yet · - unavailable');
+  blank();
+  head('THE REASONS','the third state is the honest one');row('');
+  LEGEND.forEach(function(p){CAPORDER.forEach(function(c){
+    var v=p.c[c]||''; if(v.indexOf(':')<0)return;
+    var st=v.split(':')[0].trim(), why=v.slice(v.indexOf(':')+1).trim();
+    var lead=p.n+'/'+c, rest=st+' - '+why, budget=74-lead.length-2;
+    var first=rest.slice(0,budget);
+    row('  [[w]]'+lead+'[[/]][[d]]: '+first+'[[/]]');
+    for(var off=budget;off<rest.length;off+=70)
+      row('      [[d]]'+rest.slice(off,off+70)+'[[/]]');   /* wrap, never truncate */
+  });});
+  row('');foot('generated from providers/ - the CLI shows the same table');blank();
+}
+
 /* ── commands ────────────────────────────────────────────────────────────── */
 var C={
+ legend:function(){legendPanel();},
  help:function(){blank();
   head('COMMANDS');row('');
   [['board','the panel, live'],['why','the problem this exists for'],
    ['install','get it'],['providers','teach it a new tool'],
+   ['legend','every provider: gets, could get, cannot'],
    ['privacy','what it refuses to do'],['doctor','what it finds on your machine'],
    ['open','why MIT is the whole point'],['donate','if it saved you something'],
    ['copy','install lines to clipboard'],['wallet','address to clipboard'],
@@ -638,7 +675,8 @@ addEventListener('keydown',function(e){
 var MENUS={
  gauge:[['board','<u>B</u>oard','board'],['doctor','<u>D</u>octor','doctor'],['-'],
         ['install','<u>I</u>nstall','install']],
- view:[['why','<u>W</u>hy this exists','why'],['providers','<u>P</u>roviders','providers'],['open','<u>O</u>pen source','open'],
+ view:[['why','<u>W</u>hy this exists','why'],['providers','<u>P</u>roviders','providers'],
+       ['legend','Provider <u>l</u>egend','legend'],['open','<u>O</u>pen source','open'],
        ['privacy','P<u>r</u>ivacy','privacy'],['donate','<u>D</u>onate','donate'],['-'],
        ['saver','<u>S</u>creen saver','saver'],['cls','C<u>l</u>ear screen','cls']],
  help:[['help','<u>C</u>ommands','help'],['about','<u>A</u>bout','about'],['github','<u>G</u>itHub','github'],
@@ -725,7 +763,7 @@ C.mem=function(){blank();
   line('  [[f]]  that actually costs you something[[/]]');blank();};
 C.dir=function(){blank();
   line('  [[d]] Volume in drive C is OMNIGAUGE[[/]]');blank();
-  [['OMNIGAUGE','','one file, ~1,600 lines'],['PROVIDERS','<DIR>','claude.py — the worked example'],
+  [['OMNIGAUGE','','one file, ~1,600 lines'],['PROVIDERS','<DIR>','claude.py - the worked example'],
    ['INSTALL','SH','copies one file to ~/.local/bin'],['LICENSE','','MIT']]
   .forEach(function(f){line('  [[w]]'+pad(f[0],12)+'[[/]][[d]]'+pad(f[1],8)+f[2]+'[[/]]');});
   blank();};

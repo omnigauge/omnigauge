@@ -76,29 +76,38 @@ eval(m[1]);
 setTimeout(() => {
   const og = global.__og;
   if (!og) { console.error('window.__og hook missing'); process.exit(2); }
-  for (const c of ['help', 'why', 'board', 'install', 'providers',
+  for (const c of ['help', 'why', 'board', 'install', 'providers', 'legend',
                    'privacy', 'doctor', 'open', 'donate', 'ver', 'mem', 'dir']) {
     og.run(c);
   }
 
+  // The ban covers EVERY emitted line, loose ones included - checking only
+  // panel rows left five survivors, one of them in a panel header.
   const banned = /[—–“”→▟▛▎▋▁▂▃▄▅▆▇]/;
-  let rows = 0, bad = [];
+  let rows = 0, loose = 0, bad = [];
   for (const child of og.out.children) {
-    if (!/\bpan\b/.test(child.className)) continue;
-    for (const r of child.children) {
-      const t = r.textContent;
-      rows++;
-      if (t.length !== 78) bad.push(`len ${t.length}: ${JSON.stringify(t)}`);
+    if (/\bpan\b/.test(child.className)) {
+      for (const r of child.children) {
+        const t = r.textContent;
+        rows++;
+        if (t.length !== 78) bad.push(`len ${t.length}: ${JSON.stringify(t)}`);
+        const g = t.match(banned);
+        if (g) bad.push(`glyph ${JSON.stringify(g[0])}: ${JSON.stringify(t)}`);
+      }
+    } else {
+      const t = child.textContent;
+      loose++;
       const g = t.match(banned);
-      if (g) bad.push(`glyph ${JSON.stringify(g[0])}: ${JSON.stringify(t)}`);
+      if (g) bad.push(`glyph ${JSON.stringify(g[0])} in loose line: ${JSON.stringify(t)}`);
     }
   }
   if (rows < 100) bad.push(`only ${rows} panel rows measured - the drive did not run`);
   if (bad.length) {
-    console.error(`FAIL: ${bad.length} problem(s) across ${rows} rows`);
+    console.error(`FAIL: ${bad.length} problem(s) across ${rows} panel + ${loose} loose rows`);
     for (const b of bad.slice(0, 20)) console.error('  ' + b);
     process.exit(1);
   }
-  console.log(`OK: ${rows} panel rows, every one exactly 78 columns, no fallback-risk glyphs`);
+  console.log(`OK: ${rows} panel rows all exactly 78 columns; ` +
+              `${rows + loose} total lines free of fallback-risk glyphs`);
   process.exit(0);
 }, 150);
