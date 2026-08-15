@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omnigauge — one dashboard for Claude Code, OpenAI Codex and Grok CLI usage.
+"""omnigauge — one gauge for every AI agent and API account you run.
 
 Reads plan quota straight from each CLI and token volume straight from the
 transcripts those tools already write to disk. No API keys, no telemetry, no
@@ -46,6 +46,7 @@ DATA = os.environ.get("OMNIGAUGE_HOME") or os.path.join(
     os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), APP)
 DB = os.path.join(DATA, "usage.db")
 NOW = int(time.time())
+SCAN_ERRORS = []
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -283,6 +284,47 @@ def age(ts):
     return f"{d//86400}d ago"
 
 
+# ──────────────────────────────── providers ──────────────────────────────────
+#
+# A provider teaches omnigauge about one source. It is a single file in providers/
+# with no registration step — dropping it in is the whole install. See
+# providers/README.md for the contract.
+
+PROVIDER_DIRS = [
+    os.path.join(os.path.dirname(os.path.realpath(__file__)), "providers"),
+    os.path.join(DATA, "providers"),                       # user-local, survives upgrade
+    *(os.environ.get("OMNIGAUGE_PROVIDERS", "").split(os.pathsep) if
+      os.environ.get("OMNIGAUGE_PROVIDERS") else []),
+]
+PROVIDERS = {}
+
+
+def load_providers():
+    """Import every providers/*.py. A broken third-party provider must never
+    take the dashboard down with it, so failures are collected and shown."""
+    import importlib.util
+    for d in PROVIDER_DIRS:
+        if not d or not os.path.isdir(d):
+            continue
+        for f in sorted(glob.glob(os.path.join(d, "*.py"))):
+            if os.path.basename(f).startswith("_"):
+                continue
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "omnigauge_provider_" + os.path.basename(f)[:-3], f)
+                mod = importlib.util.module_from_spec(spec)
+                sys.modules.setdefault("omnigauge", sys.modules[__name__])
+                spec.loader.exec_module(mod)
+                name = getattr(mod, "NAME", None)
+                if not name:
+                    raise ValueError("provider defines no NAME")
+                PROVIDERS[name] = mod
+            except Exception as e:
+                SCAN_ERRORS.append(f"provider {os.path.basename(f)}: "
+                                   f"{type(e).__name__}: {e}")
+    return PROVIDERS
+
+
 # ─────────────────────────────── path discovery ───────────────────────────────
 
 def windows_homes(sub):
@@ -477,7 +519,17 @@ SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_cod
                 grok=(grok_files, scan_grok))
 
 
-SCAN_ERRORS = []
+def all_agents():
+    """Built-ins first, then providers — a provider may also override a built-in."""
+    out = list(SCANNERS)
+    for name, mod in PROVIDERS.items():
+        if getattr(mod, "KIND", "agent") != "agent":
+            continue
+        if name not in out:
+            out.append(name)
+        SCANNERS[name] = (mod.files, mod.scan)
+    return out
+
 
 # Memo for the interactive loop. Cycling a theme must not re-read 200 files;
 # only a window change or a refresh invalidates the numbers.
@@ -938,7 +990,7 @@ def render(args):
 
     # ── masthead
     logo = f"{s.bcya}▟▛{s.r}"
-    name = f"{s.b}{s.wht}OMNIGAUGE{s.r}"
+    name = f"{s.b}{s.wht}OMNIGAUGE{s.r}  {s.gry}one gauge, every provider{s.r}"
     right = f"{s.gry}{os.uname().nodename} · {time.strftime('%H:%M %Z')}{s.r}"
     head = f" {logo} {name}"
     print(f"\n{head}{' ' * max(1, W - vis(head) - vis(right) - 1)}{right}")
