@@ -107,11 +107,19 @@ class S:
     theme = "ink"
 
     THEMES = dict(
-        ink=dict(ok="\033[38;5;66m",     # slate blue-grey — deliberately not green
-                 warn="\033[38;5;137m",  # soft tan
-                 crit="\033[38;5;131m",  # dusty rose
-                 accent="\033[38;5;103m",
+        # ok is HUELESS on purpose. 66 (#5f8787) was meant to read as slate but
+        # it is teal, and teal reads as green — which put the red/green pair
+        # straight back. A healthy bar now carries no hue at all, so the only
+        # coloured thing on screen is whatever is actually in trouble.
+        ink=dict(ok="\033[38;5;245m",    # neutral grey
+                 warn="\033[38;5;179m",  # amber
+                 crit="\033[38;5;167m",  # rose
+                 accent="\033[38;5;110m",# soft blue, headings only
                  gry="\033[38;5;243m", faint="\033[38;5;237m", wht="\033[38;5;251m"),
+        steel=dict(ok="\033[38;5;67m",   # steel blue — a hue, but never green
+                   warn="\033[38;5;179m", crit="\033[38;5;167m",
+                   accent="\033[38;5;110m",
+                   gry="\033[38;5;243m", faint="\033[38;5;237m", wht="\033[38;5;251m"),
         muted=dict(ok="\033[38;5;72m", warn="\033[38;5;179m", crit="\033[38;5;167m",
                    accent="\033[38;5;109m",
                    gry="\033[38;5;242m", faint="\033[38;5;238m", wht="\033[38;5;252m"),
