@@ -21,39 +21,41 @@ No API keys. No telemetry. No network calls of its own. It reads the files those
 already write to your disk, and asks each CLI for its own quota panel.
 
 ```
- ▟▛ OMNIGAUGE                                                    my-box · 20:31 CDT
+
+ ▐▌ OMNIGAUGE  one gauge, every provider                         my-box · 20:31 UTC
  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▲  codex is at 97% — 5d 2h to reset · tightest window
+ ▲  codex is at 97% — 5d 15h to reset · tightest window
 
- ╭─ PLAN QUOTA ───────────────────────────────────────── normalized to % consumed ╮
- │                                                                                │
- │     AGENT            WINDOW                            USED   RESETS IN   READ │
- │  ●  claude           week     █████·················    24%       4d 9h    now │
- │  ○  claude/fable     week     ······················     0%           -    now │
- │  ●  claude           session  █·····················     5%     12:19am    now │
- │  ●  codex            week     █████████████████████·    97%       5d 2h     7m │
- │                       vendor said "3% left" - inverted                         │
- │  ○  codex/spark      week     ······················     0%      6d 23h     7m │
- │  ●  grok/x premium+  week     ██████················    26%      2d 16h     7m │
- │                                                                                │
- ╰── subscription windows · no dollar balance exists for these plans ─────────────╯
+ ╭─ PLAN QUOTA ────────────────────────────────────────── normalized to % consumed ╮
+ │                                                                                 │
+ │     AGENT            WINDOW                           USED RESETS IN  READ      │
+ │  ●  claude           week    █████·················    24%    4d 13h   now      │
+ │  ○  claude/fable     week    ······················     0%    4d 13h   now      │
+ │  ●  claude           session █·····················     5%   12:19am   now      │
+ │  ●  codex            week    █████████████████████·    97%    5d 15h    7m      │
+ │                       vendor said "3% left" - inverted                          │
+ │  ○  codex/spark      week    ······················     0%     7d 1h    7m      │
+ │                       vendor said "100% left" - inverted                        │
+ │  ●  grok/x premium+  week    ██████················    26%     2d 8h    7m      │
+ │                                                                                 │
+ ╰── subscription windows · no dollar balance exists for these plans ──────────────╯
 
- ╭─ TOKEN VOLUME ────────────────────────────────────── local transcripts · 24h ──╮
- │                                                                                │
- │  AGENT       FILES    MSGS     OUTPUT     THINK   CACHE-RD      INPUT    TOTAL │
- │  claude          5   3,806      4.66M     1.32M      2.02B      7.16K    2.03B │
- │  codex         211     211    502.77M   229.01M    185.24B    193.51B  194.01B │
- │  grok            3       3          0         0          0          0    4.26M │
- │                                                                                │
- ╰── not comparable to vendor counters · different denominators ──────────────────╯
+ ╭─ TOKEN VOLUME ───────────────────────────────────────── local transcripts · 24h ╮
+ │                                                                                 │
+ │  AGENT       FILES    MSGS     OUTPUT     THINK   CACHE-RD      INPUT      TOTAL│
+ │  claude          5   3,806      4.66M     1.32M      2.02B      7.16K      2.03B│
+ │  codex         211     211    502.77M   229.01M    185.24B    193.51B    194.01B│
+ │  grok            3       3          0         0          0          0      4.26M│
+ │                                                                                 │
+ ╰── not comparable to vendor counters · different denominators ───────────────────╯
 
- ╭─ WHAT IS DRIVING USAGE ────────────────────────────── reported by the vendor ──╮
- │                                                                                │
- │  ▸ 100% of your usage came from sessions active for 8+ hours                   │
- │  ▸ 99% of your usage was at >150k context                                      │
- │  ▸ 19% of your usage was while 4+ sessions ran in parallel                     │
- │                                                                                │
- ╰────────────────────────────────────────────────────────────────────────────────╯
+ ╭─ WHAT IS DRIVING USAGE ───────────────────────────────── reported by the vendor ╮
+ │                                                                                 │
+ │  ▸ 100% of your usage came from sessions active for 8+ hours                    │
+ │  ▸ 99% of your usage was at >150k context                                       │
+ │  ▸ 19% of your usage was while 4+ sessions ran in parallel                      │
+ │                                                                                 │
+ ╰─────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## What this does that the others don't
@@ -66,7 +68,7 @@ project's reason to exist:
 |---|---|---|---|
 | token + quota tracking | ✅ | ✅ | ✅ |
 | **burn rate & exhaustion forecast** | ❌ *"cannot predict"* | ✅ | ✅ |
-| **budgets / alerts** | ❌ | ✅ | planned |
+| **budgets / alerts** | ❌ | ✅ | ✅ `--check`, exit-coded for cron |
 | **non-agent APIs** (org billing, X) | ❌ | partial | ✅ |
 | **multi-account per provider** | ❌ *"picks the active account"* | ✅ | ✅ |
 | runs with no runtime installed | ❌ Node/Bun | ❌ cloud | ✅ stdlib Python |
@@ -97,7 +99,7 @@ omnigauge --check --quiet  # silent unless something fires
 
 ```
 WARNING:  codex at 98% of its week window, resets in 5d 0h
-CRITICAL: codex runs dry in 1h 26m — 4d 21h BEFORE its window resets
+CRITICAL: codex runs dry in 1h 26m - 4d 21h BEFORE its window resets
 ```
 
 Every fifteen minutes, from cron:

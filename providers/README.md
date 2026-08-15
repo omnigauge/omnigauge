@@ -10,7 +10,9 @@ OmniGauge finds it.
 NAME     = "gemini"          # required · lowercase, becomes the CLI/agent label
 KIND     = "agent"           # "agent" (a coding CLI) or "api" (a billed account)
 
-def detect() -> bool:              # is this source present on this machine?
+def detect() -> bool:              # api providers: is the credential set?
+                                   #   (--doctor shows it; agent presence is
+                                   #    derived from files() and the binary)
 def files() -> list[str]:          # transcripts to count tokens from  (agent)
 def scan(path, since=0) -> dict:   # parse ONE file -> token counts     (agent)
 
