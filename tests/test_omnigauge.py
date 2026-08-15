@@ -578,6 +578,31 @@ class TestProviderConformance(unittest.TestCase):
             if old is None: os.environ.pop("OMNIGAUGE_ROOTS", None)
             else: os.environ["OMNIGAUGE_ROOTS"] = old
 
+    def test_symlinked_root_does_not_double_count(self):
+        """A root that reaches the same store through a symlink - or points
+        back at the real home under another name - must not double the
+        numbers. Dedup is by realpath, not by string."""
+        base = os.path.join(_TMP, "link-home")
+        os.makedirs(os.path.join(base, ".claude", "projects", "-p"),
+                    exist_ok=True)
+        f = os.path.join(base, ".claude", "projects", "-p", "one.jsonl")
+        with open(f, "w") as fh:
+            fh.write("{}\n")
+        alias = os.path.join(_TMP, "link-alias")
+        if not os.path.islink(alias):
+            os.symlink(base, alias)
+        old_h, old_r = os.environ["HOME"], os.environ.get("OMNIGAUGE_ROOTS")
+        os.environ["HOME"] = base
+        os.environ["OMNIGAUGE_ROOTS"] = alias
+        try:
+            found = og.claude_files()
+            self.assertEqual(len(found), 1,
+                             f"symlinked root double-counted: {found}")
+        finally:
+            os.environ["HOME"] = old_h
+            if old_r is None: os.environ.pop("OMNIGAUGE_ROOTS", None)
+            else: os.environ["OMNIGAUGE_ROOTS"] = old_r
+
     def test_unplugged_root_is_named_not_silent(self):
         gone = os.path.join(_TMP, "unplugged-ssd")
         old = os.environ.get("OMNIGAUGE_ROOTS")

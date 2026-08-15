@@ -418,15 +418,23 @@ def missing_roots():
 
 def all_homes(sub):
     """Every place a store named `sub` may live: the real home, Windows-side
-    homes on WSL, and every configured root. Existing directories only."""
-    out = []
+    homes on WSL, and every configured root. Existing directories only, and
+    deduplicated by REALPATH - a root that reaches the same store through a
+    symlink (or points back at the real home) must not count it twice."""
+    out, seen = [], set()
+    cands = []
     h = os.path.expanduser(f"~/{sub}")
     if os.path.isdir(h):
-        out.append(h)
-    out += windows_homes(sub)
+        cands.append(h)
+    cands += windows_homes(sub)
     for r in config_roots():
         c = os.path.join(r, sub)
-        if os.path.isdir(c) and c not in out:
+        if os.path.isdir(c):
+            cands.append(c)
+    for c in cands:
+        key = os.path.realpath(c)
+        if key not in seen:
+            seen.add(key)
             out.append(c)
     return out
 
