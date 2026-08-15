@@ -1317,10 +1317,10 @@ def api_row_text(name, window, r):
     """One API SPEND panel row. Four shapes, in precedence order: an error
     (loud, never a zero), a balance (prepaid vendors), usage against a cap,
     or plain spend. Factored so the widths are assertable like quota rows."""
-    lead = f"  {s.accent}▸{s.r} {s.b}{name:<16.16}{s.r}{s.gry}{window:<12.12}{s.r}"
+    lead = f"  {s.accent}▸{s.r} {s.b}{name:<16.16}{s.r} {s.gry}{window:<12.12}{s.r}"
     if r.get("err"):
-        return (f"  {s.crit}▸{s.r} {s.b}{name:<16.16}{s.r}{s.gry}{window:<12.12}{s.r}"
-                f"{s.crit}{r['err'][:40]}{s.r}")
+        return (f"  {s.crit}▸{s.r} {s.b}{name:<16.16}{s.r} {s.gry}{window:<12.12}{s.r}"
+                f"{s.crit}{r['err'][:39]}{s.r}")
     if r.get("balance") is not None:
         cur = f" {r['currency']}" if r.get("currency") else ""
         note = f"  {r['note']}" if r.get("note") else ""
