@@ -159,7 +159,11 @@ IN = W - 2          # inner width of a framed panel
 def top(title, sub=""):
     t = f" {s.b}{s.bcya}{title}{s.r}{s.gry} "
     tail = f"{s.gry} {sub} {s.r}" if sub else ""
-    fill = IN - vis(t) - vis(tail) - 2
+    # IN - 1, not IN - 2: the row is ' │' + IN + '│', so the header must be
+    # ' ╭─' + title + fill + sub + '╮'. Budgeting two for '╭─' and one for '╮'
+    # while only subtracting two total left every panel's top-right corner one
+    # column short of its own body.
+    fill = IN - vis(t) - vis(tail) - 1
     print(f"\n {s.faint}╭─{s.r}{t}{s.faint}{'─' * max(1, fill)}{s.r}{tail}{s.faint}╮{s.r}")
 
 

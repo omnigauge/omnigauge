@@ -25,7 +25,7 @@ already write to your disk, and asks each CLI for its own quota panel.
  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▲  codex is at 97% — 5d 2h to reset · tightest window
 
- ╭─ PLAN QUOTA ──────────────────────────────────────── normalized to % consumed ╮
+ ╭─ PLAN QUOTA ───────────────────────────────────────── normalized to % consumed ╮
  │                                                                                │
  │     AGENT            WINDOW                            USED   RESETS IN   READ │
  │  ●  claude           week     █████▎················    24%       4d 9h    now │
@@ -38,7 +38,7 @@ already write to your disk, and asks each CLI for its own quota panel.
  │                                                                                │
  ╰── subscription windows · no dollar balance exists for these plans ─────────────╯
 
- ╭─ TOKEN VOLUME ───────────────────────────────────── local transcripts · 24h ──╮
+ ╭─ TOKEN VOLUME ────────────────────────────────────── local transcripts · 24h ──╮
  │                                                                                │
  │  AGENT       FILES    MSGS     OUTPUT     THINK   CACHE-RD      INPUT    TOTAL │
  │  claude          5   3,806      4.66M     1.32M      2.02B      7.16K    2.03B │
