@@ -30,7 +30,13 @@ Usage:
   announce.py release v0.2.0 --notes "Gemini provider, lifetime totals"
   announce.py provider gemini
   announce.py text "..."
+  announce.py draft "the first release" --n 3
   ... add --post to actually send. Without it you get a dry run.
+
+`draft` asks a model for candidate posts in the project's voice and PRINTS
+them - it never sends. Pick one, edit it, then post it as `text ... --post`.
+It uses OMNIGAUGE_DRAFT_BASE/_KEY/_MODEL when set, else AI_GATEWAY_API_KEY
+against the Vercel AI Gateway, else OPENAI_API_KEY against api.openai.com.
 """
 import argparse
 import base64
@@ -38,6 +44,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -46,6 +53,14 @@ import urllib.request
 
 POST_URL = "https://api.x.com/2/tweets"
 LIMIT = 280
+_URL_RX = re.compile(r"https?://\S+")
+
+
+def x_len(t):
+    """Length as X counts it: every URL is 23 characters (t.co wrapping),
+    whatever its real length. Counting raw len() refused legitimate posts -
+    the repo link alone is 40 characters that X bills as 23."""
+    return len(_URL_RX.sub("x" * 23, t))
 REPO = "https://github.com/omnigauge/omnigauge"
 
 ENV = ("OMNIGAUGE_X_API_KEY", "OMNIGAUGE_X_API_SECRET",
@@ -124,6 +139,90 @@ def post(text):
     return None
 
 
+VOICE = (
+    "You write posts for @OmniGauge, an open-source terminal dashboard that "
+    "shows plan quota, token volume, burn rate and reset time for Claude Code, "
+    "Codex and Grok CLIs. Voice: plain, dry, precise, occasionally wry. No "
+    "hype, no emoji, no hashtags, no exclamation marks. Facts you may use: it "
+    "reads local files the CLIs already write; no API keys; no telemetry; it "
+    "normalizes every vendor's counter to percent consumed (Codex reports "
+    "percent remaining and gets inverted); it forecasts whether you run dry "
+    "BEFORE the window resets; one Python file, stdlib only, MIT. "
+    "Repo: https://github.com/omnigauge/omnigauge")
+
+
+def _draft_endpoint():
+    """Explicit env wins; else the AI Gateway; else OpenAI direct."""
+    base = os.environ.get("OMNIGAUGE_DRAFT_BASE")
+    key = os.environ.get("OMNIGAUGE_DRAFT_KEY")
+    model = os.environ.get("OMNIGAUGE_DRAFT_MODEL")
+    if not (base and key):
+        if os.environ.get("AI_GATEWAY_API_KEY"):
+            base, key = "https://ai-gateway.vercel.sh/v1", os.environ["AI_GATEWAY_API_KEY"]
+            model = model or "openai/gpt-5.5"
+        elif os.environ.get("OPENAI_API_KEY"):
+            base, key = "https://api.openai.com/v1", os.environ["OPENAI_API_KEY"]
+            model = model or "gpt-5.5"
+    return base, key, model or "openai/gpt-5.5"
+
+
+def _candidates(text):
+    """Split on --- lines, clamp to the X-counted limit, dedupe, strip
+    wrapping quotes. A candidate over the limit is dropped rather than
+    truncated - a cut-off post is worse than one fewer option - but the
+    drop is COUNTED, because zero survivors must be loud, not silent."""
+    out, dropped = [], 0
+    for block in text.split("---"):
+        t = block.strip().strip('"').strip()
+        if not t or t in out:
+            continue
+        if x_len(t) > LIMIT:
+            dropped += 1
+            continue
+        out.append(t)
+    return out, dropped
+
+
+def draft(topic, n=3):
+    """Candidate posts from a model. Prints and returns them; NEVER sends."""
+    base, key, model = _draft_endpoint()
+    if not key:
+        print("  no AI_GATEWAY_API_KEY or OPENAI_API_KEY in the environment",
+              file=sys.stderr)
+        return []
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": VOICE},
+            {"role": "user", "content":
+                f"Write {n} candidate posts about: {topic}. Each complete post "
+                "under 270 characters including the repo link. Separate the "
+                "candidates with a line containing only --- . No numbering, "
+                "no surrounding quotes, no preamble."}],
+    }).encode()
+    req = urllib.request.Request(base + "/chat/completions", data=body, method="POST")
+    req.add_header("Authorization", "Bearer " + key)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            text = json.load(r)["choices"][0]["message"]["content"]
+    except urllib.error.HTTPError as e:
+        print(f"  draft failed - HTTP {e.code} from {model}: "
+              f"{e.read().decode(errors='replace')[:300]}", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"  draft failed - {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+    cands, dropped = _candidates(text)
+    if dropped:
+        print(f"  ({dropped} candidate(s) over {LIMIT} X-counted chars, dropped)",
+              file=sys.stderr)
+    if not cands:
+        print(f"  model returned no usable candidates - raw reply began: "
+              f"{text.strip()[:120]!r}", file=sys.stderr)
+    return cands
+
+
 def compose(a):
     if a.kind == "release":
         head = f"OmniGauge {a.name}"
@@ -138,16 +237,28 @@ def compose(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("kind", choices=["release", "provider", "text"])
+    ap.add_argument("kind", choices=["release", "provider", "text", "draft"])
     ap.add_argument("name")
     ap.add_argument("--notes", default="")
+    ap.add_argument("--n", type=int, default=3, help="draft: how many candidates")
     ap.add_argument("--post", action="store_true",
                     help="actually send it; without this you get a dry run")
     a = ap.parse_args()
 
+    if a.kind == "draft":
+        if a.post:
+            print("  draft never posts. Pick one, then: announce.py text '...' --post",
+                  file=sys.stderr)
+        cands = draft(a.name, a.n)
+        for i, c in enumerate(cands, 1):
+            print(f"\n{'─'*60}\n[{i}]  ({x_len(c)}/{LIMIT} X-counted chars)\n{c}")
+        print(f"\n{'─'*60}\n  {len(cands)} candidate(s). Post one with: "
+              "announce.py text '<the text>' --post\n" if cands else "")
+        return 0 if cands else 1
+
     text = compose(a)
-    n = len(text)
-    print(f"\n{'─'*60}\n{text}\n{'─'*60}\n  {n}/{LIMIT} characters")
+    n = x_len(text)
+    print(f"\n{'─'*60}\n{text}\n{'─'*60}\n  {n}/{LIMIT} characters as X counts them")
     if n > LIMIT:
         print("  too long — not sent", file=sys.stderr)
         return 1

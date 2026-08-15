@@ -101,6 +101,60 @@ class TestSignatureVector(unittest.TestCase):
             an._auth_header("POST", "https://api.x.com/2/tweets?foo=1", self.creds())
 
 
+class TestDraft(unittest.TestCase):
+    def test_candidates_split_clamp_dedupe(self):
+        text = ('First post about the tool.\n---\n"Second, quoted."\n---\n'
+                'First post about the tool.\n---\n' + 'x' * 300 + '\n---\n  ')
+        got, dropped = an._candidates(text)
+        self.assertEqual(got, ["First post about the tool.", "Second, quoted."])
+        self.assertEqual(dropped, 1)
+
+    def test_x_len_counts_urls_as_23(self):
+        self.assertEqual(an.x_len("https://github.com/omnigauge/omnigauge"), 23)
+        self.assertEqual(an.x_len("read this: https://omnigauge.dev now"), 11 + 23 + 4)
+        self.assertEqual(an.x_len("no links here"), 13)
+
+    def test_legal_link_post_survives_clamp(self):
+        # 270 raw chars of text + a 40-char URL = 310 raw, 293... keep under:
+        body = "y" * 250
+        post = body + " https://github.com/omnigauge/omnigauge"
+        self.assertGreater(len(post), an.LIMIT)          # raw len would refuse it
+        self.assertLessEqual(an.x_len(post), an.LIMIT)   # X accepts it
+        got, dropped = an._candidates(post)
+        self.assertEqual((len(got), dropped), (1, 0))
+
+    def test_endpoint_resolution_order(self):
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(("OMNIGAUGE_DRAFT", "AI_GATEWAY", "OPENAI"))}
+        # nothing set -> no key
+        with SwapEnv(env):
+            self.assertIsNone(an._draft_endpoint()[1])
+        with SwapEnv(dict(env, AI_GATEWAY_API_KEY="g")):
+            base, key, model = an._draft_endpoint()
+            self.assertIn("ai-gateway", base); self.assertEqual(key, "g")
+        with SwapEnv(dict(env, OPENAI_API_KEY="o")):
+            base, key, model = an._draft_endpoint()
+            self.assertIn("api.openai.com", base); self.assertEqual(key, "o")
+        with SwapEnv(dict(env, AI_GATEWAY_API_KEY="g", OPENAI_API_KEY="o")):
+            self.assertEqual(an._draft_endpoint()[1], "g")   # gateway wins
+
+    def test_draft_without_keys_fails_closed(self):
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(("OMNIGAUGE_DRAFT", "AI_GATEWAY", "OPENAI"))}
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "ops", "announce.py"),
+                            "draft", "anything"], capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 1)
+
+
+class SwapEnv:
+    def __init__(self, env): self.env = env
+    def __enter__(self):
+        self.old = dict(os.environ)
+        os.environ.clear(); os.environ.update(self.env)
+    def __exit__(self, *a):
+        os.environ.clear(); os.environ.update(self.old)
+
+
 class TestComposeAndClamp(unittest.TestCase):
     def run_announce(self, *args):
         return subprocess.run([sys.executable, os.path.join(ROOT, "ops", "announce.py"),
