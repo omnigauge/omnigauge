@@ -7,26 +7,39 @@ No API keys. No telemetry. No network calls of its own. It reads the files those
 already write to your disk, and asks each CLI for its own quota panel.
 
 ```
-  OMNIGAUGE                                          my-box · 2026-08-14 20:31 CDT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▟▛ OMNIGAUGE                                                    my-box · 20:31 CDT
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▲  codex is at 97% — 5d 2h to reset · tightest window
 
-  PLAN QUOTA                        subscription windows · normalized to % CONSUMED
-  ─────────────────────────────────────────────────────────────────────────────────
-  AGENT             WINDOW                               USED   RESETS         AGE
-  claude            week     ██████░░░░░░░░░░░░░░░░░░    23%   Aug 19, 6pm    4m ago
-  claude/fable      week     ░░░░░░░░░░░░░░░░░░░░░░░░     0%   —              4m ago
-  claude            session  ░░░░░░░░░░░░░░░░░░░░░░░░     2%   12:20am        4m ago
-  codex             week     ███████████████████████░    94%   23:04 19 Aug   4m ago ⚠
-                             vendor reported "6% left" — inverted here
-  codex/spark       week     ░░░░░░░░░░░░░░░░░░░░░░░░     0%   19:41 21 Aug   4m ago
-  grok/x premium+   week     ██████░░░░░░░░░░░░░░░░░░    26%   August 17      4m ago
+ ╭─ PLAN QUOTA ──────────────────────────────────────── normalized to % consumed ╮
+ │                                                                                │
+ │     AGENT            WINDOW                            USED   RESETS IN   READ │
+ │  ●  claude           week     █████▎················    24%       4d 9h    now │
+ │  ○  claude/fable     week     ······················     0%           —    now │
+ │  ●  claude           session  █·····················     5%     12:19am    now │
+ │  ●  codex            week     █████████████████████▎    97%       5d 2h     7m │
+ │                       vendor said "3% left" — inverted                         │
+ │  ○  codex/spark      week     ······················     0%      6d 23h     7m │
+ │  ●  grok/x premium+  week     █████▋················    26%      2d 16h     7m │
+ │                                                                                │
+ ╰── subscription windows · no dollar balance exists for these plans ─────────────╯
 
-  TOKEN VOLUME                                            local transcripts · 24h
-  ─────────────────────────────────────────────────────────────────────────────────
-  AGENT      FILES    MSGS     OUTPUT      THINK   CACHE-RD      INPUT      TOTAL
-  claude         5   3,560      4.42M      1.24M      1.86B      6.71K      1.86B
-  codex        209     209    489.95M    222.87M    180.10B    188.11B    188.60B
-  grok           3       3          0          0          0          0      4.26M
+ ╭─ TOKEN VOLUME ───────────────────────────────────── local transcripts · 24h ──╮
+ │                                                                                │
+ │  AGENT       FILES    MSGS     OUTPUT     THINK   CACHE-RD      INPUT    TOTAL │
+ │  claude          5   3,806      4.66M     1.32M      2.02B      7.16K    2.03B │
+ │  codex         211     211    502.77M   229.01M    185.24B    193.51B  194.01B │
+ │  grok            3       3          0         0          0          0    4.26M │
+ │                                                                                │
+ ╰── not comparable to vendor counters · different denominators ──────────────────╯
+
+ ╭─ WHAT IS DRIVING USAGE ────────────────────────────── reported by the vendor ──╮
+ │                                                                                │
+ │  ▸ 100% of your usage came from sessions active for 8+ hours                   │
+ │  ▸ 99% of your usage was at >150k context                                      │
+ │  ▸ 19% of your usage was while 4+ sessions ran in parallel                     │
+ │                                                                                │
+ ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Why the numbers are kept apart
@@ -95,6 +108,14 @@ screen.
 
 On WSL, Codex keeps **two separate stores** — `~/.codex` and `/mnt/c/Users/<you>/.codex`.
 Both are discovered. Searching only one and concluding "nothing here" is a real trap.
+
+## Workspace trust
+
+Launching Claude in a directory it has not seen raises a blocking trust prompt, which
+swallows the keystrokes. omnigauge **will not auto-accept it** — trusting a folder is a
+real security decision and it persists. It instead reuses a directory the CLI has
+demonstrably run in before, read from Claude's own session registry, and detects the dialog
+explicitly if one still appears. Override with `--cwd DIR`.
 
 ## When a parse fails
 

@@ -409,9 +409,9 @@ def lifetime_totals(agent, con, progress=False):
             vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:]))
         else:
             fresh += 1
-            if progress:
-                print(f"\r  scanning {agent}: {n}/{len(all_files)} ({fresh} changed)…",
-                      end="", flush=True)
+            if progress and fresh % 25 == 1:
+                print(f"\r  {s.gry}scanning {agent}: {n:,}/{len(all_files):,} "
+                      f"({fresh} changed)…{s.r}", end="", flush=True)
             try:
                 r = scan(f, 0)
             except Exception:
@@ -429,7 +429,7 @@ def lifetime_totals(agent, con, progress=False):
             for k, v in vals.items(): t[k] += v
     con.commit()
     if progress and fresh:
-        print("\r" + " " * (W - 1) + "\r", end="")
+        print("\r" + " " * (W - 1) + "\r", end="", flush=True)
     return t
 
 
@@ -693,14 +693,18 @@ def render(args):
 
     # ── volume panel
     def vol_table(title, note, getter):
+        # Gather BEFORE drawing: the lifetime scan prints progress, and doing that
+        # between mid() calls tears the frame apart.
+        data = {a_: (getter(a_) if SCANNERS[a_][0]() else None)
+                for a_ in ("claude", "codex", "grok")}
         top(title, note)
         mid()
         mid(f"  {s.gry}{'AGENT':<10}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}"
             f"{'THINK':>10}{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}{s.r}")
         for agent in ("claude", "codex", "grok"):
-            if not SCANNERS[agent][0]():
+            t = data[agent]
+            if t is None:
                 mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
-            t = getter(agent)
             tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
             mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
                 f"{s.bgrn}{human(t['tout']):>11}{s.r}{s.wht}{human(t['think']):>10}{s.r}"
