@@ -794,11 +794,11 @@ var C={
     prose('d','MIT and stays that way. No paid tier, nothing held back, nothing gated on this.');row('');
     row('  [[w]]Solana[[/]]');
     row('');foot('optional, and it changes nothing');
-    line('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]','cmd');
+    row('  [[y]]BHi4K...xxXxx[[/]]  [[f]]tap to copy[[/]]');
     (function(){var b=out.querySelectorAll('b.y');
       for(var i=b.length-1;i>=0;i--)
-        if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
-          b[i].title='double-click to copy';break;}})();
+        if(b[i].textContent.trim()==='BHi4K...xxXxx'){b[i].className='y addr';
+          b[i].title='tap to copy';break;}})();
     blank();
     head('NO TOKEN');row('');
     prose('w','There will be no OmniGauge token from the developer of OmniGauge.');
@@ -806,7 +806,7 @@ var C={
     prose('w','X is the only place OmniGauge exists.');
     prose('d','No Discord, no Telegram, no "community". Anywhere else is not us.');row('');
     prose('f','If you launch one, say so - the email on the GitHub profile is the channel. A listing is not an endorsement. DYOR.');
-    row('');foot('double-click the address to copy');blank();return;}
+    row('');foot('the tap copies the full address');blank();return;}
   head('DONATE','optional, and it changes nothing');row('');
   row('  [[d]]OmniGauge is MIT and stays that way. No paid tier, no hosted[[/]]');
   row('  [[d]]version waiting behind it, no feature held back. Nothing here[[/]]');
@@ -816,7 +816,7 @@ var C={
   (function(){var b=out.querySelectorAll('b.y');
     for(var i=b.length-1;i>=0;i--)
       if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
-        b[i].title='double-click to copy';break;}})();
+        b[i].title='click to copy';break;}})();
   row('  [[f]]If you got more out of this than it cost you to read the[[/]]');
   row('  [[f]]source, that trade already worked.[[/]]');row('');
   row('  [[d]]Chip in a Sol or two. It buys you nothing - no tier, no[[/]]');
@@ -845,7 +845,7 @@ var C={
   row('  [[d]]met the terms above instead of pretending to be us - there[[/]]');
   row('  [[d]]is a good chance the contract address ends up on this page.[[/]]');row('');
   row('  [[f]]A listing is not an endorsement. DYOR.[[/]]');row('');
-  foot('double-click the address, or type  wallet');blank();},
+  foot('click the address, or type  wallet');blank();},
 
  copy:function(){navigator.clipboard.writeText(
     'git clone https://github.com/omnigauge/omnigauge.git\n'+
@@ -911,7 +911,14 @@ var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',
    what a terminal does. Actions (copy, saver, links, the About dialog)
    never clear: they annotate the view you are on. */
 var NAV_KEEP={copy:1,wallet:1,w:1,saver:1,screensaver:1,ss:1,dvd:1,github:1,x:1,cls:1,clear:1,about:1};
-function runNav(c){if(MOBILE&&!NAV_KEEP[c])out.innerHTML='';run(c);}
+/* The boot - wordmark, BIOS lines, the board - is the page's permanent
+   header. A press replaces everything BELOW it, from the first prompt
+   down; navBase is recorded at the end of boot. */
+var navBase=0;
+function runNav(c){
+  if(MOBILE&&!NAV_KEEP[c])
+    while(out.children.length>navBase)out.removeChild(out.lastChild);
+  run(c);}
 addEventListener('keydown',function(e){
   /* Alt+S only. F11 belongs to the browser - a person pressing it wants
      fullscreen, and answering with a screensaver hijacks that intent. */
@@ -991,13 +998,16 @@ function keyable(el){el.addEventListener('keydown',function(e){
     e.preventDefault();e.stopPropagation();e.target.click();}});}
 keyable(document.getElementById('keys'));
 keyable(document.getElementById('menu'));
-/* double-click anywhere on the address copies it — the selection the browser
-   makes on dblclick stops at punctuation, so copying by hand gets a fragment */
-out.addEventListener('dblclick',function(e){
-  var t=e.target;
-  if(!t||t.textContent.trim()!=='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx')return;
+/* one click or tap on the address copies it - selecting 44 base58 chars
+   by hand on a phone is the kind of chore this page exists to spare
+   people. The mobile display is condensed; the clipboard always gets
+   the full address. */
+out.addEventListener('click',function(e){
+  var t=e.target.closest&&e.target.closest('b.addr');
+  if(!t)return;
   navigator.clipboard.writeText('BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx').then(function(){
-    blank();line('  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');
+    blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- Solana address[[/]]'
+      :'  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');
     blank();bottom();
   });
 });
@@ -1280,6 +1290,7 @@ function start(instant){
     else
       line('  [[f]]Type[[/]] [[y]]help[[/]][[f]], or press[[/]] [[y]]F2[[/]] [[f]]if you are wondering what this is for.[[/]]');
     blank();
+    navBase=out.children.length;
     prom.style.display='flex';if(!MOBILE)inp.focus();bottom();
     if(!booted&&!RM)setInterval(tick,1000);
     if(MOBILE&&!booted)dialog('Mobile view',
