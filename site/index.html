@@ -487,7 +487,7 @@ var C={
   row('');foot('');blank();},
 
  open:function(){blank();
-  head('DON\u2019T TAKE MY WORD FOR IT','MIT \u00b7 one file \u00b7 no dependencies');row('');
+  head('DO NOT TAKE MY WORD FOR IT','MIT - one file - no dependencies');row('');
   row('  [[d]]A tool that can see every token you spend is exactly the kind[[/]]');
   row('  [[d]]you should not trust on faith. So do not.[[/]]');row('');
   row('  [[w]]The whole thing is one Python file.[[/]] [[d]]About 1,600 lines. No[[/]]');
@@ -545,10 +545,10 @@ var C={
     'git clone https://github.com/omnigauge/omnigauge.git\n'+
     'install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge\n'+
     'omnigauge --refresh');
-  blank();line('  [[g]]Copied[[/]] [[d]]— three install lines on your clipboard[[/]]');blank();},
+  blank();line('  [[g]]Copied[[/]] [[d]]- three install lines on your clipboard[[/]]');blank();},
  wallet:function(){navigator.clipboard.writeText(
     'BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx');
-  blank();line('  [[g]]Copied[[/]] [[d]]— Solana address on your clipboard[[/]]');blank();},
+  blank();line('  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');blank();},
 
  saver:function(){blank();
    line('  [[d]]Screen going dark. Any key brings it back.[[/]]');blank();bottom();
@@ -573,7 +573,7 @@ function run(raw){
   else{blank();
     /* no esc() here: line() already escapes through paint(). Escaping twice
        showed the entities - typing & echoed as &amp;. */
-    line('  [[r]]Bad command or file name[[/]] — [[w]]'+raw.trim()+'[[/]]');
+    line('  [[r]]Bad command or file name[[/]] - [[w]]'+raw.trim()+'[[/]]');
     line('  [[f]]It refuses to guess what you meant. Type[[/]] [[y]]help[[/]][[f]].[[/]]');blank();
     announce('Bad command: '+raw.trim());}
 }
@@ -720,7 +720,7 @@ C.ver=function(){blank();line('  [[w]]OmniGauge [Version 1.0][[/]]');
 C.mem=function(){blank();
   line('  [[d]]    655,360 bytes total conventional memory[[/]]');
   line('  [[d]]    655,360 bytes free[[/]]');
-  line('  [[f]]  2,032,000,000 tokens burned this week — that is the number[[/]]');
+  line('  [[f]]  2,032,000,000 tokens burned this week - that is the number[[/]]');
   line('  [[f]]  that actually costs you something[[/]]');blank();};
 C.dir=function(){blank();
   line('  [[d]] Volume in drive C is OMNIGAUGE[[/]]');blank();
