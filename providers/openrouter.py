@@ -6,8 +6,9 @@ key's own usage and limit (credit dollars) and works with the key you already
 inference with; /credits exists but needs a management key, so it is not used
 here.
 
-Shape verified against openrouter.ai/docs 2026-08-15. Not yet exercised with
-a live key - errors surface loudly in the panel, never as zeros.
+Shape verified against openrouter.ai/docs 2026-08-15, then LIVE-verified the
+same day: a real key authenticated and the panel showed its true $0.00.
+Errors surface loudly in the panel, never as zeros.
 
 Key: creds file `openrouter_api_key` or env OPENROUTER_API_KEY.
 """
@@ -22,7 +23,7 @@ CAPS = dict(
     tokens="unavailable: the key endpoint reports credit dollars, not tokens",
     quota="obtained: usage against the key's credit limit, when one is set",
     reset="unavailable: credits deplete; there is no window to reset",
-    models="unavailable: an aggregator - models are chosen per request",
+    models="unavailable: an aggregator; models are chosen per request",
     lifetime="obtained: usage is the key's lifetime credit spend",
     spend="obtained: credit dollars used, from the key's own endpoint",
     burn="unavailable: no series is kept for spend sources",
