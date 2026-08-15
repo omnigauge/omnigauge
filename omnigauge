@@ -1709,12 +1709,17 @@ def page(fn):
 
 
 def keybar(args, watching=False):
-    # raw mode does not translate \n to \r\n
-    parts = [f"{s.accent}r{s.r} refresh", f"{s.accent}w{s.r} watch" + ("*" if watching else ""),
+    # raw mode does not translate \n to \r\n. Two lines: board controls,
+    # then the content panels - a key nobody can see is a guessing game.
+    board = [f"{s.accent}r{s.r} refresh", f"{s.accent}w{s.r} watch" + ("*" if watching else ""),
              f"{s.accent}t{s.r} {args.theme}", f"{s.accent}s{s.r} {args.since}",
-             f"{s.accent}b{s.r} " + ("brief" if args.brief else "full"),
-             f"{s.accent}?{s.r} help", f"{s.accent}q{s.r} quit"]
-    print(f" {s.gry}" + f"{s.gry} · ".join(parts) + s.r)
+             f"{s.accent}b{s.r} " + ("brief" if args.brief else "full")]
+    panels = [f"{s.accent}l{s.r} legend", f"{s.accent}d{s.r} doctor",
+              f"{s.accent}y{s.r} why", f"{s.accent}p{s.r} privacy",
+              f"{s.accent}a{s.r} about", f"{s.accent}g{s.r} donate",
+              f"{s.accent}?{s.r} help", f"{s.accent}q{s.r} quit"]
+    print(f" {s.gry}" + f"{s.gry} · ".join(board) + s.r)
+    print(f" {s.gry}" + f"{s.gry} · ".join(panels) + s.r)
 
 
 def helpscreen():

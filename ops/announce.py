@@ -112,14 +112,104 @@ def _auth_header(method, url, creds, extra_params=None, nonce=None, stamp=None):
     return "OAuth " + ", ".join(f'{_q(k)}="{_q(v)}"' for k, v in sorted(p.items()))
 
 
-def post(text):
+MEDIA_URL = "https://api.x.com/2/media/upload"
+_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+         ".gif": "image/gif", ".webp": "image/webp"}
+
+
+def _multipart(fields, file_field=None):
+    """(content_type, body) for multipart/form-data, stdlib only. Multipart
+    bodies are excluded from the OAuth signature - same rule as JSON - which
+    is why every media command is sent this way, INIT and FINALIZE included."""
+    boundary = "omnigauge" + secrets.token_hex(16)
+    out = []
+    for k, v in fields.items():
+        out += [f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()]
+    if file_field:
+        name, blob = file_field
+        out += [f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{name}"; filename="blob"\r\n'
+                f"Content-Type: application/octet-stream\r\n\r\n".encode(),
+                blob, b"\r\n"]
+    out.append(f"--{boundary}--\r\n".encode())
+    return f"multipart/form-data; boundary={boundary}", b"".join(out)
+
+
+def _media_cmd(creds, fields, file_field=None):
+    ctype, body = _multipart(fields, file_field)
+    req = urllib.request.Request(MEDIA_URL, data=body, method="POST")
+    req.add_header("Authorization", _auth_header("POST", MEDIA_URL, creds))
+    req.add_header("Content-Type", ctype)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        raw = r.read()
+    return json.loads(raw) if raw.strip() else {}
+
+
+def upload_media(path, creds, alt=""):
+    """Image file -> media id, or None with the reason on stderr. INIT,
+    APPEND in chunks, FINALIZE - and alt text after, because an image the
+    screen readers get nothing from is half an image."""
+    ext = os.path.splitext(path)[1].lower()
+    mime = _MIME.get(ext)
+    if not mime:
+        print(f"  media not sent - unsupported type {ext!r} ({path})", file=sys.stderr)
+        return None
+    try:
+        blob = open(path, "rb").read()
+    except OSError as e:
+        print(f"  media not sent - {e}", file=sys.stderr)
+        return None
+    if len(blob) > 5 * 1024 * 1024:
+        print(f"  media not sent - {len(blob)} bytes is over X's 5MB image cap", file=sys.stderr)
+        return None
+    try:
+        # One-shot: the endpoint takes the file in a multipart field named
+        # `media` for images under the cap - the INIT/APPEND/FINALIZE dance
+        # exists for video and oversized uploads, and asking for it here got
+        # "Missing media field" back. Measured, not assumed.
+        d = _media_cmd(creds, {"media_category": "tweet_image"}, ("media", blob))
+        mid = (d.get("data") or {}).get("id") or d.get("media_id_string")
+        if not mid:
+            print(f"  media upload gave no id: {str(d)[:200]}", file=sys.stderr)
+            return None
+    except urllib.error.HTTPError as e:
+        print(f"  media upload failed - HTTP {e.code}: "
+              f"{e.read().decode(errors='replace')[:300]}", file=sys.stderr)
+        return None
+    if alt:
+        try:
+            body = json.dumps({"id": mid, "metadata": {
+                "alt_text": {"text": alt[:1000]}}}).encode()
+            url = "https://api.x.com/2/media/metadata"
+            req = urllib.request.Request(url, data=body, method="POST")
+            req.add_header("Authorization", _auth_header("POST", url, creds))
+            req.add_header("Content-Type", "application/json")
+            urllib.request.urlopen(req, timeout=20).read()
+        except Exception as e:
+            print(f"  (alt text not set - {e}; the image still posts)", file=sys.stderr)
+    return mid
+
+
+def post(text, media_paths=(), alt=""):
     """Send it. Returns the tweet id, or None — never raises at the caller."""
     creds = tuple(os.getenv(k, "").strip() for k in ENV)
     missing = [k for k, v in zip(ENV, creds) if not v]
     if missing:
         print(f"  not sent — missing: {', '.join(missing)}", file=sys.stderr)
         return None
-    body = json.dumps({"text": text}).encode()
+    media_ids = []
+    for p in media_paths:
+        mid = upload_media(p, creds, alt=alt)
+        if not mid:
+            print("  not sent - a media upload failed and a post without its "
+                  "image is a different post", file=sys.stderr)
+            return None
+        media_ids.append(mid)
+    payload = {"text": text}
+    if media_ids:
+        payload["media"] = {"media_ids": media_ids}
+    body = json.dumps(payload).encode()
     req = urllib.request.Request(POST_URL, data=body, method="POST")
     req.add_header("Authorization", _auth_header("POST", POST_URL, creds))
     req.add_header("Content-Type", "application/json")
@@ -245,9 +335,15 @@ def main():
     ap.add_argument("name")
     ap.add_argument("--notes", default="")
     ap.add_argument("--n", type=int, default=3, help="draft: how many candidates")
+    ap.add_argument("--media", action="append", default=[], metavar="IMG",
+                    help="attach an image (png/jpg/gif/webp, <=5MB; up to 4)")
+    ap.add_argument("--alt", default="", help="alt text for the attached image(s)")
     ap.add_argument("--post", action="store_true",
                     help="actually send it; without this you get a dry run")
     a = ap.parse_args()
+    if len(a.media) > 4:
+        print("  X takes at most 4 images per post", file=sys.stderr)
+        return 1
 
     if a.kind == "draft":
         if a.post:
@@ -266,10 +362,13 @@ def main():
     if n > LIMIT:
         print("  too long — not sent", file=sys.stderr)
         return 1
+    if a.media:
+        for p in a.media:
+            print(f"  with media: {p}")
     if not a.post:
         print("  dry run. add --post to send.\n")
         return 0
-    tid = post(text)
+    tid = post(text, media_paths=a.media, alt=a.alt)
     print(f"  posted — https://x.com/OmniGauge/status/{tid}\n" if tid else "")
     return 0 if tid else 1
 
