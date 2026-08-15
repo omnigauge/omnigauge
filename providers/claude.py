@@ -33,8 +33,19 @@ def files():
     """Claude encodes the project path with BOTH '/' and '_' collapsed to '-',
     so ~/work/my_app becomes -home-you-work-my-app. Getting that wrong yields an
     empty directory rather than an error, which reads as "no usage" — a silent
-    wrong answer, the worst kind."""
-    return glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl"))
+    wrong answer, the worst kind.
+
+    Recursive, because transcripts do not all sit one level down: subagent runs
+    write project/<session>/subagents/agent-*.jsonl, and the one-level glob this
+    mirror used to carry silently dropped 39 files, ~1,500 messages and every
+    haiku token while the built-in had already been fixed — the mirror OVERRIDES
+    the built-in at load, so the two must change together. Windows homes for the
+    same reason codex scans them."""
+    out = glob.glob(os.path.expanduser("~/.claude/projects/**/*.jsonl"),
+                    recursive=True)
+    for h in og.windows_homes(".claude"):
+        out += glob.glob(f"{h}/projects/**/*.jsonl", recursive=True)
+    return out
 
 
 # ── token counting ──────────────────────────────────────────────────────────

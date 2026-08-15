@@ -500,6 +500,110 @@ class TestProviderConformance(unittest.TestCase):
             self.assertEqual(self.plug_grok.QUOTA[k], og.AGENTS["grok"][k],
                              f"grok drift in QUOTA[{k!r}]")
 
+    def test_codex_scan_since_is_a_window_delta(self):
+        """A rollout touched inside the window contributes its GROWTH across
+        the window edge, not its whole history - the old behaviour put 1.13B
+        tokens accumulated over 25 days into a panel labelled '24h' because
+        the file's mtime was recent."""
+        def ev(ts, tin, tout, cr, think, tot):
+            return json.dumps({"timestamp": ts, "type": "event_msg", "payload": {
+                "type": "token_count", "info": {"total_token_usage": {
+                    "input_tokens": tin, "cached_input_tokens": cr,
+                    "cache_write_input_tokens": 0, "output_tokens": tout,
+                    "reasoning_output_tokens": think, "total_tokens": tot}}}})
+        p = os.path.join(_TMP, "codex-delta.jsonl")
+        with open(p, "w") as fh:
+            fh.write('{"model":"gpt-old"}\n')
+            fh.write(ev("2026-08-10T00:00:00Z", 100, 10, 50, 5, 110) + "\n")
+            fh.write('{"model":"gpt-new"}\n')
+            fh.write(ev("2026-08-15T12:00:00Z", 130, 16, 70, 8, 146) + "\n")
+        cut = og._epoch("2026-08-14T00:00:00Z")
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            r = fn(p, cut)
+            self.assertEqual(
+                (r["tin"], r["tout"], r["cache_read"], r["think"], r["total"]),
+                (30, 6, 20, 3, 36), f"window delta wrong in {fn.__module__}")
+            self.assertIn("gpt-new", r["models"])
+            self.assertEqual(fn(p, og._epoch("2026-08-15T13:00:00Z"))["msgs"],
+                             0, f"untouched window not empty in {fn.__module__}")
+            self.assertEqual(fn(p, 0)["total"], 146,
+                             f"lifetime changed in {fn.__module__}")
+        self.assertEqual(og.scan_codex(p, cut), self.plug_codex.scan(p, cut),
+                         "codex since drift: builtin vs mirror")
+
+    def test_grok_scan_since_is_a_window_delta(self):
+        p = os.path.join(_TMP, "grok-delta", "sess", "updates.jsonl")
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as fh:
+            fh.write(json.dumps({"timestamp": 1000,
+                                 "_meta": {"totalTokens": 500}}) + "\n")
+            fh.write(json.dumps({"timestamp": 2000,
+                                 "_meta": {"totalTokens": 800}}) + "\n")
+        for fn in (og.scan_grok, self.plug_grok.scan):
+            self.assertEqual(fn(p, 1500)["total"], 300,
+                             f"growth wrong in {fn.__module__}")
+            self.assertEqual(fn(p, 2500)["msgs"], 0,
+                             f"untouched window not empty in {fn.__module__}")
+            self.assertEqual(fn(p, 0)["total"], 800,
+                             f"lifetime changed in {fn.__module__}")
+        self.assertEqual(og.scan_grok(p, 1500), self.plug_grok.scan(p, 1500),
+                         "grok since drift: builtin vs mirror")
+
+    def test_claude_files_discovery_matches_builtin_and_descends(self):
+        """The mirror OVERRIDES the built-in at load, so a discovery fix that
+        lands in only one of them silently unfixes itself on the next install.
+        That is exactly how subagent transcripts (project/<sess>/subagents/
+        agent-*.jsonl) vanished from LIFETIME and BY MODEL while 64 tests
+        stayed green: this class locked parsers and specs but never files().
+        Identical trees through both copies, identical answers - and the
+        nested file MUST be in them."""
+        home = os.path.join(_TMP, "conf-home-claude")
+        deep = os.path.join(home, ".claude", "projects", "-p", "sess",
+                            "subagents")
+        os.makedirs(deep, exist_ok=True)
+        top = os.path.join(home, ".claude", "projects", "-p", "a.jsonl")
+        sub = os.path.join(deep, "agent-x.jsonl")
+        for p in (top, sub):
+            with open(p, "w") as fh:
+                fh.write("{}\n")
+        old = os.environ["HOME"]
+        os.environ["HOME"] = home
+        try:
+            builtin = sorted(og.claude_files())
+            mirror = sorted(self.plug.files())
+        finally:
+            os.environ["HOME"] = old
+        self.assertEqual(builtin, mirror,
+                         "claude files() drift: builtin vs mirror")
+        self.assertIn(sub, builtin, "subagent transcript not discovered")
+        self.assertIn(top, builtin)
+
+    def test_codex_and_grok_files_discovery_match_builtin(self):
+        home = os.path.join(_TMP, "conf-home-cx")
+        cx = os.path.join(home, ".codex", "sessions", "2026", "08")
+        gk = os.path.join(home, ".grok", "sessions", "aa", "bb")
+        os.makedirs(cx, exist_ok=True)
+        os.makedirs(gk, exist_ok=True)
+        cxf = os.path.join(cx, "rollout.jsonl")
+        gkf = os.path.join(gk, "updates.jsonl")
+        for p in (cxf, gkf):
+            with open(p, "w") as fh:
+                fh.write("{}\n")
+        old = os.environ["HOME"]
+        os.environ["HOME"] = home
+        try:
+            self.assertEqual(sorted(og.codex_files()),
+                             sorted(self.plug_codex.files()),
+                             "codex files() drift: builtin vs mirror")
+            self.assertIn(cxf, og.codex_files(),
+                          "nested codex rollout not discovered")
+            self.assertEqual(sorted(og.grok_files()),
+                             sorted(self.plug_grok.files()),
+                             "grok files() drift: builtin vs mirror")
+            self.assertIn(gkf, og.grok_files())
+        finally:
+            os.environ["HOME"] = old
+
     def test_codex_scan_matches_builtin_including_tail_path(self):
         small = os.path.join(_TMP, "codex-small.jsonl")
         with open(small, "w") as fh:

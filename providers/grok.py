@@ -34,9 +34,12 @@ def files():
 
 def scan(path, since=0):
     """totalTokens is cumulative per session; the maximum seen is the total.
-    The model comes from the session's own summary.json when it exists."""
+    With `since`, the window gets the GROWTH of that cumulative, not the whole
+    history of a session merely touched inside it. Untimestamped lines count
+    toward the baseline: understating the window shows against LIFETIME,
+    inflating it does not. The model comes from the session's summary.json."""
     t = og.blank()
-    best = 0
+    best, before, in_window = 0, 0, False
     model = None
     try:
         smry = os.path.join(os.path.dirname(path), "summary.json")
@@ -50,10 +53,16 @@ def scan(path, since=0):
         try: d = json.loads(line)
         except ValueError: continue
         v = og._dig(d, "totalTokens")
-        if isinstance(v, int): best = max(best, v)
-    if best:
-        t["msgs"], t["total"] = 1, best
-        og.add_model(t, model or "unknown", total=best, msgs=1)
+        if not isinstance(v, int): continue
+        best = max(best, v)
+        ts = d.get("timestamp")
+        if since:
+            if isinstance(ts, (int, float)) and ts >= since: in_window = True
+            else: before = max(before, v)
+    got = (max(0, best - before) if in_window else 0) if since else best
+    if got:
+        t["msgs"], t["total"] = 1, got
+        og.add_model(t, model or "unknown", total=got, msgs=1)
     return t
 
 
