@@ -1,0 +1,639 @@
+#!/usr/bin/env python3
+"""omnigauge — one dashboard for Claude Code, OpenAI Codex and Grok CLI usage.
+
+Reads plan quota straight from each CLI and token volume straight from the
+transcripts those tools already write to disk. No API keys, no telemetry, no
+network calls of its own.
+
+  omnigauge                 dashboard (cached quota + live token counts)
+  omnigauge --refresh       re-scrape plan quota from every installed CLI
+  omnigauge --refresh claude,codex
+  omnigauge --lifetime      include all-time totals (incremental, cached)
+  omnigauge --since 7d      24h | 7d | today | all
+  omnigauge --watch         live redraw (tokens every tick, quota on a slower clock)
+  omnigauge --watch 5 --quota-every 10m
+  omnigauge --json          machine-readable
+  omnigauge --no-color
+
+REFRESH RATES ARE NOT THE SAME FOR BOTH HALVES
+  token volume  read from local files — cheap, so it can update every few seconds.
+  plan quota    requires launching the vendor's TUI and reading its panel, which
+                costs ~30s per agent and spawns a real session. It is cached and
+                refreshed on a slow clock; anything faster would be pure waste.
+
+TWO KINDS OF NUMBER, DELIBERATELY NEVER MERGED
+
+  plan quota   how much of a subscription window is consumed. No vendor caches
+               this to disk, so it is scraped from each CLI's own usage panel.
+               Normalized to PERCENT CONSUMED — Codex reports percent REMAINING
+               natively and is inverted here on purpose. Shown side by side raw,
+               a 6%-left Codex looks healthier than a 23%-used Claude.
+
+  token volume counted from local transcripts. Free, exact, never stale — and
+               NOT comparable to the vendors' own figures. Different
+               denominators: cache reads, per-turn context re-sends, total vs
+               billed. Two honest numbers rather than one reconciled fiction.
+
+Subscription plans have no dollar balance, so none is shown. API spend is a
+separate product and is never blended into a "remaining" figure.
+
+MIT licensed. https://github.com/  (set your remote)
+"""
+import argparse, glob, io, json, os, re, shutil, sqlite3, subprocess, sys, time
+
+APP = "omnigauge"
+DATA = os.environ.get("OMNIGAUGE_HOME") or os.path.join(
+    os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), APP)
+DB = os.path.join(DATA, "usage.db")
+NOW = int(time.time())
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS snapshots (
+  id INTEGER PRIMARY KEY,
+  product TEXT NOT NULL, source TEXT NOT NULL, agent TEXT NOT NULL,
+  window TEXT NOT NULL, model TEXT, usage_type TEXT NOT NULL,
+  pct_used REAL, raw_value TEXT,
+  tokens_in INTEGER, tokens_out INTEGER, tokens_cache_read INTEGER,
+  tokens_cache_write INTEGER, tokens_think INTEGER, cost_usd REAL,
+  reset_at TEXT, collected_at INTEGER NOT NULL, note TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_snap ON snapshots(agent, usage_type, collected_at DESC);
+
+-- incremental lifetime cache: a 140GB rollup must never rescan unchanged files
+CREATE TABLE IF NOT EXISTS filecache (
+  path TEXT PRIMARY KEY, agent TEXT, mtime REAL, size INTEGER,
+  tin INTEGER, tout INTEGER, cache_read INTEGER, cache_write INTEGER,
+  think INTEGER, total INTEGER, msgs INTEGER, scanned_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS insights (
+  id INTEGER PRIMARY KEY, agent TEXT, text TEXT, collected_at INTEGER
+);
+"""
+
+
+def db():
+    os.makedirs(DATA, exist_ok=True)
+    c = sqlite3.connect(DB)
+    c.executescript(SCHEMA)
+    return c
+
+
+# ──────────────────────────────── presentation ────────────────────────────────
+
+class S:
+    on = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+    def __getattr__(self, k):
+        codes = dict(r="\033[0m", b="\033[1m", dim="\033[2m", red="\033[31m",
+                     grn="\033[32m", yel="\033[33m", blu="\033[34m", mag="\033[35m",
+                     cya="\033[36m", gry="\033[90m", bred="\033[91m", bgrn="\033[92m",
+                     byel="\033[93m", bcya="\033[96m", wht="\033[97m")
+        return codes.get(k, "") if S.on else ""
+
+
+s = S()
+W = min(shutil.get_terminal_size((100, 30)).columns, 100)
+
+
+def vis(t):
+    return len(re.sub(r"\033\[[0-9;]*m", "", t))
+
+
+def rule(ch="─"):
+    return s.gry + ch * W + s.r
+
+
+def panel(title, sub=""):
+    left = f"{s.b}{s.bcya}{title}{s.r}"
+    line = f"  {left}"
+    if sub:
+        pad = W - vis(line) - vis(sub) - 2
+        line += " " * max(1, pad) + f"{s.gry}{sub}{s.r}"
+    print("\n" + line)
+    print("  " + s.gry + "─" * (W - 2) + s.r)
+
+
+def bar(pct, w=24):
+    f = max(0, min(w, int(round(pct / 100 * w))))
+    col = s.bred if pct >= 90 else s.byel if pct >= 70 else s.bgrn if pct >= 1 else s.gry
+    return col + "█" * f + s.gry + "░" * (w - f) + s.r
+
+
+def human(n):
+    for u, d in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("K", 1e3)):
+        if n >= d:
+            return f"{n/d:.2f}{u}".rstrip("0").rstrip(".") + ("" if u else "")
+    return f"{n:,}"
+
+
+def short_model(agent, model):
+    """Vendor labels are long and the prefix is already in the agent column."""
+    if model in (None, "all"): return agent
+    m = model
+    m = re.sub(r"^GPT-[\d.]+-Codex-", "", m, flags=re.I)   # GPT-5.3-Codex-Spark -> Spark
+    m = re.sub(r"\s*Weekly limit$", "", m, flags=re.I)
+    return f"{agent}/{m.strip().lower()}"
+
+
+def short_reset(t):
+    """Drop the timezone parenthetical — it is the same for every row."""
+    if not t: return "—"
+    return re.sub(r"\s*\([^)]*\)\s*$", "", t).strip()
+
+
+def age(ts):
+    d = NOW - ts
+    if d < 90: return "just now"
+    if d < 5400: return f"{d//60}m ago"
+    if d < 172800: return f"{d//3600}h ago"
+    return f"{d//86400}d ago"
+
+
+# ─────────────────────────────── path discovery ───────────────────────────────
+
+def windows_homes(sub):
+    """WSL: the Windows-side install is a SEPARATE store. Missing it once cost a
+    wrong 'no local session exists' answer, so it is discovered, not assumed."""
+    return [p for p in glob.glob(f"/mnt/*/Users/*/{sub}") if os.path.isdir(p)]
+
+
+def claude_files():
+    return glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl"))
+
+
+def codex_files():
+    out = glob.glob(os.path.expanduser("~/.codex/sessions/**/*.jsonl"), recursive=True)
+    for h in windows_homes(".codex"):
+        out += glob.glob(f"{h}/sessions/**/*.jsonl", recursive=True)
+    return out
+
+
+def grok_files():
+    return glob.glob(os.path.expanduser("~/.grok/sessions/*/*/updates.jsonl"))
+
+
+def installed(agent):
+    return shutil.which(agent) is not None
+
+
+# ─────────────────────────────── token counting ───────────────────────────────
+
+def _dig(o, key):
+    if isinstance(o, dict):
+        if key in o: return o[key]
+        for v in o.values():
+            r = _dig(v, key)
+            if r is not None: return r
+    elif isinstance(o, list):
+        for v in o:
+            r = _dig(v, key)
+            if r is not None: return r
+    return None
+
+
+def _epoch(ts):
+    try:
+        import datetime
+        return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0
+
+
+Z = dict(msgs=0, tin=0, tout=0, cache_read=0, cache_write=0, think=0, total=0, files=0)
+
+
+def scan_claude(path, since=0):
+    t = dict(Z)
+    for line in io.open(path, errors="replace"):
+        if '"usage"' not in line: continue
+        try: d = json.loads(line)
+        except Exception: continue
+        u = (d.get("message") or {}).get("usage")
+        if not isinstance(u, dict): continue
+        if since and (ts := d.get("timestamp", "")) and _epoch(ts) < since: continue
+        t["msgs"] += 1
+        t["tin"] += u.get("input_tokens", 0)
+        t["tout"] += u.get("output_tokens", 0)
+        t["cache_read"] += u.get("cache_read_input_tokens", 0)
+        t["cache_write"] += u.get("cache_creation_input_tokens", 0)
+        t["think"] += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
+    return t
+
+
+def tail_chunk(path, nbytes=1 << 20):
+    """Read the last nbytes of a file as text, aligned to a line boundary."""
+    size = os.path.getsize(path)
+    with open(path, "rb") as fh:
+        if size > nbytes:
+            fh.seek(size - nbytes)
+            fh.readline()          # discard the partial first line
+        return fh.read().decode("utf-8", "replace")
+
+
+def scan_codex(path, since=0):
+    """Last cumulative total per rollout. input_tokens counts context re-sent
+    each turn, so it runs far above the vendor's own 'tokens used'.
+
+    Reads from the END of the file. These rollouts reach hundreds of MB and the
+    figure wanted is the final one — scanning forward made a redraw take ~18s
+    across a 140GB corpus. Falls back to a full scan only if the tail has none.
+    """
+    t = dict(Z)
+    last = None
+    for text in (tail_chunk(path), None):
+        if text is None:
+            if last: break
+            try: text = io.open(path, errors="replace").read()
+            except Exception: break
+        for line in text.splitlines():
+            if '"total_token_usage"' not in line: continue
+            try: d = json.loads(line)
+            except Exception: continue
+            u = _dig(d, "total_token_usage")
+            if u: last = u
+        if last: break
+    if last:
+        t["msgs"] = 1
+        t["tin"] = last.get("input_tokens", 0)
+        t["tout"] = last.get("output_tokens", 0)
+        t["cache_read"] = last.get("cached_input_tokens", 0)
+        t["think"] = last.get("reasoning_output_tokens", 0)
+        t["total"] = last.get("total_tokens", 0)
+    return t
+
+
+def scan_grok(path, since=0):
+    t = dict(Z)
+    best = 0
+    for line in io.open(path, errors="replace"):
+        if '"totalTokens"' not in line: continue
+        try: d = json.loads(line)
+        except Exception: continue
+        v = _dig(d, "totalTokens")
+        if isinstance(v, int): best = max(best, v)
+    if best:
+        t["msgs"], t["total"] = 1, best
+    return t
+
+
+SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_codex),
+                grok=(grok_files, scan_grok))
+
+
+def window_totals(agent, since):
+    files, scan = SCANNERS[agent]
+    t = dict(Z)
+    for f in files():
+        try:
+            if os.path.getmtime(f) < since: continue
+            r = scan(f, since if agent == "claude" else 0)
+            if r["msgs"]:
+                t["files"] += 1
+                for k in r:
+                    if k != "files": t[k] += r[k]
+        except Exception:
+            continue
+    return t
+
+
+def lifetime_totals(agent, con, progress=False):
+    """Incremental: a file is rescanned only when mtime or size changed."""
+    files, scan = SCANNERS[agent]
+    cached = {r[0]: r for r in con.execute(
+        "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs "
+        "FROM filecache WHERE agent=?", (agent,))}
+    t, fresh, n = dict(Z), 0, 0
+    all_files = files()
+    for f in all_files:
+        n += 1
+        try:
+            st = os.stat(f)
+        except Exception:
+            continue
+        c = cached.get(f)
+        if c and abs(c[1] - st.st_mtime) < 1 and c[2] == st.st_size:
+            vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:]))
+        else:
+            fresh += 1
+            if progress:
+                print(f"\r  scanning {agent}: {n}/{len(all_files)} ({fresh} changed)…",
+                      end="", flush=True)
+            try:
+                r = scan(f, 0)
+            except Exception:
+                continue
+            vals = {k: r[k] for k in ("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs")}
+            con.execute(
+                "INSERT OR REPLACE INTO filecache(path,agent,mtime,size,tin,tout,"
+                "cache_read,cache_write,think,total,msgs,scanned_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (f, agent, st.st_mtime, st.st_size, vals["tin"], vals["tout"],
+                 vals["cache_read"], vals["cache_write"], vals["think"],
+                 vals["total"], vals["msgs"], NOW))
+        if vals["msgs"]:
+            t["files"] += 1
+            for k, v in vals.items(): t[k] += v
+    con.commit()
+    if progress and fresh:
+        print("\r" + " " * (W - 1) + "\r", end="")
+    return t
+
+
+# ─────────────────────────── CLI scrape: plan quota ───────────────────────────
+
+def tmux_scrape(session, argv, keys, settle=14, render=15):
+    """Drive the TUI under tmux. Raw pty output from these CLIs is drawn
+    character-by-character with cursor moves — tmux is a real terminal
+    emulator, so let it do the rendering and read the finished screen."""
+    if not shutil.which("tmux"):
+        return None, "tmux not installed"
+    run = lambda *a: subprocess.run(a, capture_output=True, text=True)
+    run("tmux", "kill-session", "-t", session)
+    r = run("tmux", "new-session", "-d", "-x", "210", "-y", "55",
+            "-s", session, "-c", os.getcwd(), *argv)
+    if r.returncode:
+        return None, f"tmux: {r.stderr.strip()[:110]}"
+    try:
+        time.sleep(settle)
+        run("tmux", "send-keys", "-t", session, keys)
+        time.sleep(2)
+        run("tmux", "send-keys", "-t", session, "Enter")
+        time.sleep(render)
+        return run("tmux", "capture-pane", "-p", "-t", session).stdout, None
+    finally:
+        run("tmux", "kill-session", "-t", session)
+
+
+def parse_claude(screen):
+    """% USED. Line-based: a collapsed-whitespace regex silently dropped the
+    weekly row when a promo line appeared between it and the next heading."""
+    rows, pend = [], None
+    for raw in screen.splitlines():
+        line = raw.strip()
+        m = re.match(r"Current (session|week)\s*(?:\(([^)]*)\))?\s*$", line, re.I)
+        if m:
+            if pend and pend["pct_used"] is not None: rows.append(pend)
+            model = (m.group(2) or "all").strip()
+            if model.lower() in ("all models", ""): model = "all"
+            pend = dict(window=m.group(1).lower(), model=model, pct_used=None,
+                        raw_value=None, reset_at=None)
+            continue
+        if pend is None: continue
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%\s*used", line, re.I)
+        if m and pend["pct_used"] is None:
+            pend["pct_used"] = float(m.group(1)); pend["raw_value"] = f"{m.group(1)}% used"; continue
+        m = re.match(r"Resets\s+(.+?)\s*$", line, re.I)
+        if m and pend["reset_at"] is None:
+            pend["reset_at"] = m.group(1).strip()
+    if pend and pend["pct_used"] is not None: rows.append(pend)
+    return rows
+
+
+def parse_codex(screen):
+    """% LEFT natively — inverted to % USED here."""
+    rows = []
+    for line in screen.splitlines():
+        m = re.search(r"(.*?)Weekly limit:\s*\[[^\]]*\]\s*(\d+)%\s*left\s*\(resets\s+([^)]+)\)", line)
+        if not m: continue
+        label = re.sub(r"[│|]", "", m.group(1)).strip() or "all"
+        left = float(m.group(2))
+        rows.append(dict(window="week", model=label, pct_used=100.0 - left,
+                         raw_value=f"{int(left)}% left", reset_at=m.group(3).strip()))
+    return rows
+
+
+def parse_grok(screen):
+    rows, txt = [], re.sub(r"\s+", " ", screen)
+    m = re.search(r"Weekly limit\s*\(([^)]*)\).*?(\d+)\s*%", txt)
+    if m:
+        r = re.search(r"Resets:\s*([A-Za-z0-9 ,:]{4,30})", txt)
+        rows.append(dict(window="week", model=m.group(1).strip() or "all",
+                         pct_used=float(m.group(2)), raw_value=f"{m.group(2)}%",
+                         reset_at=r.group(1).strip() if r else None))
+    return rows
+
+
+def claude_insights(screen):
+    return [l.strip() for l in screen.splitlines()
+            if re.match(r"\d+% of your usage", l.strip(), re.I)]
+
+
+AGENTS = {
+    "claude": dict(argv=["claude"], keys="/usage", parse=parse_claude,
+                   source="cli_usage", expect=[("week", "all"), ("session", "all")],
+                   insights=claude_insights),
+    "codex":  dict(argv=["codex"], keys="/status", parse=parse_codex,
+                   source="cli_status", expect=[("week", "all")]),
+    "grok":   dict(argv=["grok"], keys="/usage", parse=parse_grok,
+                   source="cli_usage", expect=[("week", None)]),
+}
+
+
+def refresh(which):
+    con = db()
+    for agent in which:
+        spec = AGENTS[agent]
+        if not installed(agent):
+            print(f"  {s.gry}{agent:<8} not installed — skipped{s.r}")
+            continue
+        print(f"  {agent:<8} scraping…", end="", flush=True)
+        screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"])
+        if err:
+            print(f" {s.bred}FAILED{s.r} — {err}"); continue
+        try:
+            rows = spec["parse"](screen)
+        except Exception as e:
+            rows, err = [], f"parser raised {e}"
+        dump = os.path.join(DATA, f"last-scrape-{agent}.txt")
+        if not rows:
+            io.open(dump, "w", encoding="utf-8").write(screen or "")
+            print(f" {s.bred}NO QUOTA PARSED{s.r}{' — ' + err if err else ''}")
+            print(f"           raw screen → {dump}")
+            continue
+        got = {(r["window"], r["model"]) for r in rows}
+        missing = [e for e in spec["expect"]
+                   if (e[1] is not None and e not in got)
+                   or (e[1] is None and not any(w == e[0] for w, _ in got))]
+        con.execute("DELETE FROM snapshots WHERE agent=? AND usage_type='plan_quota'", (agent,))
+        for r in rows:
+            con.execute("INSERT INTO snapshots(product,source,agent,window,model,"
+                        "usage_type,pct_used,raw_value,reset_at,collected_at) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (f"{agent}_plan", spec["source"], agent, r["window"], r["model"],
+                         "plan_quota", r["pct_used"], r["raw_value"], r.get("reset_at"), NOW))
+        if spec.get("insights"):
+            con.execute("DELETE FROM insights WHERE agent=?", (agent,))
+            for t in spec["insights"](screen):
+                con.execute("INSERT INTO insights(agent,text,collected_at) VALUES(?,?,?)",
+                            (agent, t, NOW))
+        con.commit()
+        if missing:
+            io.open(dump, "w", encoding="utf-8").write(screen)
+            print(f" {s.byel}PARTIAL{s.r} — {len(rows)} row(s), missing {missing}")
+            print(f"           raw screen → {dump}")
+        else:
+            print(f" {s.bgrn}ok{s.r} — {len(rows)} window(s)")
+    con.close()
+
+
+# ────────────────────────────────── render ────────────────────────────────────
+
+def quota_rows(con):
+    q = {}
+    for r in con.execute("SELECT agent,window,model,pct_used,raw_value,reset_at,collected_at "
+                         "FROM snapshots WHERE usage_type='plan_quota' ORDER BY agent"):
+        q.setdefault(r[0], []).append(dict(window=r[1], model=r[2], pct=r[3],
+                                           raw=r[4], reset=r[5], at=r[6]))
+    return q
+
+
+def render(args):
+    global NOW
+    NOW = int(time.time())
+    con = db()
+    since = (time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+             if args.since == "today"
+             else NOW - dict(**{"24h": 86400, "7d": 604800, "30d": 2592000, "all": 10**10})
+             .get(args.since, 86400))
+
+    host = os.uname().nodename
+    stamp = time.strftime("%Y-%m-%d %H:%M %Z")
+    title = f"{s.b}{s.wht}OMNIGAUGE{s.r}"
+    right = f"{s.gry}{host} · {stamp}{s.r}"
+    print("\n  " + title + " " * max(1, W - vis("  " + title) - vis(right) - 1) + right)
+    print(rule("━"))
+
+    # ── quota
+    q = quota_rows(con)
+    panel("PLAN QUOTA", "subscription windows · normalized to % CONSUMED")
+    if not q:
+        print(f"  {s.gry}nothing collected yet — run{s.r}  {s.bcya}omnigauge --refresh{s.r}")
+    hdr = f"  {'AGENT':<18}{'WINDOW':<9}{'':<26}{'USED':>6}   {'RESETS':<20}{'AGE':<8}"
+    print(s.gry + hdr + s.r)
+    for agent in ("claude", "codex", "grok"):
+        rows = q.get(agent)
+        if not rows:
+            state = "not collected" if installed(agent) else "not installed"
+            print(f"  {s.gry}{agent:<18}{state}{s.r}")
+            continue
+        for r in sorted(rows, key=lambda x: (x["window"] != "week", x["model"] != "all")):
+            name = short_model(agent, r["model"])
+            warn = f" {s.bred}⚠{s.r}" if r["pct"] >= 90 else ""
+            pc = (s.bred if r["pct"] >= 90 else s.byel if r["pct"] >= 70 else s.wht)
+            print(f"  {s.b}{name:<18}{s.r}{r['window']:<9}{bar(r['pct'])}  "
+                  f"{pc}{r['pct']:>4.0f}%{s.r}   {s.gry}{short_reset(r['reset']):<20}"
+                  f"{age(r['at']):<8}{s.r}{warn}")
+            if r["raw"] and "left" in r["raw"]:
+                print(f"  {s.gry}{'':<27}vendor reported “{r['raw']}” — inverted here{s.r}")
+
+    # ── window volume
+    panel("TOKEN VOLUME", f"local transcripts · {args.since}")
+    print(s.gry + f"  {'AGENT':<9}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}{'THINK':>11}"
+                  f"{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}" + s.r)
+    for agent in ("claude", "codex", "grok"):
+        if not (SCANNERS[agent][0]()):
+            print(f"  {s.gry}{agent:<9}no local transcripts{s.r}"); continue
+        t = window_totals(agent, since)
+        tot = t['total'] or (t['tin'] + t['tout'] + t['cache_read'])
+        print(f"  {s.b}{agent:<9}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
+              f"{s.bgrn}{human(t['tout']):>11}{s.r}{human(t['think']):>11}"
+              f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
+              f"{s.wht}{human(tot):>11}{s.r}")
+
+    # ── lifetime
+    if args.lifetime:
+        panel("LIFETIME", "all transcripts on this machine · incremental cache")
+        print(s.gry + f"  {'AGENT':<11}{'FILES':>7}{'MSGS':>9}{'OUTPUT':>12}{'THINK':>12}"
+                      f"{'CACHE-RD':>12}{'INPUT':>12}" + s.r)
+        for agent in ("claude", "codex", "grok"):
+            if not SCANNERS[agent][0]():
+                print(f"  {s.gry}{agent:<9}—{s.r}"); continue
+            t = lifetime_totals(agent, con, progress=True)
+            tot = t['total'] or (t['tin'] + t['tout'] + t['cache_read'])
+            print(f"  {s.b}{agent:<9}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
+                  f"{s.bgrn}{human(t['tout']):>11}{s.r}{human(t['think']):>11}"
+                  f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
+                  f"{s.wht}{human(tot):>11}{s.r}")
+
+    # ── insights
+    ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
+    if ins:
+        panel("WHAT IS DRIVING USAGE", "reported by the vendor")
+        for a, t in ins:
+            print(f"  {s.bcya}{a}{s.r}  {t}")
+
+    print()
+    print(f"  {s.gry}Quota is scraped from each CLI; token volume is read from local")
+    print( "  transcripts. The two use different denominators and are never summed.")
+    print( "  Subscriptions carry no dollar balance, so none is shown." + s.r)
+    print()
+    con.close()
+
+
+def parse_every(v):
+    m = re.match(r"^(\d+)\s*([smh]?)$", str(v).strip(), re.I)
+    if not m: raise argparse.ArgumentTypeError("use e.g. 30, 90s, 15m, 1h")
+    return int(m.group(1)) * dict(s=1, m=60, h=3600).get(m.group(2).lower(), 1)
+
+
+def watch(args):
+    """Redraw on a fast clock; re-scrape quota on a slow one."""
+    last_quota = 0
+    try:
+        while True:
+            if args.quota_every and NOW_fn() - last_quota >= args.quota_every:
+                which = [a for a in AGENTS if installed(a)]
+                if which:
+                    sys.stdout.write("\033[2J\033[H")
+                    print(f"\n  {s.b}refreshing quota{s.r} {s.gry}({', '.join(which)} · ~30s each){s.r}")
+                    refresh(which)
+                last_quota = NOW_fn()
+            sys.stdout.write("\033[2J\033[H")
+            render(args)
+            nxt = args.quota_every - (NOW_fn() - last_quota) if args.quota_every else None
+            note = f" · next quota scrape in {max(0, nxt)//60}m" if nxt is not None else ""
+            print(f"  {s.gry}watching · redraw every {args.watch}s{note} · Ctrl-C to stop{s.r}\n")
+            time.sleep(args.watch)
+    except KeyboardInterrupt:
+        print()
+
+
+def NOW_fn():
+    return int(time.time())
+
+
+def main():
+    p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.")
+    p.add_argument("--refresh", nargs="?", const="claude,codex,grok", metavar="AGENTS")
+    p.add_argument("--since", default="24h", choices=["24h", "7d", "30d", "today", "all"])
+    p.add_argument("--lifetime", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--no-color", action="store_true")
+    p.add_argument("--watch", nargs="?", const=10, type=int, metavar="SEC",
+                   help="live redraw every SEC seconds (default 10)")
+    p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
+                   help="how often --watch re-scrapes quota (default 15m; 0 = never)")
+    a = p.parse_args()
+    if a.no_color: S.on = False
+
+    if a.refresh:
+        which = [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS]
+        print(f"\n  {s.b}refreshing quota{s.r} {s.gry}({', '.join(which)} · ~30s each){s.r}")
+        refresh(which)
+
+    if a.json:
+        con = db()
+        since = NOW - 86400
+        out = dict(collected_at=NOW, quota=quota_rows(con),
+                   window={k: window_totals(k, since) for k in SCANNERS},
+                   lifetime=({k: lifetime_totals(k, con) for k in SCANNERS} if a.lifetime else None))
+        print(json.dumps(out, indent=2, default=str)); con.close(); return
+    if a.watch:
+        watch(a); return
+    render(a)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
