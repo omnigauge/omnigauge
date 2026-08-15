@@ -63,7 +63,8 @@ CREATE INDEX IF NOT EXISTS ix_snap ON snapshots(agent, usage_type, collected_at 
 CREATE TABLE IF NOT EXISTS filecache (
   path TEXT PRIMARY KEY, agent TEXT, mtime REAL, size INTEGER,
   tin INTEGER, tout INTEGER, cache_read INTEGER, cache_write INTEGER,
-  think INTEGER, total INTEGER, msgs INTEGER, scanned_at INTEGER
+  think INTEGER, total INTEGER, msgs INTEGER, scanned_at INTEGER,
+  models TEXT   -- JSON {model: {out, total, msgs}}; models change over a corpus
 );
 CREATE TABLE IF NOT EXISTS insights (
   id INTEGER PRIMARY KEY, agent TEXT, text TEXT, collected_at INTEGER
@@ -71,47 +72,64 @@ CREATE TABLE IF NOT EXISTS insights (
 """
 
 
+# (table, column, type) added after the first release. CREATE TABLE IF NOT EXISTS
+# silently does nothing when the table already exists, so new columns need ALTER.
+MIGRATIONS = [("filecache", "models", "TEXT")]
+
+
 def db():
     os.makedirs(DATA, exist_ok=True)
     c = sqlite3.connect(DB)
     c.executescript(SCHEMA)
+    for table, col, typ in MIGRATIONS:
+        have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        if col not in have:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+    c.commit()
     return c
 
 
 # ──────────────────────────────── presentation ────────────────────────────────
 
 class S:
-    """Muted 256-colour palette.
+    """Themes.
 
-    The first cut used bright ANSI green next to bright red. On a dark terminal
-    those two vibrate against each other and neither reads as calm. Severity is
-    carried by desaturated teal → amber → clay, which is easier on the eye and
-    also survives red/green colour blindness better, since the hues differ in
-    lightness as well as tone. `--vivid` restores the loud version, NO_COLOR
-    drops it entirely.
+    The first cut put bright green beside bright red; the second desaturated
+    both but kept the pairing. Green-vs-red is the problem, not its saturation —
+    complements at similar lightness vibrate whatever their chroma.
+
+    `ink` (default) drops green altogether. Healthy reads as neutral blue-grey
+    and colour is spent only where it means something: amber at 70%, rose at
+    90%. Most of the screen is calm, and the one row that matters is the only
+    coloured thing on it.
     """
     on = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
-    vivid = False
-    MUTED = dict(
-        r="\033[0m", b="\033[1m", dim="\033[2m",
-        ok="\033[38;5;72m",      # desaturated teal-green
-        warn="\033[38;5;179m",   # dull amber
-        crit="\033[38;5;167m",   # clay red
-        accent="\033[38;5;109m", # dusty blue
-        gry="\033[38;5;242m",    # mid grey, readable on dark
-        faint="\033[38;5;238m",  # frame lines
-        wht="\033[38;5;252m",    # soft white, not #fff
+    theme = "ink"
+
+    THEMES = dict(
+        ink=dict(ok="\033[38;5;66m",     # slate blue-grey — deliberately not green
+                 warn="\033[38;5;137m",  # soft tan
+                 crit="\033[38;5;131m",  # dusty rose
+                 accent="\033[38;5;103m",
+                 gry="\033[38;5;243m", faint="\033[38;5;237m", wht="\033[38;5;251m"),
+        muted=dict(ok="\033[38;5;72m", warn="\033[38;5;179m", crit="\033[38;5;167m",
+                   accent="\033[38;5;109m",
+                   gry="\033[38;5;242m", faint="\033[38;5;238m", wht="\033[38;5;252m"),
+        mono=dict(ok="\033[38;5;245m", warn="\033[38;5;250m", crit="\033[38;5;255m",
+                  accent="\033[38;5;248m",
+                  gry="\033[38;5;240m", faint="\033[38;5;236m", wht="\033[38;5;253m"),
+        vivid=dict(ok="\033[92m", warn="\033[93m", crit="\033[91m", accent="\033[96m",
+                   gry="\033[90m", faint="\033[90m", wht="\033[97m"),
     )
-    VIVID = dict(MUTED, ok="\033[92m", warn="\033[93m", crit="\033[91m",
-                 accent="\033[96m", gry="\033[90m", faint="\033[90m", wht="\033[97m")
+    BASE = dict(r="\033[0m", b="\033[1m", dim="\033[2m")
 
     def __getattr__(self, k):
         if not S.on:
             return ""
-        table = S.VIVID if S.vivid else S.MUTED
+        t = dict(S.BASE, **S.THEMES.get(S.theme, S.THEMES["ink"]))
         alias = dict(bgrn="ok", bred="crit", byel="warn", bcya="accent",
                      grn="ok", red="crit", yel="warn", cya="accent")
-        return table.get(alias.get(k, k), "")
+        return t.get(alias.get(k, k), "")
 
 
 s = S()
@@ -320,13 +338,35 @@ def _epoch(ts):
 Z = dict(msgs=0, tin=0, tout=0, cache_read=0, cache_write=0, think=0, total=0, files=0)
 
 
+def blank():
+    t = dict(Z); t["models"] = {}
+    return t
+
+
+def add_model(t, model, out=0, total=0, msgs=0):
+    if not model: return
+    m = t["models"].setdefault(model, dict(out=0, total=0, msgs=0))
+    m["out"] += out; m["total"] += total; m["msgs"] += msgs
+
+
+def merge(dst, src):
+    for k, v in src.items():
+        if k == "models":
+            for mo, mv in v.items():
+                d = dst["models"].setdefault(mo, dict(out=0, total=0, msgs=0))
+                for kk in mv: d[kk] += mv[kk]
+        elif k != "files":
+            dst[k] += v
+
+
 def scan_claude(path, since=0):
-    t = dict(Z)
+    t = blank()
     for line in io.open(path, errors="replace"):
         if '"usage"' not in line: continue
         try: d = json.loads(line)
         except Exception: continue
-        u = (d.get("message") or {}).get("usage")
+        msg = d.get("message") or {}
+        u = msg.get("usage")
         if not isinstance(u, dict): continue
         if since and (ts := d.get("timestamp", "")) and _epoch(ts) < since: continue
         t["msgs"] += 1
@@ -335,6 +375,9 @@ def scan_claude(path, since=0):
         t["cache_read"] += u.get("cache_read_input_tokens", 0)
         t["cache_write"] += u.get("cache_creation_input_tokens", 0)
         t["think"] += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
+        add_model(t, msg.get("model"), out=u.get("output_tokens", 0),
+                  total=u.get("output_tokens", 0) + u.get("cache_read_input_tokens", 0)
+                        + u.get("input_tokens", 0), msgs=1)
     return t
 
 
@@ -356,8 +399,9 @@ def scan_codex(path, since=0):
     figure wanted is the final one — scanning forward made a redraw take ~18s
     across a 140GB corpus. Falls back to a full scan only if the tail has none.
     """
-    t = dict(Z)
+    t = blank()
     last = None
+    model = None
     for text in (tail_chunk(path), None):
         if text is None:
             if last: break
@@ -369,7 +413,10 @@ def scan_codex(path, since=0):
             except Exception: continue
             u = _dig(d, "total_token_usage")
             if u: last = u
-        if last: break
+        if last:
+            mm = re.findall(r'"model":"([^"]+)"', text)
+            if mm: model = mm[-1]      # rollouts can span models; attribute to the last
+            break
     if last:
         t["msgs"] = 1
         t["tin"] = last.get("input_tokens", 0)
@@ -377,12 +424,20 @@ def scan_codex(path, since=0):
         t["cache_read"] = last.get("cached_input_tokens", 0)
         t["think"] = last.get("reasoning_output_tokens", 0)
         t["total"] = last.get("total_tokens", 0)
+        add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t
 
 
 def scan_grok(path, since=0):
-    t = dict(Z)
+    t = blank()
     best = 0
+    model = None
+    try:
+        smry = os.path.join(os.path.dirname(path), "summary.json")
+        if os.path.exists(smry):
+            model = json.load(io.open(smry, encoding="utf-8")).get("current_model_id")
+    except Exception:
+        pass
     for line in io.open(path, errors="replace"):
         if '"totalTokens"' not in line: continue
         try: d = json.loads(line)
@@ -391,6 +446,7 @@ def scan_grok(path, since=0):
         if isinstance(v, int): best = max(best, v)
     if best:
         t["msgs"], t["total"] = 1, best
+        add_model(t, model or "unknown", total=best, msgs=1)
     return t
 
 
@@ -398,19 +454,24 @@ SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_cod
                 grok=(grok_files, scan_grok))
 
 
+SCAN_ERRORS = []
+
+
 def window_totals(agent, since):
     files, scan = SCANNERS[agent]
-    t = dict(Z)
+    t = blank()
     for f in files():
         try:
             if os.path.getmtime(f) < since: continue
             r = scan(f, since if agent == "claude" else 0)
             if r["msgs"]:
                 t["files"] += 1
-                for k in r:
-                    if k != "files": t[k] += r[k]
-        except Exception:
-            continue
+                merge(t, r)
+        except Exception as e:
+            # A blanket `continue` here once hid a NameError on EVERY claude file
+            # and reported a confident row of zeros. Failures are counted and
+            # surfaced; zero should mean zero, not "it crashed".
+            SCAN_ERRORS.append(f"{agent}: {type(e).__name__}: {e}")
     return t
 
 
@@ -418,9 +479,9 @@ def lifetime_totals(agent, con, progress=False):
     """Incremental: a file is rescanned only when mtime or size changed."""
     files, scan = SCANNERS[agent]
     cached = {r[0]: r for r in con.execute(
-        "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs "
+        "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs,models "
         "FROM filecache WHERE agent=?", (agent,))}
-    t, fresh, n = dict(Z), 0, 0
+    t, fresh, n = blank(), 0, 0
     all_files = files()
     for f in all_files:
         n += 1
@@ -429,8 +490,14 @@ def lifetime_totals(agent, con, progress=False):
         except Exception:
             continue
         c = cached.get(f)
-        if c and abs(c[1] - st.st_mtime) < 1 and c[2] == st.st_size:
-            vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:]))
+        # c[10] is the models JSON. Rows written before per-model tracking existed
+        # still match on mtime+size, so they must be revalidated or the BY MODEL
+        # panel silently reports nothing for an unchanged corpus.
+        if (c and abs(c[1] - st.st_mtime) < 1 and c[2] == st.st_size
+                and c[10] not in (None, "", "{}")):
+            vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:10]))
+            try: vals["models"] = json.loads(c[10] or "{}")
+            except Exception: vals["models"] = {}
         else:
             fresh += 1
             if progress and fresh % 25 == 1:
@@ -438,19 +505,21 @@ def lifetime_totals(agent, con, progress=False):
                       f"({fresh} changed)…{s.r}", end="", flush=True)
             try:
                 r = scan(f, 0)
-            except Exception:
+            except Exception as e:
+                SCAN_ERRORS.append(f"{agent}: {type(e).__name__}: {e}")
                 continue
             vals = {k: r[k] for k in ("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs")}
+            vals["models"] = r.get("models", {})
             con.execute(
                 "INSERT OR REPLACE INTO filecache(path,agent,mtime,size,tin,tout,"
-                "cache_read,cache_write,think,total,msgs,scanned_at) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "cache_read,cache_write,think,total,msgs,scanned_at,models) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (f, agent, st.st_mtime, st.st_size, vals["tin"], vals["tout"],
                  vals["cache_read"], vals["cache_write"], vals["think"],
-                 vals["total"], vals["msgs"], NOW))
+                 vals["total"], vals["msgs"], NOW, json.dumps(vals["models"])))
         if vals["msgs"]:
             t["files"] += 1
-            for k, v in vals.items(): t[k] += v
+            merge(t, vals)
     con.commit()
     if progress and fresh:
         print("\r" + " " * (W - 1) + "\r", end="", flush=True)
@@ -739,9 +808,35 @@ def render(args):
 
     vol_table("TOKEN VOLUME", f"local transcripts · {args.since}",
               lambda a: window_totals(a, since))
-    if args.lifetime:
-        vol_table("LIFETIME", "every transcript on this machine",
-                  lambda a: lifetime_totals(a, con, progress=True))
+
+    if not args.brief:
+        life = {a_: (lifetime_totals(a_, con, progress=True) if SCANNERS[a_][0]() else None)
+                for a_ in ("claude", "codex", "grok")}
+        vol_table("LIFETIME", "every transcript on this machine", lambda a: life[a])
+
+        # ── per model, across the whole corpus
+        rows = []
+        for a_ in ("claude", "codex", "grok"):
+            t = life.get(a_)
+            if not t: continue
+            for mo, mv in t["models"].items():
+                rows.append((a_, mo, mv))
+        if rows:
+            rows.sort(key=lambda r: -r[2]["total"])
+            grand = sum(r[2]["total"] for r in rows) or 1
+            top("BY MODEL", "lifetime · every version you have run")
+            mid()
+            mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<22}{'MSGS':>9}{'OUTPUT':>11}"
+                f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
+            for a_, mo, mv in rows:
+                share = mv["total"] / grand * 100
+                w = max(0, int(round(share / 100 * 16)))
+                spark = s.accent + "█" * w + s.faint + "·" * (16 - w) + s.r
+                mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:21]:<22}{s.r}"
+                    f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
+                    f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
+            mid()
+            bot("codex rollups are attributed to the LAST model seen in the file")
 
     ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
     if ins:
@@ -751,6 +846,14 @@ def render(args):
             mid(f"  {s.bcya}▸{s.r} {t}")
         mid()
         bot()
+    if SCAN_ERRORS:
+        uniq = sorted({e for e in SCAN_ERRORS})
+        top("SCAN ERRORS", f"{len(SCAN_ERRORS)} file(s) failed to parse")
+        mid()
+        for e in uniq[:6]:
+            mid(f"  {s.crit}▸{s.r} {e[:W-8]}")
+        mid()
+        bot("counts above are INCOMPLETE — these files were skipped")
     print()
     con.close()
 
@@ -791,10 +894,14 @@ def main():
     p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.")
     p.add_argument("--refresh", nargs="?", const="claude,codex,grok", metavar="AGENTS")
     p.add_argument("--since", default="24h", choices=["24h", "7d", "30d", "today", "all"])
-    p.add_argument("--lifetime", action="store_true")
+    p.add_argument("--lifetime", action="store_true",
+                   help="(now on by default; kept for compatibility)")
+    p.add_argument("--brief", action="store_true",
+                   help="quota + recent volume only, skip lifetime and per-model")
     p.add_argument("--json", action="store_true")
     p.add_argument("--no-color", action="store_true")
-    p.add_argument("--vivid", action="store_true", help="loud palette instead of muted")
+    p.add_argument("--theme", default=os.environ.get("OMNIGAUGE_THEME", "ink"),
+                   choices=sorted(S.THEMES), help="ink (calm, default) · muted · mono · vivid")
     p.add_argument("--watch", nargs="?", const=10, type=int, metavar="SEC",
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
@@ -805,7 +912,7 @@ def main():
     global CWD_OVERRIDE
     CWD_OVERRIDE = a.cwd
     if a.no_color: S.on = False
-    S.vivid = a.vivid
+    S.theme = a.theme
 
     if a.refresh:
         which = [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS]
