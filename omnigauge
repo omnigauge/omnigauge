@@ -37,7 +37,7 @@ TWO KINDS OF NUMBER, DELIBERATELY NEVER MERGED
 Subscription plans have no dollar balance, so none is shown. API spend is a
 separate product and is never blended into a "remaining" figure.
 
-MIT licensed. https://github.com/  (set your remote)
+MIT licensed. https://github.com/omnigauge/omnigauge
 """
 import argparse, glob, io, json, os, re, shutil, sqlite3, subprocess, sys, time
 

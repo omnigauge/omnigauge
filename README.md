@@ -317,11 +317,28 @@ the terms above instead of pretending to be us — there is a good chance the
 contract address ends up on this page. A listing is not an endorsement. DYOR.
 
 
+## Contributing
+
+Pull requests are open to anyone — you do not need permission, an invite, or to
+ask first. Fork it, change it, open a PR.
+
+The shape of this project is that **adding a source is one file**. If you use a
+tool this does not read yet, the whole job is a single file in `providers/` that
+answers four questions: are you installed, where are your files, how many tokens,
+and what does your quota panel say. `providers/claude.py` is the worked example.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the contract, the three rules that are not
+style preferences, and what gets rejected. Read the last one before you start —
+it will save you the work.
+
+Everything here is MIT. Your contribution comes in under the same licence, and
+you keep the copyright to what you wrote.
+
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
-- Security → **security@OmniGauge.dev** (see [SECURITY.md](SECURITY.md))
-- Anything else → **dev@OmniGauge.dev**
+- Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
+- Anything else → **dev@omnigauge.dev**
 
 ## Licence
 
