@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Post OmniGauge release announcements to X.
 
-Modelled on an internal announce bot, with the same three habits that make
-that one safe to leave running: it is OFF unless explicitly switched on, a
-failure returns rather than raises, and the text is clamped before it is sent.
+Three habits make a posting bot safe to leave installed, and this one keeps all
+three: it is OFF unless explicitly switched on, a failure returns rather than
+raises so it can never take down its caller, and the text is clamped before it
+is sent rather than rejected after.
 
 It deliberately does NOT live inside the installed tool. `install.sh` copies
 only `omnigauge` and `providers/*.py`, so nothing here reaches a user's machine.

@@ -26,3 +26,6 @@ assets/master-D-*.png
 assets/logo-arcs.svg
 assets/logo-bars.svg
 assets/logo-level-ring.svg
+
+# lane notes live outside the public repo
+ops/HANDOFF.md
