@@ -157,13 +157,10 @@ a{color:var(--cyan)}
 /* On a narrow screen the key bar overflowed off the right edge - Legend and
    Saver were there, just past the horizon. Wrap instead of clip; the spacer
    only made sense on one line. */
-/* Mobile condenses: the essentials stay on the bar (Why, Board, Install,
-   GitHub, Legend), the rest live in the menus, and the screensaver does
-   not exist on a phone at all. */
 @media (max-width:700px){
   #keys{flex-wrap:wrap;height:auto;padding:.15em 0}
-  #keys .sp,#keys .x{display:none}
-  #scr{padding-bottom:5em}
+  #keys .sp{display:none}
+  #scr{padding-bottom:6.5em}
 }
 
 /* real content for a screen reader, invisible to everyone else */
@@ -175,8 +172,7 @@ a{color:var(--cyan)}
   justify-content:center;background:rgba(4,10,34,.35)}
 #modal.on{display:flex}
 #modal .box{background:var(--panel);box-shadow:.7em .45em 0 var(--shadow);
-  border:1px solid var(--edge);width:fit-content;
-  min-width:min(24em,92vw);max-width:92vw}
+  border:1px solid var(--edge);min-width:min(46em,92vw);max-width:92vw}
 #modal .tb{background:var(--barbg);color:var(--barink);padding:.1em .8em;
   display:flex;justify-content:space-between;align-items:center}
 #modal .tb u{color:var(--hot);text-decoration:none;cursor:pointer;padding:0 .3em}
@@ -259,19 +255,19 @@ omnigauge --refresh</pre>
 </div></div>
 <div id="saver" aria-hidden="true"><div id="sv"></div></div>
 <div id="keys" role="toolbar" aria-label="function keys">
-  <b class="x">F1</b><i class="x" data-c="about" role="button" tabindex="0">About</i>
+  <b>F1</b><i data-c="about" role="button" tabindex="0">About</i>
   <b>F2</b><i data-c="why" role="button" tabindex="0">Why</i>
   <b>F3</b><i data-c="board" role="button" tabindex="0">Board</i>
   <b>F4</b><i data-c="install" role="button" tabindex="0">Install</i>
-  <b class="x">F5</b><i class="x" data-c="providers" role="button" tabindex="0">Providers</i>
-  <b class="x">F6</b><i class="x" data-c="privacy" role="button" tabindex="0">Privacy</i>
-  <b class="x">F7</b><i class="x" data-c="donate" role="button" tabindex="0">Donate</i>
-  <b class="x">F8</b><i class="x" data-c="open" role="button" tabindex="0">Source</i>
-  <b class="x">F9</b><i class="x" data-c="help" role="button" tabindex="0">Cmds</i>
+  <b>F5</b><i data-c="providers" role="button" tabindex="0">Providers</i>
+  <b>F6</b><i data-c="privacy" role="button" tabindex="0">Privacy</i>
+  <b>F7</b><i data-c="donate" role="button" tabindex="0">Donate</i>
+  <b>F8</b><i data-c="open" role="button" tabindex="0">Source</i>
+  <b>F9</b><i data-c="help" role="button" tabindex="0">Cmds</i>
   <span class="sp"></span>
   <b>F10</b><i data-c="github" role="button" tabindex="0">GitHub</i>
   <b>·</b><i data-c="legend" role="button" tabindex="0">Legend</i>
-  <b class="x">Alt+S</b><i data-c="saver" role="button" tabindex="0">Saver</i>
+  <b>Alt+S</b><i data-c="saver" role="button" tabindex="0">Saver</i>
 </div>
 
 <script>
@@ -279,10 +275,7 @@ omnigauge --refresh</pre>
 var RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
 var out=document.getElementById('out'),scr=document.getElementById('scr'),
     inp=document.getElementById('in'),prom=document.getElementById('prompt');
-var MOBILE=false, W=78, IN=76;
-function setMode(m){MOBILE=m; W=m?46:78; IN=W-2;
-  COL=m?{mark:2,agent:13,window:0,bar:8,used:5,reset:8}
-       :{mark:4,agent:18,window:9,bar:20,used:8,reset:12};}
+var W=78, IN=W-2;
 
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 function vis(s){return s.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').length;}
@@ -291,7 +284,7 @@ function rpad(s,n){return ' '.repeat(Math.max(0,n-vis(s)))+s;}
 /* Column widths live in one place. A number column that is left-padded puts
    24%, 0% and 97% at three different columns, which is exactly the comparison
    the whole tool exists to make possible. */
-var COL; setMode(false);
+var COL={mark:4,agent:18,window:9,bar:20,used:8,reset:12};
 function paint(s){return esc(s).replace(/\[\[([cygrdfw])\]\]/g,'<b class="$1">')
   .replace(/\[\[\/\]\]/g,'</b>');}
 function line(s,cls){var d=document.createElement('div');
@@ -309,7 +302,6 @@ function head(t,sub){
   pan();
   headsSince.push(t.toLowerCase());
   var l='[[c]]╔══[[/]][[w]]▌ '+t+' ▐[[/]]', r=sub?'[[d]] '+sub+' [[/]]':'';
-  if(IN-vis(l)-vis(r)+1<2)r='';                 /* the sub is decoration */
   put(l+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(l)-vis(r)+1))+'[[/]]'+r+'[[c]]╗[[/]]');
 }
 function row(t){return put('[[c]]║[[/]]'+pad(t||'',IN)+'[[c]]║[[/]]');}
@@ -330,7 +322,7 @@ function meterRow(el,left,right){
   return seg;
 }
 function meter(seg,target){
-  var draw=function(v){seg.innerHTML=paint(bar(v,COL.bar)+' '+rpad(Math.round(v)+'%',COL.used));};
+  var draw=function(v){seg.innerHTML=paint(bar(v)+rpad(Math.round(v)+'%',COL.used));};
   if(RM){draw(target);return;}
   var t0=null;
   requestAnimationFrame(function step(t){
@@ -341,7 +333,6 @@ function meter(seg,target){
   });
 }
 function foot(n){
-  if(n&&IN-vis('[[d]] '+n+' [[/]]')-2<2)n='';   /* the note is decoration */
   if(n){var s='[[d]] '+n+' [[/]]';
     put('[[c]]╚══[[/]]'+s+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(s)-2))+'╝[[/]]');}
   else put('[[c]]╚'+'═'.repeat(IN)+'╝[[/]]');
@@ -396,8 +387,8 @@ var S={dry:15120,tok:2.032,burn:180};
    querySelectorAll over every panel row ever printed, every second, reading
    each one's textContent - a cost that grew with the scrollback forever. */
 var LIVE={dry:null,today:null};
-function dryRow(){return '  [[f]]'+pad('dry in',MOBILE?6:14)+'[[/]][[y]]'+fmt(S.dry)+'[[/]]'+(MOBILE?'':' [[d]]at that pace[[/]]');}
-function todayRow(){return '  [[f]]'+pad('today',MOBILE?6:14)+'[[/]][[c]]'+S.tok.toFixed(3)+'B[[/]]'+(MOBILE?' [[d]]tokens[[/]]':' [[d]]tokens across three agents[[/]]');}
+function dryRow(){return '  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]';}
+function todayRow(){return '  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]';}
 /* Height was the obvious way to draw a week, and it cost seven partial-block
    glyphs — the same family that rendered the CLI panels ragged, because a font
    without them substitutes a face with a different advance. Intensity carries
@@ -413,9 +404,7 @@ function fmt(s){var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%
 function board(){
   head('PLAN QUOTA','normalized to % consumed');
   row('');
-  row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)
-      +(MOBILE?'':pad('WINDOW',COL.window))+pad('',COL.bar+1)
-      +rpad('USED',COL.used)+rpad(MOBILE?'RESETS':'RESETS IN',COL.reset)+'[[/]]');
+  row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)+pad('WINDOW',COL.window)+pad('',COL.bar)+rpad('USED',COL.used)+rpad('RESETS IN',COL.reset)+'[[/]]');
   /* Real readings off the author's machine, 15 Aug 2026. Not invented, not
      rounded to look tidy — codex really was at 100% with four days to run. */
   [['claude','week',28,'4d 09h'],['claude','session',16,'5:19am'],
@@ -424,28 +413,24 @@ function board(){
    ['grok/x premium+','week',41,'2d 04h']].forEach(function(r){
     var crit=r[2]>=90;
     var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
-    var name=MOBILE?r[0].slice(0,COL.agent-1):r[0];
-    var left='[[c]]║[[/]]'+pad((MOBILE?' ':'  ')+m,COL.mark)+pad(name,COL.agent)
-             +(MOBILE?'':pad(r[1],COL.window));
-    var fill=IN-COL.mark-COL.agent-(MOBILE?0:COL.window)-COL.bar-1-COL.used-COL.reset;
-    var right=rpad(MOBILE?r[3].replace(/ /g,''):r[3],COL.reset)
-              +' '.repeat(Math.max(0,fill))+'[[c]]║[[/]]';
+    var left='[[c]]║[[/]]'+pad('  '+m,COL.mark)+pad(r[0],COL.agent)+pad(r[1],COL.window);
+    var fill=IN-COL.mark-COL.agent-COL.window-COL.bar-COL.used-COL.reset;
+    var right=rpad(r[3],COL.reset)+' '.repeat(Math.max(0,fill))+'[[c]]║[[/]]';
     var el=row(''), seg=meterRow(el,left,right);
     meter(seg,r[2]);
     if(crit)el.classList.add('crit');
   });
-  row(MOBILE?'   [[f]]"0% left" - inverted[[/]]'
-            :'    [[f]]codex reported "0% left" - inverted to match the others[[/]]');
+  row('    [[f]]codex reported "0% left" - inverted to match the others[[/]]');
   row('');
   foot('subscription windows · no dollar balance exists for these plans');
   blank();
   head('LIVE','this page is doing the arithmetic, not showing a picture');
   row('');
-  row('  [[f]]'+pad('burn',MOBILE?6:14)+'[[/]][[c]]'+S.burn+'K[[/]] [[d]]tok/hr[[/]]');
+  row('  [[f]]burn rate[[/]]      [[c]]'+S.burn+'K[[/]] [[d]]tokens/hour[[/]]');
   LIVE.dry=row(dryRow());
   LIVE.today=row(todayRow());
   row('');
-  row('  [[f]]'+pad(MOBILE?'7d':'last 7 days',MOBILE?6:14)+'[[/]]'+spark([31,44,38,72,66,91,97])+(MOBILE?'':'  [[f]]Mon - Sun[[/]]'));
+  row('  [[f]]last 7 days[[/]]    '+spark([31,44,38,72,66,91,97])+'  [[f]]Mon - Sun[[/]]');
   row('');
   foot('real readings, 15 Aug 2026, one machine - yours will differ');
 }
@@ -461,11 +446,6 @@ function LROWS(){return LEGEND.sources||LEGEND;}
 function legendPanel(){
   var short={lifetime:'LIFE',models:'MODEL'};
   blank();
-  if(MOBILE){
-    head('PROVIDERS');row('');
-    prose('d','The full capability matrix needs a wider screen - or the CLI: omnigauge --providers. The reasons:');
-    row('');
-  } else {
   head('PROVIDERS','what ships, what it gets, and what it cannot get');row('');
   row('  [[f]]'+pad('SOURCE',11)+pad('KIND',6)+CAPORDER.map(function(c){
     return rpad((short[c]||c).toUpperCase(),8);}).join('')+'[[/]]');
@@ -478,7 +458,6 @@ function legendPanel(){
   row('');foot('● obtained · ○ available, not read yet · - unavailable');
   blank();
   head('THE REASONS','the third state is the honest one');row('');
-  }
   /* Grouped by source; the STATE is the glyph, so the words are only the
      why. Wraps break on words - a note snapped mid-word reads like a
      rendering bug - and a repo test caps note length so none wraps today. */
@@ -492,7 +471,7 @@ function legendPanel(){
     noted.forEach(function(c){
       var v=p.c[c], st=v.split(':')[0].trim(), why=v.slice(v.indexOf(':')+1).trim();
       var mark=st==='obtained'?'[[g]]●[[/]]':st==='available'?'[[y]]○[[/]]':'[[f]]-[[/]]';
-      var lines=wrapWords(why||st,IN-15);
+      var lines=wrapWords(why||st,61);
       row('  '+mark+' [[d]]'+pad(c,9)+lines[0]+'[[/]]');
       for(var i=1;i<lines.length;i++)
         row('               [[d]]'+lines[i]+'[[/]]');
@@ -503,10 +482,7 @@ function legendPanel(){
     blank();
     head('VERIFIED NEGATIVES','read on real installs, not guessed');row('');
     LEGEND.negatives.forEach(function(n){
-      var lines=wrapWords(n.why,IN-16);
-      row('  [[f]]-[[/]] [[w]]'+pad(n.n,12)+'[[/]][[d]]'+lines[0]+'[[/]]');
-      for(var i=1;i<lines.length;i++)
-        row('  '+pad('',14)+'[[d]]'+lines[i]+'[[/]]');});
+      row('  [[f]]-[[/]] [[w]]'+pad(n.n,12)+'[[/]][[d]]'+n.why+'[[/]]');});
     row('');foot('a missing provider with a reason beats a broken one');
   }
   blank();
@@ -514,28 +490,11 @@ function legendPanel(){
 function wrapWords(t,w){
   var out=[],cur='';
   t.split(/\s+/).forEach(function(x){
-    while(x.length>w){                    /* a token wider than the grid */
-      if(cur){out.push(cur);cur='';}
-      out.push(x.slice(0,w)); x=x.slice(w);
-    }
     var c=(cur?cur+' ':'')+x;
     if(c.length<=w||!cur)cur=c; else{out.push(cur);cur=x;}
   });
   out.push(cur);
   return out;
-}
-
-/* prose(): sentences wrap to the CURRENT grid, so every content panel
-   condenses to the mobile width instead of clipping. Hand-set line breaks
-   were 78-column assumptions wearing a text costume. */
-function prose(cls,text){
-  wrapWords(text,Math.min(62,IN-4)).forEach(function(l){row('  [['+cls+']]'+l+'[[/]]');});
-}
-function kv(k,v,kw){
-  kw=kw||12;
-  var lines=wrapWords(v,IN-4-kw);
-  row('  [[y]]'+pad(k,kw)+'[[/]][[d]]'+lines[0]+'[[/]]');
-  for(var i=1;i<lines.length;i++)row('  '+pad('',kw)+'[[d]]'+lines[i]+'[[/]]');
 }
 
 /* ── commands ────────────────────────────────────────────────────────────── */
@@ -551,57 +510,66 @@ var C={
    ['copy','install lines to clipboard'],['wallet','address to clipboard'],
    ['saver','the screen goes dark (Alt+S)'],
    ['github','open the repository'],['cls','clear the screen']]
-  .forEach(function(c){kv(c[0],c[1],MOBILE?9:12);});
+  .forEach(function(c){row('  [[y]]'+pad(c[0],12)+'[[/]][[d]]'+c[1]+'[[/]]');});
   row('');foot('function keys along the bottom do the same');blank();},
 
  board:function(){blank();board();blank();},
 
  why:function(){blank();
   head('FOUR VENDORS. FOUR DIALECTS.');row('');
-  prose('d','Ask each one how much you have left. Every answer is honest, and useless beside the others:');row('');
+  row('  [[d]]Ask each one how much you have left. Every answer is honest,[[/]]');
+  row('  [[d]]and useless beside the others:[[/]]');row('');
   [['codex','38% left','counts down · 5h rolling'],
    ['claude','87% used','counts up · calendar week'],
    ['grok','2.1M / 35M','raw tokens · month'],
    ['gemini','"limited"','no number at all']].forEach(function(v){
-    row('    '+pad('[[y]]'+v[0]+'[[/]]',11)+pad('[[w]]'+v[1]+'[[/]]',MOBILE?11:14)
-        +(MOBILE?'':'[[f]]'+v[2]+'[[/]]'));});
+    row('    '+pad('[[y]]'+v[0]+'[[/]]',11)+pad('[[w]]'+v[1]+'[[/]]',14)
+        +'[[f]]'+v[2]+'[[/]]');});
   row('');
-  prose('d','One counts down. One counts up. One hands you arithmetic homework. One shrugs. So 38% left becomes 62% used, raw tokens become a percentage, every window is stated the same way - and the comparison is finally worth making.');
+  row('  [[d]]One counts down. One counts up. One hands you arithmetic[[/]]');
+  row('  [[d]]homework. One shrugs. So 38% left becomes[[/]] [[y]]62% used[[/]][[d]], raw[[/]]');
+  row('  [[d]]tokens become a percentage, every window is stated the same[[/]]');
+  row('  [[d]]way - and the comparison is finally worth making.[[/]]');
   row('');
-  prose('d','It is usually not the plan you were worried about.');
+  row('  [[d]]It is usually not the plan you were worried about.[[/]]');
   row('');foot('press F3 to see it normalized');blank();},
 
  install:function(){blank();
   head('INSTALL','Python 3.8+ · no dependencies · one file');row('');
-  [['git clone https://github.com/omnigauge/omnigauge.git'],
-   ['install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge'],
-   ['omnigauge --refresh']].forEach(function(c){
-    var lines=wrapWords(c[0],IN-9);
-    row('  [[y]]C:\\>[[/]] [[w]]'+lines[0]+'[[/]]');
-    for(var i=1;i<lines.length;i++)row('       [[w]]'+lines[i]+'[[/]]');});
+  row('  [[y]]C:\\>[[/]] git clone https://github.com/omnigauge/omnigauge.git');
+  row('  [[y]]C:\\>[[/]] install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge');
+  row('  [[y]]C:\\>[[/]] omnigauge --refresh');
   row('');
-  [['omnigauge','the board'],['--watch','refresh in place while you work'],
-   ['--check','headless · exits 0/1/2 for cron'],
-   ['--since 7d','any window, including lifetime']].forEach(function(c){
-    kv(c[0],c[1],MOBILE?11:17);});
+  row('  [[d]]then[[/]]  [[c]]omnigauge[[/]]        [[f]]the board[[/]]');
+  row('        [[c]]--watch[[/]]          [[f]]refresh in place while you work[[/]]');
+  row('        [[c]]--check[[/]]          [[f]]headless · exits 0/1/2 for cron[[/]]');
+  row('        [[c]]--since 7d[[/]]       [[f]]any window, including lifetime[[/]]');
   row('');foot('type  copy  to copy the three lines');blank();},
 
  providers:function(){blank();
   head('A PROVIDER IS ONE FILE');row('');
-  prose('d','Drop it in providers/, run omnigauge --doctor, and it appears on the board.');row('');
-  prose('d','It answers four questions: are you installed, where are your files, how many tokens, and what does your quota panel say.');
+  row('  [[d]]Drop it in[[/]] [[c]]providers/[[/]][[d]], run[[/]] [[c]]omnigauge --doctor[[/]][[d]], and it[[/]]');
+  row('  [[d]]appears on the board.[[/]]');row('');
+  row('  [[d]]It answers four questions: are you installed, where are your[[/]]');
+  row('  [[d]]files, how many tokens, and what does your quota panel say.[[/]]');
   row('');
-  prose('d','All three built-ins ship as providers - claude, codex and grok - each a different parsing shape. Copy the closest.');
+  row('  [[d]]All three built-ins ship as providers - claude, codex and[[/]]');
+  row('  [[d]]grok - each a different parsing shape. Copy the closest.[[/]]');
   row('');foot('MIT · fork it, ship it, send it back');blank();},
 
  privacy:function(){blank();
   head('THINGS IT WILL NOT DO');row('');
-  prose('w','It will not ask for a key to read your agents.');
-  prose('d','You are already logged into these tools. It reads what they write to your own disk. There is no credential to lose.');row('');
-  prose('w','It will not phone home.');
-  prose('d','No telemetry, no account, no server. What you spend is nobody\'s business, mine included.');row('');
-  prose('w','It will not guess.');
-  prose('d','When a vendor changes its UI and a parse fails you get NO QUOTA PARSED and the raw screen - never a plausible number with nothing behind it. A dashboard that invents a figure is worse than one that admits it is blind.');
+  row('  [[w]]It will not ask for a key to read your agents.[[/]]');
+  row('  [[d]]You are already logged into these tools. It reads what they[[/]]');
+  row('  [[d]]write to your own disk. There is no credential to lose.[[/]]');row('');
+  row('  [[w]]It will not phone home.[[/]]');
+  row('  [[d]]No telemetry, no account, no server. What you spend is[[/]]');
+  row('  [[d]]nobody\'s business, mine included.[[/]]');row('');
+  row('  [[w]]It will not guess.[[/]]');
+  row('  [[d]]When a vendor changes its UI and a parse fails you get[[/]]');
+  row('  [[r]]  NO QUOTA PARSED[[/]] [[d]]and the raw screen - never a plausible[[/]]');
+  row('  [[d]]number with nothing behind it. A dashboard that invents a[[/]]');
+  row('  [[d]]figure is worse than one that admits it is blind.[[/]]');
   row('');foot('the optional spend panel takes keys - yours, 0600, your own billing');blank();},
 
  doctor:function(){blank();
@@ -610,44 +578,63 @@ var C={
    ['codex','~/.codex/sessions','211 threads',1],
    ['grok','~/.grok','3 sessions',1],
    ['gemini','not installed','write a provider',0]].forEach(function(d){
-    row('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]')+' [[w]]'+pad(d[0],MOBILE?9:11)+'[[/]]'
-        +(MOBILE?(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]'
-                :'[[d]]'+pad(d[1],24)+'[[/]]'+(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]'));});
+    row(pad('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]'),COL.mark)+pad('[[w]]'+d[0]+'[[/]]',12)
+        +pad('[[d]]'+d[1]+'[[/]]',24)+(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]');});
   row('');foot('');blank();},
 
  open:function(){blank();
   head('DO NOT TAKE MY WORD FOR IT','MIT - one file - no dependencies');row('');
-  prose('d','A tool that can see every token you spend is exactly the kind you should not trust on faith. So do not.');row('');
-  prose('w','The whole thing is one Python file.');
-  prose('d','About 1,600 lines. No dependency tree hiding behind it, nothing minified, nothing compiled. You can read it end to end in an afternoon and know exactly what it does with your data, which is nothing.');row('');
-  prose('y','Fork it. Ship it. Sell it. Rename it.');
-  prose('d','MIT means all of that is yours. The only thing worth asking is that when you teach it a tool I have never used, you send that part back.');row('');
+  row('  [[d]]A tool that can see every token you spend is exactly the kind[[/]]');
+  row('  [[d]]you should not trust on faith. So do not.[[/]]');row('');
+  row('  [[w]]The whole thing is one Python file.[[/]] [[d]]About 1,600 lines. No[[/]]');
+  row('  [[d]]dependency tree hiding behind it, nothing minified, nothing[[/]]');
+  row('  [[d]]compiled. You can read it end to end in an afternoon and know[[/]]');
+  row('  [[d]]exactly what it does with your data, which is nothing.[[/]]');row('');
+  row('  [[y]]Fork it. Ship it. Sell it. Rename it.[[/]] [[d]]MIT means all of that[[/]]');
+  row('  [[d]]is yours. The only thing worth asking is that when you teach[[/]]');
+  row('  [[d]]it a tool I have never used, you send that part back.[[/]]');row('');
   row('  [[c]]github.com/omnigauge/omnigauge[[/]]');row('');
   foot('every provider on the board was somebody\'s afternoon');blank();},
 
  donate:function(){blank();
   head('DONATE','optional, and it changes nothing');row('');
-  prose('d','OmniGauge is MIT and stays that way. No paid tier, no hosted version waiting behind it, no feature held back. Nothing here is gated on this.');row('');
+  row('  [[d]]OmniGauge is MIT and stays that way. No paid tier, no hosted[[/]]');
+  row('  [[d]]version waiting behind it, no feature held back. Nothing here[[/]]');
+  row('  [[d]]is gated on this.[[/]]');row('');
   row('  [[w]]Solana[[/]]');
-  row((MOBILE?' ':'  ')+'[[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]');row('');
+  row('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]');row('');
   (function(){var b=out.querySelectorAll('b.y');
     for(var i=b.length-1;i>=0;i--)
       if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
         b[i].title='double-click to copy';break;}})();
-  prose('f','If you got more out of this than it cost you to read the source, that trade already worked.');row('');
-  prose('d','Chip in a Sol or two. It buys you nothing - no tier, no badge, no priority support, no role in a Discord that does not exist - which is what makes it a donation and not a purchase.');row('');
-  row('  [[c]]' + '\u2500'.repeat(IN-6) + '[[/]]');row('');
-  prose('w','There will be no OmniGauge token from the developer of OmniGauge.');
-  prose('d','No presale. No airdrop. No community round. No Phase 3.');row('');
-  prose('d','You can launch one. Someone always does. The ask is creator fees plus 3% of supply to the address above, and the token socials pointed at @OmniGauge and omnigauge.dev - the only two places this project exists.');row('');
-  prose('y','What you may not do is LARP as this project while you do it.');
-  prose('d','No "official". No borrowed name. No invented team. Launch your own thing and be honest that it is yours.');row('');
-  prose('w','X is the only place OmniGauge exists.');
-  prose('d','No Discord. No Telegram. No Reddit. No group chat. No "community". If something calls itself OmniGauge anywhere other than @OmniGauge or this domain, it is not us.');row('');
-  row('  [[c]]' + '\u2500'.repeat(IN-6) + '[[/]]');row('');
-  prose('w','If you do launch one, come and say so.');
-  prose('d','The email on the GitHub profile is the channel that counts. If it checks out - you are not a known scammer, and you met the terms above instead of pretending to be us - there is a good chance the contract address ends up on this page.');row('');
-  prose('f','A listing is not an endorsement. DYOR.');row('');
+  row('  [[f]]If you got more out of this than it cost you to read the[[/]]');
+  row('  [[f]]source, that trade already worked.[[/]]');row('');
+  row('  [[d]]Chip in a Sol or two. It buys you nothing - no tier, no[[/]]');
+  row('  [[d]]badge, no priority support, no role in a Discord that does[[/]]');
+  row('  [[d]]not exist - which is what makes it a donation and not a[[/]]');
+  row('  [[d]]purchase.[[/]]');row('');
+  row('  [[c]]' + '\u2500'.repeat(70) + '[[/]]');row('');
+  row('  [[w]]There will be no OmniGauge token from the developer[[/]]');
+  row('  [[w]]of OmniGauge.[[/]]');
+  row('  [[d]]No presale. No airdrop. No community round. No Phase 3.[[/]]');row('');
+  row('  [[d]]You can launch one. Someone always does. The ask is[[/]]');
+  row('  [[y]]creator fees plus 3% of supply[[/]] [[d]]to the address above, and[[/]]');
+  row('  [[d]]the token socials pointed at[[/]] [[y]]@OmniGauge[[/]] [[d]]and[[/]]');
+  row('  [[y]]omnigauge.dev[[/]][[d]] - the only two places this project exists.[[/]]');row('');
+  row('  [[y]]What you may not do is LARP as this project while you do it.[[/]]');
+  row('  [[d]]No "official". No borrowed name. No invented team. Launch[[/]]');
+  row('  [[d]]your own thing and be honest that it is yours.[[/]]');row('');
+  row('  [[w]]X is the only place OmniGauge exists.[[/]]');
+  row('  [[d]]No Discord. No Telegram. No Reddit. No group chat. No[[/]]');
+  row('  [[d]]"community". If something calls itself OmniGauge anywhere[[/]]');
+  row('  [[d]]other than[[/]] [[y]]@OmniGauge[[/]] [[d]]or this domain, it is not us.[[/]]');row('');
+  row('  [[c]]' + '\u2500'.repeat(70) + '[[/]]');row('');
+  row('  [[w]]If you do launch one, come and say so.[[/]]');
+  row('  [[d]]The email on the GitHub profile is the channel that counts.[[/]]');
+  row('  [[d]]If it checks out - you are not a known scammer, and you[[/]]');
+  row('  [[d]]met the terms above instead of pretending to be us - there[[/]]');
+  row('  [[d]]is a good chance the contract address ends up on this page.[[/]]');row('');
+  row('  [[f]]A listing is not an endorsement. DYOR.[[/]]');row('');
   foot('double-click the address, or type  wallet');blank();},
 
  copy:function(){navigator.clipboard.writeText(
@@ -822,8 +809,7 @@ C.about=function(){dialog('About OmniGauge',
  'disk. Normalizes four incompatible counters to one denominator.\n'+
  'Asks for no key, reports to nobody, invents nothing.</b>\n\n'+
  '<b class="f">MIT · one Python file · no dependencies</b>\n'+
- '<a href="https://github.com/omnigauge/omnigauge" target="_blank" rel="noopener">github.com/omnigauge/omnigauge</a>\n'+
- '<a href="https://x.com/OmniGauge" target="_blank" rel="noopener">x.com/OmniGauge</a>');};
+ '<b class="c">github.com/omnigauge/omnigauge</b>');};
 
 /* ── DOS-era commands, answered in character ───────────────────────────────── */
 C.ver=function(){blank();line('  [[w]]OmniGauge [Version 1.0][[/]]');
@@ -929,24 +915,16 @@ function fit(){
     'font-family:var(--mono);font-size:100px';
   probe.textContent='0'.repeat(78);
   document.body.appendChild(probe);
-  var per=probe.getBoundingClientRect().width/100;   // px per 1px font-size, 78 cols
+  var per=probe.getBoundingClientRect().width/100;   // px of width per 1px font-size
   probe.remove();
   var pad=parseFloat(getComputedStyle(document.getElementById('scr')).paddingLeft)*2;
   var avail=document.documentElement.clientWidth-pad-2;
   var size=avail/per;
-  /* Below ~9px the 78-column desktop is a postage stamp. The page does what
-     the CLI does on an 80-column terminal: drop to a condensed grid and
-     spend the width on TYPE instead of columns. */
-  var wantMobile=size<9;
-  if(wantMobile!==MOBILE){setMode(wantMobile); if(booted)rerender();}
-  if(MOBILE)size=avail/(per/78*46);
+  // floor keeps a phone legible; ceiling keeps a desktop from turning an
+  // 80-column terminal into a billboard — a terminal should sit in a screen,
+  // not fill it
   size=Math.max(6.2,Math.min(14.5,size));
   document.documentElement.style.setProperty('--fs',size.toFixed(2)+'px');
-}
-var booted=false;
-function rerender(){
-  out.innerHTML=''; LIVE.dry=LIVE.today=null;
-  start(true);
 }
 fit();
 addEventListener('resize',fit);
@@ -959,14 +937,6 @@ function clock(){var d=new Date();
 clock();setInterval(clock,20000);
 
 /* ── power-on self test ──────────────────────────────────────────────────── */
-var POST_M=[
- '[[w]]OmniGauge BIOS v1.0[[/]]',
- '',
- '[[d]]Counting tokens ...[[/]] [[CNT]] [[g]]OK[[/]]',
- '[[d]]claude OK · codex OK · grok OK[[/]]',
- '',
- '[[f]]MIT · one file · read it first[[/]]',
- ''];
 var POST=[
  '[[w]]OmniGauge BIOS v1.0[[/]] [[f]]· one gauge for every plan you pay for[[/]]',
  '',
@@ -990,16 +960,15 @@ function final(txt){
   return paint(txt).replace('[[CNT]]','<b class="w"><i id="cnt">0</i></b>');
 }
 var postSkip=false;
-function start(instant){
-  blank(); wordmark(); blank();
-  if(!MOBILE)blank();
+function start(){
+  blank(); wordmark(); blank(); blank();
   addEventListener('keydown',function skip(){
     postSkip=true;removeEventListener('keydown',skip);});
-  var i=0, SEQ=MOBILE?POST_M:POST;
+  var i=0;
   (function step(){
-    if(i<SEQ.length){
-      var txt=SEQ[i++], el=line('');
-      if(RM||instant||postSkip||!txt.trim()){el.innerHTML=final(txt||' ');bottom();setTimeout(step,0);return;}
+    if(i<POST.length){
+      var txt=POST[i++], el=line('');
+      if(RM||postSkip||!txt.trim()){el.innerHTML=final(txt||' ');bottom();setTimeout(step,0);return;}
       var plain=txt.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').replace('[[CNT]]','0'), j=0;
       (function type(){
         if(postSkip){el.innerHTML=final(txt);bottom();setTimeout(step,0);return;}
@@ -1018,9 +987,8 @@ function start(instant){
     board();blank();
     line('  [[f]]Type[[/]] [[y]]help[[/]][[f]], or press[[/]] [[y]]F2[[/]] [[f]]if you are wondering what this is for.[[/]]');
     blank();
-    prom.style.display='flex';if(!MOBILE)inp.focus();bottom();
-    if(!booted&&!RM)setInterval(tick,1000);
-    booted=true;
+    prom.style.display='flex';inp.focus();bottom();
+    if(!RM)setInterval(tick,1000);
   })();
 }
 function tick(){
@@ -1034,7 +1002,6 @@ function tick(){
 start();
 /* headless deploy gate: lets tests/site_harness.js drive the real renderer
    and measure real rendered rows. Not an API; do not build on it. */
-window.__og={run:run,out:out,vis:vis,setMode:setMode,rerender:rerender,
-  width:function(){return W}};
+window.__og={run:run,out:out,vis:vis};
 })();
 </script>

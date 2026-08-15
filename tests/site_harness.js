@@ -102,34 +102,12 @@ setTimeout(() => {
     }
   }
   if (rows < 100) bad.push(`only ${rows} panel rows measured - the drive did not run`);
-  // Second pass: the condensed 46-column mobile grid, same laws.
-  og.setMode(true); og.rerender();
-  setTimeout(() => {
-    for (const c of ['help', 'why', 'board', 'install', 'providers', 'legend',
-                     'privacy', 'doctor', 'open', 'donate']) og.run(c);
-    let mrows = 0;
-    for (const child of og.out.children) {
-      if (!/\bpan\b/.test(child.className)) {
-        const g = child.textContent.match(banned);
-        if (g) bad.push(`mobile glyph ${JSON.stringify(g[0])}: ${JSON.stringify(child.textContent)}`);
-        continue;
-      }
-      for (const r of child.children) {
-        const t = r.textContent;
-        mrows++;
-        if (t.length !== 46) bad.push(`mobile len ${t.length}: ${JSON.stringify(t)}`);
-        const g = t.match(banned);
-        if (g) bad.push(`mobile glyph ${JSON.stringify(g[0])}: ${JSON.stringify(t)}`);
-      }
-    }
-    if (mrows < 80) bad.push(`only ${mrows} mobile panel rows - the mobile drive did not run`);
-    if (bad.length) {
-      console.error(`FAIL: ${bad.length} problem(s) (${rows} desktop + ${mrows} mobile rows)`);
-      for (const b of bad.slice(0, 20)) console.error('  ' + b);
-      process.exit(1);
-    }
-    console.log(`OK: ${rows} desktop rows at 78 and ${mrows} mobile rows at 46; ` +
-                `all lines free of fallback-risk glyphs`);
-    process.exit(0);
-  }, 150);
+  if (bad.length) {
+    console.error(`FAIL: ${bad.length} problem(s) across ${rows} panel + ${loose} loose rows`);
+    for (const b of bad.slice(0, 20)) console.error('  ' + b);
+    process.exit(1);
+  }
+  console.log(`OK: ${rows} panel rows all exactly 78 columns; ` +
+              `${rows + loose} total lines free of fallback-risk glyphs`);
+  process.exit(0);
 }, 150);
