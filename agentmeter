@@ -102,20 +102,90 @@ def rule(ch="─"):
     return s.gry + ch * W + s.r
 
 
-def panel(title, sub=""):
-    left = f"{s.b}{s.bcya}{title}{s.r}"
-    line = f"  {left}"
-    if sub:
-        pad = W - vis(line) - vis(sub) - 2
-        line += " " * max(1, pad) + f"{s.gry}{sub}{s.r}"
-    print("\n" + line)
-    print("  " + s.gry + "─" * (W - 2) + s.r)
+IN = W - 2          # inner width of a framed panel
 
 
-def bar(pct, w=24):
-    f = max(0, min(w, int(round(pct / 100 * w))))
+def top(title, sub=""):
+    t = f" {s.b}{s.bcya}{title}{s.r}{s.gry} "
+    tail = f"{s.gry} {sub} {s.r}" if sub else ""
+    fill = IN - vis(t) - vis(tail) - 2
+    print(f"\n {s.gry}╭─{s.r}{t}{s.gry}{'─' * max(1, fill)}{s.r}{tail}{s.gry}╮{s.r}")
+
+
+def mid(text=""):
+    print(f" {s.gry}│{s.r}{text}{' ' * max(0, IN - vis(text))}{s.gry}│{s.r}")
+
+
+def bot(note=""):
+    if note:
+        n = f"{s.gry} {note} {s.r}"
+        fill = IN - vis(n) - 2
+        print(f" {s.gry}╰{'─' * 2}{s.r}{n}{s.gry}{'─' * max(1, fill)}╯{s.r}")
+    else:
+        print(f" {s.gry}╰{'─' * IN}╯{s.r}")
+
+
+BLOCKS = " ▏▎▍▌▋▊▉█"
+
+
+def bar(pct, w=22):
+    """Eighth-block resolution so 23% and 26% are visibly different."""
+    units = max(0.0, min(w * 8.0, pct / 100 * w * 8))
+    full, rem = int(units // 8), int(units % 8)
     col = s.bred if pct >= 90 else s.byel if pct >= 70 else s.bgrn if pct >= 1 else s.gry
-    return col + "█" * f + s.gry + "░" * (w - f) + s.r
+    filled = "█" * full + (BLOCKS[rem] if rem and full < w else "")
+    pad = w - full - (1 if rem and full < w else 0)
+    return col + filled + s.gry + "·" * max(0, pad) + s.r
+
+
+def dot(pct):
+    if pct >= 90: return f"{s.bred}●{s.r}"
+    if pct >= 70: return f"{s.byel}●{s.r}"
+    if pct >= 1:  return f"{s.bgrn}●{s.r}"
+    return f"{s.gry}○{s.r}"
+
+
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"], 1)}
+
+
+def countdown(text):
+    """Best-effort 'in 4d 22h' from the vendor's own reset wording.
+
+    Formats differ per vendor ('Aug 19, 6pm', '23:04 on 19 Aug', 'August 17,
+    12:49'). Anything unparseable falls back to the raw string rather than
+    guessing — a wrong countdown is worse than none.
+    """
+    if not text: return None
+    t = text.lower()
+    mon = day = None
+    m = re.search(r"([a-z]{3,9})\s+(\d{1,2})", t)
+    if m and m.group(1)[:3] in _MONTHS:
+        mon, day = _MONTHS[m.group(1)[:3]], int(m.group(2))
+    else:
+        m = re.search(r"(\d{1,2})\s+([a-z]{3,9})", t)
+        if m and m.group(2)[:3] in _MONTHS:
+            day, mon = int(m.group(1)), _MONTHS[m.group(2)[:3]]
+    if not mon: return None
+    hh = mm = 0
+    m = re.search(r"(\d{1,2}):(\d{2})", t)
+    if m:
+        hh, mm = int(m.group(1)), int(m.group(2))
+    else:
+        m = re.search(r"(\d{1,2})\s*(am|pm)", t)
+        if m:
+            hh = int(m.group(1)) % 12 + (12 if m.group(2) == "pm" else 0)
+    now = time.localtime()
+    year = now.tm_year + (1 if mon < now.tm_mon - 6 else 0)
+    try:
+        target = time.mktime((year, mon, day, hh, mm, 0, 0, 0, -1))
+    except Exception:
+        return None
+    d = int(target - time.time())
+    if d < 0: return "due"
+    if d < 3600: return f"{d//60}m"
+    if d < 86400: return f"{d//3600}h {(d%3600)//60}m"
+    return f"{d//86400}d {(d%86400)//3600}h"
 
 
 def human(n):
@@ -169,6 +239,31 @@ def codex_files():
 
 def grok_files():
     return glob.glob(os.path.expanduser("~/.grok/sessions/*/*/updates.jsonl"))
+
+
+def scrape_cwd(agent):
+    """Pick a directory the CLI already trusts.
+
+    Launching Claude in an unfamiliar directory raises a blocking workspace-trust
+    dialog which swallows the keystrokes. omnigauge will NOT auto-accept that on
+    the user's behalf — trusting a folder is a real security decision and it
+    persists. Instead it reuses a cwd the tool has demonstrably run in before,
+    taken from Claude's own session registry.
+    """
+    if agent == "claude":
+        best, newest = None, 0
+        for f in glob.glob(os.path.expanduser("~/.claude/sessions/*.json")):
+            try:
+                d = json.load(io.open(f, encoding="utf-8"))
+                cwd = d.get("cwd")
+                st = os.path.getmtime(f)
+                if cwd and os.path.isdir(cwd) and st > newest:
+                    best, newest = cwd, st
+            except Exception:
+                continue
+        if best:
+            return best
+    return os.getcwd()
 
 
 def installed(agent):
@@ -340,25 +435,68 @@ def lifetime_totals(agent, con, progress=False):
 
 # ─────────────────────────── CLI scrape: plan quota ───────────────────────────
 
-def tmux_scrape(session, argv, keys, settle=14, render=15):
-    """Drive the TUI under tmux. Raw pty output from these CLIs is drawn
-    character-by-character with cursor moves — tmux is a real terminal
-    emulator, so let it do the rendering and read the finished screen."""
+def _cap(session):
+    return subprocess.run(["tmux", "capture-pane", "-p", "-t", session],
+                          capture_output=True, text=True).stdout
+
+
+def _wait_for(session, pattern, timeout, poll=0.7):
+    """Poll the rendered pane until pattern appears. Returns (ok, last_screen).
+
+    Fixed sleeps were the original design and they broke the first time a CLI
+    shipped a slower splash screen: keystrokes landed before the input box was
+    live, so the command was silently swallowed and the scrape returned a
+    welcome screen. Readiness is now observed, not assumed.
+    """
+    rx = re.compile(pattern, re.I)
+    deadline = time.time() + timeout
+    screen = ""
+    while time.time() < deadline:
+        screen = _cap(session)
+        if rx.search(screen):
+            return True, screen
+        time.sleep(poll)
+    return False, screen
+
+
+TRUST_RX = r"(Quick safety check|Is this a project you created|Yes, I trust this folder)"
+
+
+def tmux_scrape(session, argv, keys, ready, done, boot=40, render=35, cwd=None):
+    """Drive the TUI under tmux and return the rendered screen.
+
+    tmux is a real terminal emulator; raw pty output from these CLIs is drawn
+    character-by-character with cursor moves and cannot be regex-stripped.
+    """
     if not shutil.which("tmux"):
         return None, "tmux not installed"
     run = lambda *a: subprocess.run(a, capture_output=True, text=True)
     run("tmux", "kill-session", "-t", session)
     r = run("tmux", "new-session", "-d", "-x", "210", "-y", "55",
-            "-s", session, "-c", os.getcwd(), *argv)
+            "-s", session, "-c", cwd or os.getcwd(), *argv)
     if r.returncode:
         return None, f"tmux: {r.stderr.strip()[:110]}"
     try:
-        time.sleep(settle)
+        ok, screen = _wait_for(session, f"{ready}|{TRUST_RX}", boot)
+        if re.search(TRUST_RX, screen or "", re.I):
+            return screen, ("workspace-trust dialog is blocking input — run omnigauge "
+                            "from a directory this CLI already trusts, or use --cwd")
+        if not ok:
+            return screen, f"CLI never became ready within {boot}s"
         run("tmux", "send-keys", "-t", session, keys)
-        time.sleep(2)
+        # confirm the text actually landed in the input box before pressing Enter
+        typed, screen = _wait_for(session, re.escape(keys), 8)
+        if not typed:
+            if re.search(TRUST_RX, screen or "", re.I):
+                return screen, ("workspace-trust dialog is blocking input — run omnigauge "
+                                "from a directory this CLI already trusts, or use --cwd")
+            return screen, "command did not reach the input box"
         run("tmux", "send-keys", "-t", session, "Enter")
-        time.sleep(render)
-        return run("tmux", "capture-pane", "-p", "-t", session).stdout, None
+        ok, screen = _wait_for(session, done, render)
+        if not ok:
+            return screen, f"panel did not render within {render}s"
+        time.sleep(1.5)          # let the last frame settle
+        return _cap(session), None
     finally:
         run("tmux", "kill-session", "-t", session)
 
@@ -420,12 +558,18 @@ def claude_insights(screen):
 AGENTS = {
     "claude": dict(argv=["claude"], keys="/usage", parse=parse_claude,
                    source="cli_usage", expect=[("week", "all"), ("session", "all")],
-                   insights=claude_insights),
+                   insights=claude_insights,
+                   ready=r"(Try \"|❯|>\s*$|for shortcuts)", done=r"Current (week|session)"),
     "codex":  dict(argv=["codex"], keys="/status", parse=parse_codex,
-                   source="cli_status", expect=[("week", "all")]),
+                   source="cli_status", expect=[("week", "all")],
+                   ready=r"(»|Explain this codebase|/model to change)", done=r"Weekly limit:"),
     "grok":   dict(argv=["grok"], keys="/usage", parse=parse_grok,
-                   source="cli_usage", expect=[("week", None)]),
+                   source="cli_usage", expect=[("week", None)],
+                   ready=r"(❯|»|Enter:send|shortcuts)", done=r"Weekly limit"),
 }
+
+
+CWD_OVERRIDE = None
 
 
 def refresh(which):
@@ -436,7 +580,9 @@ def refresh(which):
             print(f"  {s.gry}{agent:<8} not installed — skipped{s.r}")
             continue
         print(f"  {agent:<8} scraping…", end="", flush=True)
-        screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"])
+        screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"],
+                                  spec["ready"], spec["done"],
+                                  cwd=CWD_OVERRIDE or scrape_cwd(agent))
         if err:
             print(f" {s.bred}FAILED{s.r} — {err}"); continue
         try:
@@ -495,76 +641,88 @@ def render(args):
              else NOW - dict(**{"24h": 86400, "7d": 604800, "30d": 2592000, "all": 10**10})
              .get(args.since, 86400))
 
-    host = os.uname().nodename
-    stamp = time.strftime("%Y-%m-%d %H:%M %Z")
-    title = f"{s.b}{s.wht}OMNIGAUGE{s.r}"
-    right = f"{s.gry}{host} · {stamp}{s.r}"
-    print("\n  " + title + " " * max(1, W - vis("  " + title) - vis(right) - 1) + right)
-    print(rule("━"))
+    # ── masthead
+    logo = f"{s.bcya}▟▛{s.r}"
+    name = f"{s.b}{s.wht}OMNIGAUGE{s.r}"
+    right = f"{s.gry}{os.uname().nodename} · {time.strftime('%H:%M %Z')}{s.r}"
+    head = f" {logo} {name}"
+    print(f"\n{head}{' ' * max(1, W - vis(head) - vis(right) - 1)}{right}")
+    print(f" {s.gry}{'━' * (W - 2)}{s.r}")
 
-    # ── quota
     q = quota_rows(con)
-    panel("PLAN QUOTA", "subscription windows · normalized to % CONSUMED")
-    if not q:
-        print(f"  {s.gry}nothing collected yet — run{s.r}  {s.bcya}omnigauge --refresh{s.r}")
-    hdr = f"  {'AGENT':<18}{'WINDOW':<9}{'':<26}{'USED':>6}   {'RESETS':<20}{'AGE':<8}"
-    print(s.gry + hdr + s.r)
+    flat = [(a_, r) for a_ in ("claude", "codex", "grok") for r in q.get(a_, [])]
+
+    # ── headline: the single thing worth knowing
+    if flat:
+        worst = max(flat, key=lambda x: x[1]["pct"])
+        ag, r = worst
+        cd = countdown(r["reset"])
+        when = f"{cd} to reset" if cd else (short_reset(r["reset"]) or "")
+        if r["pct"] >= 90:
+            print(f" {s.bred}▲  {short_model(ag, r['model'])} is at {r['pct']:.0f}% "
+                  f"— {when} · tightest window{s.r}")
+        else:
+            print(f" {s.bgrn}▲  headroom everywhere · tightest is "
+                  f"{short_model(ag, r['model'])} at {r['pct']:.0f}% ({when}){s.r}")
+
+    # ── quota panel
+    top("PLAN QUOTA", "normalized to % consumed")
+    mid()
+    hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<9}{'':<24}{'USED':>5}"
+           f"{'RESETS IN':>12}{'READ':>9}{s.r}")
+    mid(hdr)
+    if not flat:
+        mid(f"  {s.gry}nothing collected — run{s.r} {s.bcya}omnigauge --refresh{s.r}")
     for agent in ("claude", "codex", "grok"):
         rows = q.get(agent)
         if not rows:
             state = "not collected" if installed(agent) else "not installed"
-            print(f"  {s.gry}{agent:<18}{state}{s.r}")
+            mid(f"  {s.gry}○  {agent:<17}{state}{s.r}")
             continue
         for r in sorted(rows, key=lambda x: (x["window"] != "week", x["model"] != "all")):
-            name = short_model(agent, r["model"])
-            warn = f" {s.bred}⚠{s.r}" if r["pct"] >= 90 else ""
-            pc = (s.bred if r["pct"] >= 90 else s.byel if r["pct"] >= 70 else s.wht)
-            print(f"  {s.b}{name:<18}{s.r}{r['window']:<9}{bar(r['pct'])}  "
-                  f"{pc}{r['pct']:>4.0f}%{s.r}   {s.gry}{short_reset(r['reset']):<20}"
-                  f"{age(r['at']):<8}{s.r}{warn}")
-            if r["raw"] and "left" in r["raw"]:
-                print(f"  {s.gry}{'':<27}vendor reported “{r['raw']}” — inverted here{s.r}")
+            nm = short_model(agent, r["model"])
+            cd = countdown(r["reset"]) or (short_reset(r["reset"])[:11] if r["reset"] else "—")
+            pc = s.bred if r["pct"] >= 90 else s.byel if r["pct"] >= 70 else s.wht
+            mid(f"  {dot(r['pct'])}  {s.b}{nm:<17}{s.r}{s.gry}{r['window']:<9}{s.r}"
+                f"{bar(r['pct'])}  {pc}{r['pct']:>4.0f}%{s.r}"
+                f"{s.gry}{cd:>12}{age(r['at']).replace(' ago',''):>9}{s.r}")
+            if r["raw"] and "left" in (r["raw"] or ""):
+                mid(f"  {s.gry}{'':<21}vendor said “{r['raw']}” — inverted{s.r}")
+    mid()
+    bot("subscription windows · no dollar balance exists for these plans")
 
-    # ── window volume
-    panel("TOKEN VOLUME", f"local transcripts · {args.since}")
-    print(s.gry + f"  {'AGENT':<9}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}{'THINK':>11}"
-                  f"{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}" + s.r)
-    for agent in ("claude", "codex", "grok"):
-        if not (SCANNERS[agent][0]()):
-            print(f"  {s.gry}{agent:<9}no local transcripts{s.r}"); continue
-        t = window_totals(agent, since)
-        tot = t['total'] or (t['tin'] + t['tout'] + t['cache_read'])
-        print(f"  {s.b}{agent:<9}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
-              f"{s.bgrn}{human(t['tout']):>11}{s.r}{human(t['think']):>11}"
-              f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
-              f"{s.wht}{human(tot):>11}{s.r}")
-
-    # ── lifetime
-    if args.lifetime:
-        panel("LIFETIME", "all transcripts on this machine · incremental cache")
-        print(s.gry + f"  {'AGENT':<11}{'FILES':>7}{'MSGS':>9}{'OUTPUT':>12}{'THINK':>12}"
-                      f"{'CACHE-RD':>12}{'INPUT':>12}" + s.r)
+    # ── volume panel
+    def vol_table(title, note, getter):
+        top(title, note)
+        mid()
+        mid(f"  {s.gry}{'AGENT':<10}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}"
+            f"{'THINK':>10}{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}{s.r}")
         for agent in ("claude", "codex", "grok"):
             if not SCANNERS[agent][0]():
-                print(f"  {s.gry}{agent:<9}—{s.r}"); continue
-            t = lifetime_totals(agent, con, progress=True)
-            tot = t['total'] or (t['tin'] + t['tout'] + t['cache_read'])
-            print(f"  {s.b}{agent:<9}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
-                  f"{s.bgrn}{human(t['tout']):>11}{s.r}{human(t['think']):>11}"
-                  f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
-                  f"{s.wht}{human(tot):>11}{s.r}")
+                mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
+            t = getter(agent)
+            tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
+            mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
+                f"{s.bgrn}{human(t['tout']):>11}{s.r}{s.wht}{human(t['think']):>10}{s.r}"
+                f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
+                f"{s.b}{human(tot):>11}{s.r}")
+        mid()
+        bot("not comparable to vendor counters · different denominators")
 
-    # ── insights
+    vol_table("TOKEN VOLUME", f"local transcripts · {args.since}",
+              lambda a: window_totals(a, since))
+    if args.lifetime:
+        vol_table("LIFETIME", "every transcript on this machine",
+                  lambda a: lifetime_totals(a, con, progress=True))
+
     ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
     if ins:
-        panel("WHAT IS DRIVING USAGE", "reported by the vendor")
-        for a, t in ins:
-            print(f"  {s.bcya}{a}{s.r}  {t}")
-
-    print()
-    print(f"  {s.gry}Quota is scraped from each CLI; token volume is read from local")
-    print( "  transcripts. The two use different denominators and are never summed.")
-    print( "  Subscriptions carry no dollar balance, so none is shown." + s.r)
+        top("WHAT IS DRIVING USAGE", "reported by the vendor")
+        mid()
+        for a_, t in ins:
+            mid(f"  {s.bcya}▸{s.r} {t}")
+        mid()
+        bot()
     print()
     con.close()
 
@@ -612,7 +770,11 @@ def main():
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
                    help="how often --watch re-scrapes quota (default 15m; 0 = never)")
+    p.add_argument("--cwd", metavar="DIR",
+                   help="directory to launch the CLIs in (must already be trusted by them)")
     a = p.parse_args()
+    global CWD_OVERRIDE
+    CWD_OVERRIDE = a.cwd
     if a.no_color: S.on = False
 
     if a.refresh:
