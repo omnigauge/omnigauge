@@ -15,6 +15,15 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0a1746">
 <style>
+/* The frame is only square if every glyph agrees on its width. System
+   monos cover the box-drawing set unevenly - Android substitutes them
+   from a symbols face with a different advance and the right border
+   staircases. So the face ships with the page: JetBrains Mono (OFL),
+   subset to ASCII + the 20 frame glyphs, every advance verified equal
+   at 600 units. Self-contained; no request leaves the page. */
+@font-face{font-family:'OGMono';font-display:block;
+  src:url(data:font/woff2;base64,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) format('woff2')}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Turbo Vision, rebuilt rather than emulated.
 
@@ -44,7 +53,7 @@
   --white:#dbe3f2; --cyan:#5aa6c9; --yellow:#c9974f; --gray:#8a98b6;
   --dim:#7686aa; --red:#c47070; --green:#6ea888;
   --barbg:#8d9cbe; --barink:#091228; --hot:#582121;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,"DejaVu Sans Mono",Consolas,monospace;
+  --mono:'OGMono',ui-monospace,SFMono-Regular,"SF Mono",Menlo,"DejaVu Sans Mono",Consolas,monospace;
 }
 /* Android Chrome font-boosts small text unless told not to - it inflated
    the 78-column solve past the right edge and amputated every panel. The
@@ -863,7 +872,7 @@ function run(raw){
   line('[[y]]C:\\OMNIGAUGE>[[/]] '+raw);
   if(!c)return;
   headsSince=[];
-  if(C[c]){C[c]();announce(headsSince.join(', ')||c);}
+  if(C[c]){C[c]();announce(headsSince.join(', ')||c);fitVerify();}
   else{blank();
     /* no esc() here: line() already escapes through paint(). Escaping twice
        showed the entities - typing & echoed as &amp;. */
@@ -1135,7 +1144,7 @@ function fit(){
   var size=avail/per;
   var wantMobile=size<9;
   if(wantMobile!==MOBILE){setMode(wantMobile); if(booted)rerender();}
-  if(MOBILE)size=avail/(per/78*42);
+  if(MOBILE){avail-=4;size=avail/(per/78*42);}   // deliberate right-side slack
   size=Math.max(6.2,Math.min(MOBILE?15:14.5,size));
   /* The 100px probe predicts; the phone disposes. Glyph hinting at small
      sizes is not linear, so the rendered grid can come out a few px wider
@@ -1151,6 +1160,34 @@ function fit(){
   }
   probe.remove();
   document.documentElement.style.setProperty('--fs',size.toFixed(2)+'px');
+  fitVerify();
+}
+/* The probe is one font; the frame is another story. A phone that pulls the
+   box-drawing glyphs from a fallback face with a wider advance renders the
+   head and border rows wider than the text rows AT THE SAME column count -
+   a defect no synthetic probe can see, and exactly what clipped the right
+   border on a real phone. So measure the rows that actually rendered,
+   glyphs and all (scrollWidth sees the text; a block's rect only sees the
+   box), and shrink until the widest one provably fits. */
+var fvQueued=false;
+function fitVerify(){
+  if(fvQueued)return; fvQueued=true;
+  requestAnimationFrame(function(){
+    fvQueued=false;
+    for(var tries=0;tries<2;tries++){
+      var cs=getComputedStyle(scr);
+      var room=scr.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+      var mx=0, rows=out.getElementsByTagName('div');
+      for(var i=0;i<rows.length;i++)
+        if(rows[i].scrollWidth>mx)mx=rows[i].scrollWidth;
+      if(!mx||mx<=room+0.5)return;
+      var cur=parseFloat(getComputedStyle(document.documentElement)
+        .getPropertyValue('--fs'))||14;
+      var next=Math.max(6.2,cur*room/mx-0.05);
+      if(next>=cur)return;
+      document.documentElement.style.setProperty('--fs',next.toFixed(2)+'px');
+    }
+  });
 }
 var booted=false;
 function rerender(){out.innerHTML='';LIVE.dry=LIVE.today=null;start(true);}
