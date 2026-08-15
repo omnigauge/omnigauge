@@ -1320,3 +1320,58 @@ class TestCodexCumulativeIsNotMonotonic(unittest.TestCase):
             "no event in this file carries a timestamp, and the file has not "
             "been written for 30 days — the only evidence available says it "
             "contributed nothing to the last 24 hours")
+
+
+class TestCacheToleranceHidesARewrite(unittest.TestCase):
+    """The incremental cache revalidates on `abs(cached_mtime - mtime) < 1`.
+
+    A whole second of tolerance means a file rewritten in place — same byte
+    count, different contents, within a second of the last scan — is served from
+    cache and the new numbers never appear. Append-only transcripts grow, so
+    size usually saves us; a file rewritten atomically, restored, or rotated to a
+    coincidentally equal length does not grow, and nothing else is checked.
+    """
+
+    def test_same_size_new_content_inside_the_tolerance_is_not_served_stale(self):
+        data = tempfile.mkdtemp(prefix="og-cache-")
+        home = tempfile.mkdtemp(prefix="og-cache-home-")
+        d = os.path.join(home, ".claude", "projects", "-p")
+        os.makedirs(d)
+        f = os.path.join(d, "s.jsonl")
+
+        def row(v):
+            return json.dumps({"timestamp": "2026-08-15T10:00:00Z", "message": {
+                "model": "m", "usage": {"input_tokens": v, "output_tokens": v}}})
+
+        with io.open(f, "w") as fh:
+            fh.write(row(100) + "\n")
+
+        old_scanners = dict(og.SCANNERS)
+        og.SCANNERS["claude"] = (lambda: [f], og.scan_claude)
+        try:
+            # og.db() applies MIGRATIONS; a bare executescript(SCHEMA) misses
+            # any column added after the first release.
+            con = sqlite3.connect(os.path.join(data, "t.db"))
+            con.executescript(og.SCHEMA)
+            for table, col, typ in og.MIGRATIONS:
+                have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+                if col not in have:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+            first = og.lifetime_totals("claude", con)
+            self.assertEqual(first["tin"], 100)
+
+            st = os.stat(f)
+            with io.open(f, "w") as fh:
+                fh.write(row(999) + "\n")          # identical length
+            self.assertEqual(os.stat(f).st_size, st.st_size, "fixture must not grow")
+            os.utime(f, (st.st_mtime + 0.4, st.st_mtime + 0.4))
+
+            og.memo_clear()
+            second = og.lifetime_totals("claude", con)
+            self.assertEqual(
+                second["tin"], 999,
+                "the file says 999; a sub-second mtime move must not let the "
+                "cache keep answering 100")
+        finally:
+            og.SCANNERS.clear(); og.SCANNERS.update(old_scanners)
+            og.memo_clear()

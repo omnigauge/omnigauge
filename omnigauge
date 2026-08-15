@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS filecache (
   path TEXT PRIMARY KEY, agent TEXT, mtime REAL, size INTEGER,
   tin INTEGER, tout INTEGER, cache_read INTEGER, cache_write INTEGER,
   think INTEGER, total INTEGER, msgs INTEGER, scanned_at INTEGER,
-  models TEXT   -- JSON {model: {out, total, msgs}}; models change over a corpus
+  models TEXT,  -- JSON {model: {out, total, msgs}}; models change over a corpus
+  last_ts REAL  -- newest timestamp SEEN INSIDE the file; NULL = never scanned,
+                -- 0 = scanned and nothing in it carries a timestamp
 );
 CREATE TABLE IF NOT EXISTS insights (
   id INTEGER PRIMARY KEY, agent TEXT, text TEXT, collected_at INTEGER
@@ -1025,7 +1027,8 @@ def window_totals(agent, since):
                 # window silently loses every token in the file.
                 st = os.stat(f)
                 k = known.get(f)
-                if (k and k[2] is not None and abs((k[0] or 0) - st.st_mtime) < 1
+                if (k and k[2] is not None
+                        and abs((k[0] or 0) - st.st_mtime) < 1e-6
                         and k[1] == st.st_size and k[2] < since):
                     continue
             # since goes to EVERY scanner. Passing 0 to the rest attributed a
@@ -1066,7 +1069,15 @@ def lifetime_totals(agent, con, progress=False):
         # c[10] is the models JSON. Rows written before per-model tracking existed
         # still match on mtime+size, so they must be revalidated or the BY MODEL
         # panel silently reports nothing for an unchanged corpus.
-        if (c and abs(c[1] - st.st_mtime) < 1 and c[2] == st.st_size
+        # Exact mtime, not a one-second window. The tolerance was wide enough
+        # to hide a whole rewrite: same byte count, new contents, written within
+        # a second of the last scan, and the cache kept answering with the old
+        # numbers. Append-only transcripts grow, so size usually catches a
+        # change — a file rewritten in place, restored, or rotated to a
+        # coincidentally equal length does not grow, and nothing else was
+        # checked. A float second survives the round trip through SQLite REAL
+        # intact; the epsilon is for the representation, not for the clock.
+        if (c and abs(c[1] - st.st_mtime) < 1e-6 and c[2] == st.st_size
                 and c[10] not in (None, "", "{}")):
             vals = dict(zip(("tin", "tout", "cache_read", "cache_write", "think", "total", "msgs"), c[3:10]))
             try: vals["models"] = json.loads(c[10] or "{}")
