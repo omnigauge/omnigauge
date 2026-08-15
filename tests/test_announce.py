@@ -136,7 +136,7 @@ class TestDraft(unittest.TestCase):
             base, key, model = an._draft_endpoint()
             self.assertIn("api.openai.com", base); self.assertEqual(key, "o")
         with SwapEnv(dict(env, AI_GATEWAY_API_KEY="g", OPENAI_API_KEY="o")):
-            self.assertEqual(an._draft_endpoint()[1], "g")   # gateway wins
+            self.assertEqual(an._draft_endpoint()[1], "o")   # funded direct wins
 
     def test_draft_without_keys_fails_closed(self):
         env = {k: v for k, v in os.environ.items()

@@ -35,8 +35,9 @@ Usage:
 
 `draft` asks a model for candidate posts in the project's voice and PRINTS
 them - it never sends. Pick one, edit it, then post it as `text ... --post`.
-It uses OMNIGAUGE_DRAFT_BASE/_KEY/_MODEL when set, else AI_GATEWAY_API_KEY
-against the Vercel AI Gateway, else OPENAI_API_KEY against api.openai.com.
+It uses OMNIGAUGE_DRAFT_BASE/_KEY/_MODEL when set, else OPENAI_API_KEY
+against api.openai.com, else AI_GATEWAY_API_KEY against the Vercel AI
+Gateway.
 """
 import argparse
 import base64
@@ -152,18 +153,21 @@ VOICE = (
 
 
 def _draft_endpoint():
-    """Explicit env wins; else the AI Gateway; else OpenAI direct."""
+    """Explicit env wins; else OpenAI direct; else the AI Gateway. Direct
+    beats gateway on purpose: a funded OpenAI account outranks a gateway key
+    that may be free-tier and rate-limited - which is exactly how the first
+    draft ever attempted here died."""
     base = os.environ.get("OMNIGAUGE_DRAFT_BASE")
     key = os.environ.get("OMNIGAUGE_DRAFT_KEY")
     model = os.environ.get("OMNIGAUGE_DRAFT_MODEL")
     if not (base and key):
-        if os.environ.get("AI_GATEWAY_API_KEY"):
-            base, key = "https://ai-gateway.vercel.sh/v1", os.environ["AI_GATEWAY_API_KEY"]
-            model = model or "openai/gpt-5.5"
-        elif os.environ.get("OPENAI_API_KEY"):
+        if os.environ.get("OPENAI_API_KEY"):
             base, key = "https://api.openai.com/v1", os.environ["OPENAI_API_KEY"]
             model = model or "gpt-5.5"
-    return base, key, model or "openai/gpt-5.5"
+        elif os.environ.get("AI_GATEWAY_API_KEY"):
+            base, key = "https://ai-gateway.vercel.sh/v1", os.environ["AI_GATEWAY_API_KEY"]
+            model = model or "openai/gpt-5.5"
+    return base, key, model or "gpt-5.5"
 
 
 def _candidates(text):
