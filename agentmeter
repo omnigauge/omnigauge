@@ -81,13 +81,37 @@ def db():
 # ──────────────────────────────── presentation ────────────────────────────────
 
 class S:
+    """Muted 256-colour palette.
+
+    The first cut used bright ANSI green next to bright red. On a dark terminal
+    those two vibrate against each other and neither reads as calm. Severity is
+    carried by desaturated teal → amber → clay, which is easier on the eye and
+    also survives red/green colour blindness better, since the hues differ in
+    lightness as well as tone. `--vivid` restores the loud version, NO_COLOR
+    drops it entirely.
+    """
     on = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+    vivid = False
+    MUTED = dict(
+        r="\033[0m", b="\033[1m", dim="\033[2m",
+        ok="\033[38;5;72m",      # desaturated teal-green
+        warn="\033[38;5;179m",   # dull amber
+        crit="\033[38;5;167m",   # clay red
+        accent="\033[38;5;109m", # dusty blue
+        gry="\033[38;5;242m",    # mid grey, readable on dark
+        faint="\033[38;5;238m",  # frame lines
+        wht="\033[38;5;252m",    # soft white, not #fff
+    )
+    VIVID = dict(MUTED, ok="\033[92m", warn="\033[93m", crit="\033[91m",
+                 accent="\033[96m", gry="\033[90m", faint="\033[90m", wht="\033[97m")
+
     def __getattr__(self, k):
-        codes = dict(r="\033[0m", b="\033[1m", dim="\033[2m", red="\033[31m",
-                     grn="\033[32m", yel="\033[33m", blu="\033[34m", mag="\033[35m",
-                     cya="\033[36m", gry="\033[90m", bred="\033[91m", bgrn="\033[92m",
-                     byel="\033[93m", bcya="\033[96m", wht="\033[97m")
-        return codes.get(k, "") if S.on else ""
+        if not S.on:
+            return ""
+        table = S.VIVID if S.vivid else S.MUTED
+        alias = dict(bgrn="ok", bred="crit", byel="warn", bcya="accent",
+                     grn="ok", red="crit", yel="warn", cya="accent")
+        return table.get(alias.get(k, k), "")
 
 
 s = S()
@@ -109,40 +133,40 @@ def top(title, sub=""):
     t = f" {s.b}{s.bcya}{title}{s.r}{s.gry} "
     tail = f"{s.gry} {sub} {s.r}" if sub else ""
     fill = IN - vis(t) - vis(tail) - 2
-    print(f"\n {s.gry}╭─{s.r}{t}{s.gry}{'─' * max(1, fill)}{s.r}{tail}{s.gry}╮{s.r}")
+    print(f"\n {s.faint}╭─{s.r}{t}{s.faint}{'─' * max(1, fill)}{s.r}{tail}{s.faint}╮{s.r}")
 
 
 def mid(text=""):
-    print(f" {s.gry}│{s.r}{text}{' ' * max(0, IN - vis(text))}{s.gry}│{s.r}")
+    print(f" {s.faint}│{s.r}{text}{' ' * max(0, IN - vis(text))}{s.faint}│{s.r}")
 
 
 def bot(note=""):
     if note:
         n = f"{s.gry} {note} {s.r}"
         fill = IN - vis(n) - 2
-        print(f" {s.gry}╰{'─' * 2}{s.r}{n}{s.gry}{'─' * max(1, fill)}╯{s.r}")
+        print(f" {s.faint}╰{'─' * 2}{s.r}{n}{s.faint}{'─' * max(1, fill)}╯{s.r}")
     else:
-        print(f" {s.gry}╰{'─' * IN}╯{s.r}")
+        print(f" {s.faint}╰{'─' * IN}╯{s.r}")
 
 
 BLOCKS = " ▏▎▍▌▋▊▉█"
 
 
+def sev(pct):
+    return s.crit if pct >= 90 else s.warn if pct >= 70 else s.ok if pct >= 1 else s.faint
+
+
 def bar(pct, w=22):
-    """Eighth-block resolution so 23% and 26% are visibly different."""
+    """Eighth-block resolution so 24% and 26% are visibly different."""
     units = max(0.0, min(w * 8.0, pct / 100 * w * 8))
     full, rem = int(units // 8), int(units % 8)
-    col = s.bred if pct >= 90 else s.byel if pct >= 70 else s.bgrn if pct >= 1 else s.gry
     filled = "█" * full + (BLOCKS[rem] if rem and full < w else "")
     pad = w - full - (1 if rem and full < w else 0)
-    return col + filled + s.gry + "·" * max(0, pad) + s.r
+    return sev(pct) + filled + s.faint + "·" * max(0, pad) + s.r
 
 
 def dot(pct):
-    if pct >= 90: return f"{s.bred}●{s.r}"
-    if pct >= 70: return f"{s.byel}●{s.r}"
-    if pct >= 1:  return f"{s.bgrn}●{s.r}"
-    return f"{s.gry}○{s.r}"
+    return f"{sev(pct)}{'●' if pct >= 1 else '○'}{s.r}"
 
 
 _MONTHS = {m: i for i, m in enumerate(
@@ -647,7 +671,7 @@ def render(args):
     right = f"{s.gry}{os.uname().nodename} · {time.strftime('%H:%M %Z')}{s.r}"
     head = f" {logo} {name}"
     print(f"\n{head}{' ' * max(1, W - vis(head) - vis(right) - 1)}{right}")
-    print(f" {s.gry}{'━' * (W - 2)}{s.r}")
+    print(f" {s.faint}{'━' * (W - 2)}{s.r}")
 
     q = quota_rows(con)
     flat = [(a_, r) for a_ in ("claude", "codex", "grok") for r in q.get(a_, [])]
@@ -682,7 +706,7 @@ def render(args):
         for r in sorted(rows, key=lambda x: (x["window"] != "week", x["model"] != "all")):
             nm = short_model(agent, r["model"])
             cd = countdown(r["reset"]) or (short_reset(r["reset"])[:11] if r["reset"] else "—")
-            pc = s.bred if r["pct"] >= 90 else s.byel if r["pct"] >= 70 else s.wht
+            pc = sev(r["pct"]) if r["pct"] >= 70 else s.wht
             mid(f"  {dot(r['pct'])}  {s.b}{nm:<17}{s.r}{s.gry}{r['window']:<9}{s.r}"
                 f"{bar(r['pct'])}  {pc}{r['pct']:>4.0f}%{s.r}"
                 f"{s.gry}{cd:>12}{age(r['at']).replace(' ago',''):>9}{s.r}")
@@ -770,6 +794,7 @@ def main():
     p.add_argument("--lifetime", action="store_true")
     p.add_argument("--json", action="store_true")
     p.add_argument("--no-color", action="store_true")
+    p.add_argument("--vivid", action="store_true", help="loud palette instead of muted")
     p.add_argument("--watch", nargs="?", const=10, type=int, metavar="SEC",
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
@@ -780,6 +805,7 @@ def main():
     global CWD_OVERRIDE
     CWD_OVERRIDE = a.cwd
     if a.no_color: S.on = False
+    S.vivid = a.vivid
 
     if a.refresh:
         which = [w.strip() for w in a.refresh.split(",") if w.strip() in AGENTS]
