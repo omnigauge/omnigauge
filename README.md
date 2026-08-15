@@ -291,6 +291,17 @@ tool. The schema already carries `cost_usd` and a `source` column, so it is a cl
 you want it. It would be a separate panel, never merged into plan quota.
 
 
+## Donations
+
+Optional, and it changes nothing about the tool — omnigauge is MIT and always
+will be, with no paid tier and no telemetry.
+
+**Solana:** `<ADDRESS PENDING>`
+
+If you get more use out of this than it cost you to read the source, that is
+already the trade working.
+
+
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
