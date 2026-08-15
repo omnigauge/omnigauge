@@ -46,6 +46,10 @@
   --barbg:#8d9cbe; --barink:#091228; --hot:#582121;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,"DejaVu Sans Mono",Consolas,monospace;
 }
+/* Android Chrome font-boosts small text unless told not to - it inflated
+   the 78-column solve past the right edge and amputated every panel. The
+   grid does its own size math; the browser does not get a vote. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
 body{color:var(--white);font-family:var(--mono);
