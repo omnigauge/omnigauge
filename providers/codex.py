@@ -66,10 +66,17 @@ def _spend(seq, since, fields):
     acc = {k: 0 for k, _ in fields}
     prev = None
     for ep, u in seq:
-        if prev is not None and (ep is None or ep >= since):
-            for k, f in fields:
-                c, p = u.get(f, 0), prev.get(f, 0)
-                acc[k] += c if c < p else c - p      # c < p means it restarted
+        if ep is None or ep >= since:
+            if prev is None:
+                # No earlier reading to subtract, so this cumulative IS the spend
+                # so far. That is the whole-file-inside-the-window case, and the
+                # lifetime case where since is 0.
+                for k, f in fields:
+                    acc[k] += u.get(f, 0)
+            else:
+                for k, f in fields:
+                    c, p = u.get(f, 0), prev.get(f, 0)
+                    acc[k] += c if c < p else c - p   # c < p means it restarted
         prev = u
     return acc
 
@@ -164,12 +171,13 @@ def scan(path, since=0):
                     # the unread gap is beyond what a bisect can see.
                     seq = [(since - 1, base)] + stamped
     t["msgs"] = 1
-    if since and seq:
-        for key, val in _spend(seq, since, _FIELDS).items():
-            t[key] = val
-    else:
-        for key, field in _FIELDS:
-            t[key] = max(0, last.get(field, 0) - (base.get(field, 0) if base else 0))
+    # Always step-sum. Falling back to `last - base` when no baseline was found
+    # meant a rollout sitting entirely inside the window reported only its final
+    # cumulative - the spend since its LAST restart, everything before it dropped.
+    # Window and lifetime were wrong in the same direction, so the
+    # window-cannot-exceed-lifetime invariant never noticed.
+    for key, val in _spend(seq if seq else events, since, _FIELDS).items():
+        t[key] = val
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t
 

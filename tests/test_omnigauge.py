@@ -1375,3 +1375,57 @@ class TestCacheToleranceHidesARewrite(unittest.TestCase):
         finally:
             og.SCANNERS.clear(); og.SCANNERS.update(old_scanners)
             og.memo_clear()
+
+
+class TestCodexResetUndercountsBothWindowAndLifetime(unittest.TestCase):
+    """Step-summing only happened when a baseline existed.
+
+    A rollout that sits entirely inside the window has no pre-window event, so
+    there is no baseline and the value fell back to `last - 0` — the final
+    cumulative. When the counter restarts, that final value is only the spend
+    since the LAST restart, and everything before it is dropped.
+
+    Window and lifetime were wrong in the same direction, which is exactly why
+    the window-cannot-exceed-lifetime invariant never noticed.
+    """
+
+    def _codex(self):
+        sys.path.insert(0, os.path.join(ROOT, "providers"))
+        import codex
+        return codex
+
+    def _file(self, totals, now):
+        d = tempfile.mkdtemp(prefix="og-reset-")
+        f = os.path.join(d, "r.jsonl")
+        rows = []
+        for ago, tot in totals:
+            rows.append(json.dumps({
+                "type": "token_count",
+                "payload": {"info": {"total_token_usage": {
+                    "input_tokens": tot, "output_tokens": tot // 10,
+                    "total_tokens": tot + tot // 10}}},
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z",
+                                           time.gmtime(now - ago))}))
+        with io.open(f, "w") as fh:
+            fh.write("\n".join(rows) + "\n")
+        return f
+
+    def test_two_restarts_are_counted_not_collapsed_to_the_last_run(self):
+        now = time.time()
+        f = self._file([(7200, 5_000_000), (3600, 1_000_000), (600, 100_000)], now)
+        for fn, label in ((self._codex().scan, "provider"), (og.scan_codex, "built-in")):
+            w = fn(f, now - 86400)
+            l = fn(f, 0)
+            self.assertEqual(w["tin"], 6_100_000,
+                             f"{label}: 5M then a restart to 1M then a restart "
+                             f"to 100k is 6.1M spent, all of it inside the window")
+            self.assertEqual(l["tin"], 6_100_000,
+                             f"{label}: lifetime cannot be less than a window "
+                             f"it contains")
+
+    def test_a_monotonic_rollout_entirely_in_window_is_unchanged(self):
+        now = time.time()
+        f = self._file([(7200, 1_000_000), (600, 1_500_000)], now)
+        for fn in (self._codex().scan, og.scan_codex):
+            self.assertEqual(fn(f, now - 86400)["tin"], 1_500_000)
+            self.assertEqual(fn(f, 0)["tin"], 1_500_000)
