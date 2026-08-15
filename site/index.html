@@ -299,6 +299,11 @@ omnigauge --refresh</pre>
 
 <script>
 (function(){
+/* One place for the donation address. It is rendered, matched on double-click
+   and copied to the clipboard — four uses that must never disagree, because a
+   panel showing one wallet while the clipboard holds another is worse than
+   either alone. */
+var DONATE_SOL='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx';
 var RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
 var out=document.getElementById('out'),scr=document.getElementById('scr'),
     inp=document.getElementById('in'),prom=document.getElementById('prompt');
@@ -812,10 +817,10 @@ var C={
   row('  [[d]]version waiting behind it, no feature held back. Nothing here[[/]]');
   row('  [[d]]is gated on this.[[/]]');row('');
   row('  [[w]]Solana[[/]]');
-  row('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]');row('');
+  row('  [[y]]'+DONATE_SOL+'[[/]]');row('');
   (function(){var b=out.querySelectorAll('b.y');
     for(var i=b.length-1;i>=0;i--)
-      if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
+      if(b[i].textContent.trim()===DONATE_SOL){b[i].className='y addr';
         b[i].title='click to copy';break;}})();
   row('  [[f]]If you got more out of this than it cost you to read the[[/]]');
   row('  [[f]]source, that trade already worked.[[/]]');row('');
@@ -854,7 +859,7 @@ var C={
   blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- three install lines[[/]]'
     :'  [[g]]Copied[[/]] [[d]]- three install lines on your clipboard[[/]]');blank();},
  wallet:function(){navigator.clipboard.writeText(
-    'BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx');
+    DONATE_SOL);
   blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- Solana address[[/]]'
     :'  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');blank();},
 
@@ -1005,7 +1010,7 @@ keyable(document.getElementById('menu'));
 out.addEventListener('click',function(e){
   var t=e.target.closest&&e.target.closest('b.addr');
   if(!t)return;
-  navigator.clipboard.writeText('BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx').then(function(){
+  navigator.clipboard.writeText(DONATE_SOL).then(function(){
     blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- Solana address[[/]]'
       :'  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');
     blank();bottom();

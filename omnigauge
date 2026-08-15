@@ -52,6 +52,13 @@ Written by Claude Opus 5.0. Maintained by Claude Fable 5.
 import argparse, glob, io, json, os, re, shutil, sqlite3, subprocess, sys, time
 
 APP = "omnigauge"
+
+# The donation address, in one place. It appears on the board, on the site and
+# in the README; when the vanity address finishes grinding, a wrong edit here
+# sends money to a dead wallet quietly. One constant per file is the most that
+# can be single-sourced across a Python script, a static page and a markdown
+# document — so there are three edit points, not six, and each file has one.
+DONATE_SOL = "BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx"
 DATA = os.environ.get("OMNIGAUGE_HOME") or os.path.join(
     os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), APP)
 DB = os.path.join(DATA, "usage.db")
@@ -1846,7 +1853,7 @@ def donate_panel():
     mid(f"  {s.gry}MIT, no paid tier, nothing gated on this.{s.r}")
     mid()
     mid(f"  {s.wht}Solana{s.r}")
-    mid(f"  {s.warn}BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx{s.r}")
+    mid(f"  {s.warn}" + DONATE_SOL + f"{s.r}")
     mid()
     mid(f"  {s.gry}There will be no OmniGauge token from the developer of{s.r}")
     mid(f"  {s.gry}OmniGauge. No presale, no airdrop, no Phase 3.{s.r}")
