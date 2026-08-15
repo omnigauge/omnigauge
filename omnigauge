@@ -312,10 +312,32 @@ def countdown(text, _as_seconds=False):
     return f"{d//86400}d {(d%86400)//3600}h"
 
 
+# P and E will never be reached by a token count. They are here so the ladder
+# has no top: without them 999,999,999,999,999 printed "1000.00T", because T
+# had nothing to promote into. A rule with one exception is a rule someone
+# eventually meets.
+_UNITS = (("E", 1e18), ("P", 1e15), ("T", 1e12), ("B", 1e9), ("M", 1e6), ("K", 1e3))
+
+
 def human(n):
-    for u, d in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("K", 1e3)):
+    """Pick the unit AFTER rounding, not before.
+
+    Choosing on the raw value meant 999,999 was below 1e6, took K, and rounded
+    999.999 into "1000.00K". The board could then print OUTPUT 1000.00M one
+    column from TOTAL 1.00B — the same magnitude in two notations. A thousand of
+    a unit is the next unit.
+
+    (The old body ended `.rstrip("0").rstrip(".")`, which never fired once: the
+    unit letter is appended before the strip, so the string never ends in a zero.
+    Dead code that read like an intention.)
+    """
+    for i, (u, d) in enumerate(_UNITS):
         if n >= d:
-            return f"{n/d:.2f}{u}".rstrip("0").rstrip(".") + ("" if u else "")
+            s = f"{n / d:.2f}"
+            if s.startswith("1000.") and i > 0:
+                u, d = _UNITS[i - 1]          # i-1 is the LARGER unit
+                s = f"{n / d:.2f}"
+            return s + u
     return f"{n:,}"
 
 

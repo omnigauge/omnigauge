@@ -1171,3 +1171,38 @@ class TestWindowGateTrustsTheWrongClock(unittest.TestCase):
         self.assertEqual(
             (w.get("msgs") or 0) > 0, (l.get("msgs") or 0) > 0,
             "window and lifetime must not contradict each other silently")
+
+
+class TestHumanPromotesAtTheRoundingBoundary(unittest.TestCase):
+    """human() chose its unit from the raw value, then rounded to two decimals.
+
+    999,999 is below 1e6, so it picked K and rounded 999.999 into "1000.00K".
+    The board could show OUTPUT 1000.00M beside TOTAL 1.00B — the same magnitude
+    in two notations, one row apart. The frame absorbed the extra characters, so
+    this never broke a panel; it only ever made a reader look twice.
+    """
+
+    def test_a_value_that_rounds_to_a_thousand_takes_the_next_unit(self):
+        for raw, want in ((999_999, "1.00M"), (999_999_999, "1.00B"),
+                          (999_999_999_999, "1.00T")):
+            self.assertEqual(og.human(raw), want,
+                             f"{raw:,} rounds into the next unit")
+
+    def test_values_below_the_boundary_are_untouched(self):
+        self.assertEqual(og.human(999_000), "999.00K")
+        self.assertEqual(og.human(1_000), "1.00K")
+        self.assertEqual(og.human(999), "999")
+        self.assertEqual(og.human(0), "0")
+
+    def test_no_output_ever_reads_as_a_thousand_of_a_smaller_unit(self):
+        for e in range(0, 16):
+            for m in (1, 5, 9):
+                v = m * 10 ** e
+                for probe in (v - 1, v, v + 1):
+                    if probe < 0:
+                        continue
+                    s = og.human(probe)
+                    self.assertFalse(
+                        s.startswith("1000."),
+                        f"human({probe:,}) = {s} — a thousand of a unit is the "
+                        f"next unit")
