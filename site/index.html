@@ -364,7 +364,7 @@ function wordmark(){
       GLY[ch].forEach(function(rowstr,r){
         rowstr.split('').forEach(function(cell,ci){
           if(cell==='█')parts.push('<rect x="'+(x+ci*C)+'" y="'+(r*C)+
-            '" width="'+C+'" height="'+C+'" fill="'+w[1]+'"/>');
+            '" width="'+(C*0.86)+'" height="'+(C*0.86)+'" fill="'+w[1]+'"/>');
         });
       });
       x+=6*C;
