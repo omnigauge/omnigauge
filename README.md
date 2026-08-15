@@ -312,9 +312,9 @@ group chat, no "community". If something calls itself OmniGauge anywhere other
 than [@OmniGauge](https://x.com/OmniGauge) or omnigauge.dev, it is not us.
 
 **If you do launch one, come and say so.** The email on the GitHub profile is the
-channel that counts. If it checks out — you are not a known scammer, and you are
-not trading on this project's name — there is a good chance the contract address
-ends up on this page. A listing is not an endorsement. DYOR.
+channel that counts. If it checks out — you are not a known scammer, and you met
+the terms above instead of pretending to be us — there is a good chance the
+contract address ends up on this page. A listing is not an endorsement. DYOR.
 
 
 ## Contact
