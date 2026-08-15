@@ -464,8 +464,22 @@ SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_cod
 
 SCAN_ERRORS = []
 
+# Memo for the interactive loop. Cycling a theme must not re-read 200 files;
+# only a window change or a refresh invalidates the numbers.
+_MEMO = {}
+
+
+def memo_clear():
+    _MEMO.clear()
+
 
 def window_totals(agent, since):
+    # Quantize: `since` is derived from now() on every render, so an exact key
+    # changed every second and the memo never hit — every theme press rescanned
+    # the whole corpus.
+    key = ("w", agent, int(since // 300))
+    if key in _MEMO:
+        return _MEMO[key]
     files, scan = SCANNERS[agent]
     t = blank()
     for f in files():
@@ -480,11 +494,15 @@ def window_totals(agent, since):
             # and reported a confident row of zeros. Failures are counted and
             # surfaced; zero should mean zero, not "it crashed".
             SCAN_ERRORS.append(f"{agent}: {type(e).__name__}: {e}")
+    _MEMO[key] = t
     return t
 
 
 def lifetime_totals(agent, con, progress=False):
     """Incremental: a file is rescanned only when mtime or size changed."""
+    key = ("l", agent)
+    if key in _MEMO:
+        return _MEMO[key]
     files, scan = SCANNERS[agent]
     cached = {r[0]: r for r in con.execute(
         "SELECT path,mtime,size,tin,tout,cache_read,cache_write,think,total,msgs,models "
@@ -531,6 +549,7 @@ def lifetime_totals(agent, con, progress=False):
     con.commit()
     if progress and fresh:
         print("\r" + " " * (W - 1) + "\r", end="", flush=True)
+    _MEMO[key] = t
     return t
 
 
@@ -866,6 +885,140 @@ def render(args):
     con.close()
 
 
+# ──────────────────────────────── interactive ─────────────────────────────────
+
+class RawTTY:
+    """Hold raw mode for the WHOLE session.
+
+    Toggling per-keypress looked correct and was not: between renders the
+    terminal fell back to cooked mode, so anything typed during a render sat in
+    the line buffer waiting for Enter and appeared dropped. Three rapid presses
+    advanced one step. Entered once, released on exit.
+    """
+    def __enter__(self):
+        import termios, tty
+        self.fd = sys.stdin.fileno()
+        self.old = termios.tcgetattr(self.fd)
+        # cbreak, NOT raw: raw clears OPOST so "\n" no longer returns the
+        # carriage and every line stair-steps to the right. cbreak still gives
+        # character-at-a-time input.
+        tty.setcbreak(self.fd)
+        sys.stdout.write("\033[?25l")      # hide cursor
+        sys.stdout.flush()
+        return self
+
+    def __exit__(self, *a):
+        import termios
+        termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old)
+        sys.stdout.write("\033[?25h")      # show cursor
+        sys.stdout.flush()
+
+
+def getkey(timeout=None):
+    """One keypress. '' on timeout, None if stdin is not a tty. Assumes raw."""
+    import select as _sel
+    if not sys.stdin.isatty():
+        return None
+    fd = sys.stdin.fileno()
+    r, _, _ = _sel.select([fd], [], [], timeout)
+    if not r:
+        return ""
+    ch = os.read(fd, 1).decode("utf-8", "replace")
+    if ch == "\x1b":
+        r, _, _ = _sel.select([fd], [], [], 0.05)
+        if r:
+            os.read(fd, 8)
+    return ch
+
+
+def drain():
+    """Discard keys buffered while a slow render was running."""
+    import select as _sel
+    fd = sys.stdin.fileno()
+    while True:
+        r, _, _ = _sel.select([fd], [], [], 0)
+        if not r:
+            return
+        os.read(fd, 64)
+
+
+KEYS = [("r", "refresh quota — all agents"),
+        ("1 2 3", "refresh claude / codex / grok only"),
+        ("w", "watch mode — auto redraw"),
+        ("t", "cycle theme (ink · steel · mono · muted · vivid)"),
+        ("s", "cycle window (24h · 7d · 30d · today · all)"),
+        ("b", "brief — hide lifetime and by-model"),
+        ("?", "this help"),
+        ("q", "quit")]
+
+
+def keybar(args, watching=False):
+    # raw mode does not translate \n to \r\n
+    parts = [f"{s.accent}r{s.r} refresh", f"{s.accent}w{s.r} watch" + ("*" if watching else ""),
+             f"{s.accent}t{s.r} {args.theme}", f"{s.accent}s{s.r} {args.since}",
+             f"{s.accent}b{s.r} " + ("brief" if args.brief else "full"),
+             f"{s.accent}?{s.r} help", f"{s.accent}q{s.r} quit"]
+    print(f" {s.gry}" + f"{s.gry} · ".join(parts) + s.r)
+
+
+def helpscreen():
+    sys.stdout.write("\033[2J\033[H")
+    print(f"\n {s.b}{s.wht}OMNIGAUGE — keys{s.r}\n")
+    for k, d in KEYS:
+        print(f"   {s.accent}{k:<7}{s.r}{d}")
+    print(f"\n {s.gry}Flags still work for scripting:{s.r}")
+    print(f"   {s.gry}omnigauge --json | --brief | --since 7d | --theme mono{s.r}")
+    print(f"   {s.gry}omnigauge --refresh [claude,codex,grok] | --watch [SEC]{s.r}")
+    print(f"\n {s.gry}any key to return{s.r}")
+    getkey()
+
+
+def interactive(args):
+    watching = False
+    last_quota = 0
+    themes = ["ink", "steel", "mono", "muted", "vivid"]
+    spans = ["24h", "7d", "30d", "today", "all"]
+    with RawTTY():
+      try:
+        while True:
+            sys.stdout.write("\033[2J\033[H")
+            if not _MEMO:
+                # Say it is working instead of leaving a live-looking key bar on
+                # screen while input is not being read.
+                sys.stdout.write(f"\r {s.gry}reading transcripts…{s.r}")
+                sys.stdout.flush()
+            render(args)
+            keybar(args, watching)
+            if watching and args.quota_every and int(time.time()) - last_quota >= args.quota_every:
+                which = [a for a in AGENTS if installed(a)]
+                print(f"\n {s.gry}auto-refreshing quota…{s.r}")
+                refresh(which); last_quota = int(time.time()); memo_clear()
+                continue
+            k = getkey(timeout=(args.watch or 10) if watching else None)
+            if k is None: return
+            k = k.lower()
+            if k in ("q", "\x03", "\x1b"): break
+            elif k == "r":
+                which = [a for a in AGENTS if installed(a)]
+                print(f"\n {s.b}refreshing{s.r} {s.gry}({', '.join(which)} · ~30s each){s.r}")
+                refresh(which); last_quota = int(time.time()); memo_clear()
+            elif k in "123":
+                a_ = ["claude", "codex", "grok"][int(k) - 1]
+                print(f"\n {s.b}refreshing {a_}{s.r}")
+                refresh([a_]); last_quota = int(time.time()); memo_clear()
+            elif k == "w": watching = not watching; last_quota = int(time.time())
+            elif k == "t": args.theme = themes[(themes.index(args.theme) + 1) % len(themes)]; S.theme = args.theme
+            elif k == "s":
+                args.since = spans[(spans.index(args.since) + 1) % len(spans)]
+                memo_clear()
+            elif k == "b": args.brief = not args.brief
+            elif k == "?": helpscreen()
+      except KeyboardInterrupt:
+        pass
+      finally:
+        print()
+
+
 def parse_every(v):
     m = re.match(r"^(\d+)\s*([smh]?)$", str(v).strip(), re.I)
     if not m: raise argparse.ArgumentTypeError("use e.g. 30, 90s, 15m, 1h")
@@ -914,6 +1067,8 @@ def main():
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
                    help="how often --watch re-scrapes quota (default 15m; 0 = never)")
+    p.add_argument("--once", action="store_true",
+                   help="print once and exit instead of the interactive board")
     p.add_argument("--cwd", metavar="DIR",
                    help="directory to launch the CLIs in (must already be trusted by them)")
     a = p.parse_args()
@@ -936,6 +1091,12 @@ def main():
         print(json.dumps(out, indent=2, default=str)); con.close(); return
     if a.watch:
         watch(a); return
+    # A bare invocation in a terminal is interactive; piped or flagged output
+    # stays one-shot so scripts keep working.
+    explicit = any([a.refresh, a.json, a.brief, a.no_color, a.since != "24h",
+                    a.theme != os.environ.get("OMNIGAUGE_THEME", "ink")])
+    if sys.stdout.isatty() and sys.stdin.isatty() and not explicit and not a.once:
+        interactive(a); return
     render(a)
 
 

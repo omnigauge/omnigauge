@@ -74,8 +74,29 @@ It only works for accounts *you* are already signed into on that machine.
 
 ## Usage
 
+Run it bare in a terminal and it is **interactive** — no flags to remember:
+
+```
+ r refresh · w watch · t ink · s 24h · b full · ? help · q quit
+```
+
+| Key | Does |
+|---|---|
+| `r` | refresh quota, all agents |
+| `1` `2` `3` | refresh claude / codex / grok only |
+| `w` | watch mode — auto redraw |
+| `t` | cycle theme |
+| `s` | cycle window (24h · 7d · 30d · today · all) |
+| `b` | brief — hide lifetime and by-model |
+| `?` | key help |
+| `q` | quit |
+
+Piped, redirected or given any flag, it prints once and exits, so scripts are
+unaffected. `--once` forces that explicitly.
+
 ```bash
-omnigauge                      # dashboard (cached quota + live token counts)
+omnigauge                      # interactive board
+omnigauge --once               # print and exit
 omnigauge --refresh            # re-scrape quota from every installed CLI (~30s each)
 omnigauge --refresh claude     # just one
 omnigauge --lifetime           # all-time totals (incremental cache)
