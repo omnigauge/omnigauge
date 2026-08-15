@@ -12,11 +12,16 @@ fill, a sparkline, and a screensaver that counts its own bounces.
 
 ## The one rule
 
-The grid is **78 columns at every screen size**. `fit()` measures the real glyph
-advance in the real font and solves for the font size, because the advance of a
-monospace glyph is not a constant across platforms — assuming `.6em` puts the
-right-hand border off the edge of a phone. A phone renders identically to a 5K
-display; only the type size changes.
+The grid is **78 columns on desktop and 42 on a phone**, and every rendered
+line obeys its mode's grid. `fit()` measures the real glyph advance in the
+real font and solves for the font size, because the advance of a monospace
+glyph is not a constant across platforms — assuming `.6em` puts the
+right-hand border off the edge of a phone. Below the legibility floor the
+page re-solves for the 42-column mobile grid instead of shrinking further;
+every panel carries a hand-set mobile variant behind `if(MOBILE)`, and the
+desktop strings are never edited to make room. The one width exemption is
+the `cmd` class — a copyable string (an install command, the donation
+address) that CSS soft-wraps while the text stays one selectable line.
 
 Anything that draws a panel goes through `head()` / `row()` / `foot()`, which
 share one width table. Every framed line must measure the same. This has been

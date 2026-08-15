@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OmniGauge — every AI plan you pay for, on one screen</title>
-<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. No API keys required, no telemetry, no network calls of its own.">
+<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
 <link rel="canonical" href="https://omnigauge.dev/">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -26,7 +26,7 @@
    the type is hinted rather than a 9x16 ROM bitmap.
 
    No fonts, no CDN, no analytics, no framework. One file. A tool whose claim is
-   that it makes no network calls should not have a homepage that phones out.
+   that it reads local files should not have a homepage that phones out.
    ───────────────────────────────────────────────────────────────────────────── */
 :root{
   /* CGA had sixteen colours and used all of them at once because it could.
@@ -91,10 +91,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
 #drop hr{border:0;border-top:1px solid #8fa0c8;margin:.25em 0}
 
 /* ── screen ───────────────────────────────────────────────────────────────── */
-#scr{height:100%;overflow-y:auto;overflow-x:hidden;padding:2.7em .6em 3.2em;
-  scrollbar-width:thin;scrollbar-color:#2f56b8 transparent}
-#scr::-webkit-scrollbar{width:9px}
-#scr::-webkit-scrollbar-thumb{background:#2f56b8}
+#scr{height:100%;overflow-y:auto;overflow-x:hidden;padding:2.7em .9em 3.2em;
+  scrollbar-width:none}
+#scr::-webkit-scrollbar{display:none}
 /* The block is 78 columns and margin:auto centres it exactly — but the ink does
    not fill it. Loose lines run a median of 43 columns, so their weight sits left
    of the box's centre and the page reads as left-aligned even though it is not.
@@ -105,6 +104,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
       transform:translateX(var(--nudge))}
 @media (max-width:820px){:root{--nudge:0ch}}   /* no room to spare on a phone */
 #out{white-space:pre}
+/* A copyable string longer than the mobile grid: the DIV soft-wraps so the
+   screen stays contained, while the text stays ONE line for select-and-copy. */
+#out .cmd{white-space:pre-wrap;word-break:break-all}
 b{font-weight:400}
 .c{color:var(--cyan)} .y{color:var(--yellow)} .g{color:var(--green)}
 .r{color:var(--red)}  .d{color:var(--gray)}   .f{color:var(--dim)}
@@ -133,7 +135,7 @@ a{color:var(--cyan)}
 /* ── function key bar ─────────────────────────────────────────────────────── */
 #keys{position:fixed;left:0;right:0;bottom:0;height:1.7em;display:flex;
   align-items:stretch;z-index:60;font-size:.9em;background:var(--field);
-  box-shadow:0 -.18em .45em rgba(1,4,14,.35)}
+  padding:0 .55em;box-shadow:0 -.18em .45em rgba(1,4,14,.35)}
 #keys b{display:flex;align-items:center;color:var(--dim);padding:0 .4em 0 .55em;flex:none}
 #keys i{display:flex;align-items:center;background:var(--barbg);color:var(--barink);
   padding:0 .65em;font-style:normal;cursor:pointer;flex:none;letter-spacing:.01em}
@@ -157,10 +159,16 @@ a{color:var(--cyan)}
 /* On a narrow screen the key bar overflowed off the right edge - Legend and
    Saver were there, just past the horizon. Wrap instead of clip; the spacer
    only made sense on one line. */
+/* Mobile: one calm row of essentials. The F-numbers are a desktop
+   affordance; the rest of the commands live in the menus. */
 @media (max-width:700px){
-  #keys{flex-wrap:wrap;height:auto;padding:.15em 0}
-  #keys .sp{display:none}
-  #scr{padding-bottom:6.5em}
+  #keys{height:2.6em;padding:0 .4em;justify-content:space-around}
+  #keys b,#keys .x,#keys .sp{display:none}
+  #keys i{flex:1;justify-content:center;margin:0 2px}
+  #scr{padding-bottom:4.2em}
+  /* max-content sizing lets one long copyable line inflate the whole
+     column; capped, the line soft-wraps and the screen stays contained */
+  #page{max-width:100%}
 }
 
 /* real content for a screen reader, invisible to everyone else */
@@ -234,8 +242,11 @@ noscript pre{color:var(--cyan);margin:.8em 0}
   direction. Codex counts down, Claude counts up, Grok gives raw tokens against a cap, Gemini
   says "limited". OmniGauge normalizes all of it to percent consumed against a common window,
   so you can see which plan runs out first.</p>
-  <p>No API keys — it reads what your agents already write to disk. No telemetry. No network
-  calls of its own. One Python file, no dependencies, MIT.</p>
+  <p>No keys for the part that matters — quota and tokens are read from what your agents
+  already write to disk. The optional dollar-spend panel does take vendor keys: stored 0600,
+  never passed as arguments, refused outright if group- or world-readable. Leave it off and
+  no credential or network call is involved. No telemetry. One Python file, no dependencies,
+  MIT.</p>
   <pre>git clone https://github.com/omnigauge/omnigauge.git
 install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
 omnigauge --refresh</pre>
@@ -256,19 +267,19 @@ omnigauge --refresh</pre>
 </div></div>
 <div id="saver" aria-hidden="true"><div id="sv"></div></div>
 <div id="keys" role="toolbar" aria-label="function keys">
-  <b>F1</b><i data-c="about" role="button" tabindex="0">About</i>
+  <b>F1</b><i class="x" data-c="about" role="button" tabindex="0">About</i>
   <b>F2</b><i data-c="why" role="button" tabindex="0">Why</i>
   <b>F3</b><i data-c="board" role="button" tabindex="0">Board</i>
   <b>F4</b><i data-c="install" role="button" tabindex="0">Install</i>
-  <b>F5</b><i data-c="providers" role="button" tabindex="0">Providers</i>
-  <b>F6</b><i data-c="privacy" role="button" tabindex="0">Privacy</i>
-  <b>F7</b><i data-c="donate" role="button" tabindex="0">Donate</i>
-  <b>F8</b><i data-c="open" role="button" tabindex="0">Source</i>
-  <b>F9</b><i data-c="help" role="button" tabindex="0">Cmds</i>
+  <b>F5</b><i class="x" data-c="providers" role="button" tabindex="0">Providers</i>
+  <b>F6</b><i class="x" data-c="privacy" role="button" tabindex="0">Privacy</i>
+  <b>F7</b><i class="x" data-c="donate" role="button" tabindex="0">Donate</i>
+  <b>F8</b><i class="x" data-c="open" role="button" tabindex="0">Source</i>
+  <b>F9</b><i class="x" data-c="help" role="button" tabindex="0">Cmds</i>
   <span class="sp"></span>
   <b>F10</b><i data-c="github" role="button" tabindex="0">GitHub</i>
   <b>·</b><i data-c="legend" role="button" tabindex="0">Legend</i>
-  <b>Alt+S</b><i data-c="saver" role="button" tabindex="0">Saver</i>
+  <b>Alt+S</b><i class="x" data-c="saver" role="button" tabindex="0">Saver</i>
 </div>
 
 <script>
@@ -276,9 +287,22 @@ omnigauge --refresh</pre>
 var RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
 var out=document.getElementById('out'),scr=document.getElementById('scr'),
     inp=document.getElementById('in'),prom=document.getElementById('prompt');
-var W=78, IN=W-2;
+var MOBILE=false, W=78, IN=76;
+function setMode(m){MOBILE=m; W=m?42:78; IN=W-2;}
 
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function wrapWords(t,w){
+  var out=[],cur='';
+  t.split(/\s+/).forEach(function(x){
+    while(x.length>w){if(cur){out.push(cur);cur='';}out.push(x.slice(0,w));x=x.slice(w);}
+    var c=(cur?cur+' ':'')+x;
+    if(c.length<=w||!cur)cur=c;else{out.push(cur);cur=x;}
+  });
+  out.push(cur);return out;
+}
+function prose(cls,text){
+  wrapWords(text,IN-4).forEach(function(l){row('  [['+cls+']]'+l+'[[/]]');});
+}
 function vis(s){return s.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').length;}
 function pad(s,n){return s+' '.repeat(Math.max(0,n-vis(s)));}
 function rpad(s,n){return ' '.repeat(Math.max(0,n-vis(s)))+s;}
@@ -303,6 +327,7 @@ function head(t,sub){
   pan();
   headsSince.push(t.toLowerCase());
   var l='[[c]]╔══[[/]][[w]]▌ '+t+' ▐[[/]]', r=sub?'[[d]] '+sub+' [[/]]':'';
+  if(IN-vis(l)-vis(r)+1<2)r='';
   put(l+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(l)-vis(r)+1))+'[[/]]'+r+'[[c]]╗[[/]]');
 }
 function row(t){return put('[[c]]║[[/]]'+pad(t||'',IN)+'[[c]]║[[/]]');}
@@ -334,10 +359,15 @@ function meter(seg,target){
   });
 }
 function foot(n){
+  if(n&&IN-vis('[[d]] '+n+' [[/]]')-2<2)n='';
   if(n){var s='[[d]] '+n+' [[/]]';
     put('[[c]]╚══[[/]]'+s+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(s)-2))+'╝[[/]]');}
   else put('[[c]]╚'+'═'.repeat(IN)+'╝[[/]]');
   open=null;
+}
+function mbar(p,w){
+  var full=Math.round(p/100*w), col=p>=90?'r':p>=70?'y':p>=1?'g':'f';
+  return '[['+col+']]'+'▒'.repeat(full)+'[[/]][[f]]'+'·'.repeat(Math.max(0,w-full))+'[[/]]';
 }
 function bar(p,w){w=w||20;
   var full=Math.round(p/100*w), col=p>=90?'r':p>=70?'y':p>=1?'g':'f';
@@ -357,12 +387,33 @@ var GLY={
  U:['█   █','█   █','█   █','█   █','█████'],
  E:['█████','█    ','████ ','█    ','█████']};
 function wordmark(){
-  var a='OMNI'.split(''), b='GAUGE'.split('');
-  for(var r=0;r<5;r++){
-    var L=a.map(function(ch){return GLY[ch][r];}).join(' ');
-    var R=b.map(function(ch){return GLY[ch][r];}).join(' ');
-    line('  [[c]]'+L+'[[/]] [[d]]'+R+'[[/]]');
+  if(!MOBILE){
+    var a='OMNI'.split(''), b='GAUGE'.split('');
+    for(var r=0;r<5;r++){
+      var L=a.map(function(ch){return GLY[ch][r];}).join(' ');
+      var R=b.map(function(ch){return GLY[ch][r];}).join(' ');
+      line('  [[c]]'+L+'[[/]] [[d]]'+R+'[[/]]');
+    }
+    return;
   }
+  var C=6,parts=[],x=0;
+  [['OMNI','var(--cyan)'],['GAUGE','var(--gray)']].forEach(function(w,wi){
+    if(wi)x+=C;
+    w[0].split('').forEach(function(ch){
+      GLY[ch].forEach(function(rowstr,r){
+        rowstr.split('').forEach(function(cell,ci){
+          if(cell==='█')parts.push('<rect x="'+(x+ci*C)+'" y="'+(r*C)+
+            '" width="'+(C*0.86)+'" height="'+(C*0.86)+'" fill="'+w[1]+'"/>');
+        });
+      });
+      x+=6*C;
+    });
+  });
+  var d=document.createElement('div');
+  d.innerHTML='<svg viewBox="0 0 '+(x-C)+' '+(5*C)+'" role="img" aria-label="OMNIGAUGE" '+
+    'style="width:min(56vw,220px);height:auto;display:block;margin:.5em 0 .3em">'+
+    parts.join('')+'</svg>';
+  out.appendChild(d);
 }
 
 /* ── live figures ────────────────────────────────────────────────────────── */
@@ -371,8 +422,10 @@ var S={dry:15120,tok:2.032,burn:180};
    querySelectorAll over every panel row ever printed, every second, reading
    each one's textContent - a cost that grew with the scrollback forever. */
 var LIVE={dry:null,today:null};
-function dryRow(){return '  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]';}
-function todayRow(){return '  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]';}
+function dryRow(){return MOBILE?'  [[f]]'+pad('dry in',8)+'[[/]][[y]]'+fmt(S.dry)+'[[/]]'
+  :'  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]';}
+function todayRow(){return MOBILE?'  [[f]]'+pad('today',8)+'[[/]][[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens[[/]]'
+  :'  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]';}
 /* Height was the obvious way to draw a week, and it cost seven partial-block
    glyphs — the same family that rendered the CLI panels ragged, because a font
    without them substitutes a face with a different advance. Intensity carries
@@ -386,6 +439,37 @@ function fmt(s){var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%
   return h+':'+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0');}
 
 function board(){
+  if(MOBILE){
+    head('PLAN QUOTA');
+    row('');
+    [['claude','week',28,'4d 09h'],['claude','session',16,'5:19am'],
+     ['claude/fable','week',5,'4d 09h'],['codex','week',100,'4d 14h'],
+     ['codex/spark','week',0,'6d 17h'],
+     ['grok/x premium+','week',41,'2d 04h']].forEach(function(r){
+      var crit=r[2]>=90;
+      var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
+      var col=crit?'r':r[2]>=70?'y':r[2]>=1?'g':'f';
+      var el=row('  '+m+' [[w]]'+pad(r[0].slice(0,17),18)+'[[/]]'
+        +'[['+col+']]'+rpad(Math.round(r[2])+'%',5)+'[[/]]');
+      if(crit)el.classList.add('crit');
+      row('  '+mbar(r[2],26));
+      row('  [[f]]'+r[1]+' · resets '+r[3]+'[[/]]');
+      if(r[0]==='codex')row('  [[f]]"0% left" - inverted[[/]]');
+      row('');
+    });
+    foot('normalized to % consumed');
+    blank();
+    head('LIVE');
+    row('');
+    row('  [[f]]'+pad('burn',8)+'[[/]][[c]]'+S.burn+'K[[/]] [[d]]tok/hr[[/]]');
+    LIVE.dry=row(dryRow());
+    LIVE.today=row(todayRow());
+    row('');
+    row('  [[f]]'+pad('7 days',8)+'[[/]]'+spark([31,44,38,72,66,91,97]));
+    row('');
+    foot('real readings, 15 Aug');
+    return;
+  }
   head('PLAN QUOTA','normalized to % consumed');
   row('');
   row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)+pad('WINDOW',COL.window)+pad('',COL.bar)+rpad('USED',COL.used)+rpad('RESETS IN',COL.reset)+'[[/]]');
@@ -430,6 +514,46 @@ function LROWS(){return LEGEND.sources||LEGEND;}
 function legendPanel(){
   var short={lifetime:'LIFE',models:'MODEL'};
   blank();
+  if(MOBILE){
+    head('PROVIDERS');row('');
+    LROWS().forEach(function(p){
+      var g=0,y=0,u=0;
+      CAPORDER.forEach(function(c){
+        var st=(p.c[c]||'').split(':')[0].trim();
+        if(st==='obtained')g++;else if(st==='available')y++;else u++;});
+      row('  [[w]]'+pad(p.n.slice(0,11),11)+'[[/]][[d]]'+pad(p.k,7)+'[[/]]'
+          +'[[g]]'+g+'●[[/]] [[y]]'+y+'○[[/]] [[f]]'+u+'-[[/]]');});
+    row('');foot('● has · ○ could · - cannot');
+    blank();
+    head('THE REASONS');row('');
+    var first=false;
+    LROWS().forEach(function(p){
+      var noted=CAPORDER.filter(function(c){return (p.c[c]||'').indexOf(':')>=0;});
+      if(!noted.length)return;
+      if(first)row('');
+      first=true;
+      row('  [[w]]'+p.n+'[[/]]');
+      noted.forEach(function(c){
+        var v=p.c[c], st=v.split(':')[0].trim(), why=v.slice(v.indexOf(':')+1).trim();
+        var mark=st==='obtained'?'[[g]]●[[/]]':st==='available'?'[[y]]○[[/]]':'[[f]]-[[/]]';
+        var lines=wrapWords(why||st,IN-16);
+        row('  '+mark+' [[d]]'+pad(c,9)+lines[0]+'[[/]]');
+        for(var i=1;i<lines.length;i++)
+          row('              [[d]]'+lines[i]+'[[/]]');
+      });
+    });
+    row('');foot('the glyph is the state');
+    if(LEGEND.negatives&&LEGEND.negatives.length){
+      blank();
+      head('NEGATIVES');row('');
+      LEGEND.negatives.forEach(function(n,i){
+        if(i)row('');
+        row('  [[f]]-[[/]] [[w]]'+n.n+'[[/]]');
+        wrapWords(n.why,IN-8).forEach(function(l){row('    [[d]]'+l+'[[/]]');});});
+      row('');foot('read on real installs');
+    }
+    blank();return;
+  }
   head('PROVIDERS','what ships, what it gets, and what it cannot get');row('');
   row('  [[f]]'+pad('SOURCE',11)+pad('KIND',6)+CAPORDER.map(function(c){
     return rpad((short[c]||c).toUpperCase(),8);}).join('')+'[[/]]');
@@ -471,21 +595,21 @@ function legendPanel(){
   }
   blank();
 }
-function wrapWords(t,w){
-  var out=[],cur='';
-  t.split(/\s+/).forEach(function(x){
-    var c=(cur?cur+' ':'')+x;
-    if(c.length<=w||!cur)cur=c; else{out.push(cur);cur=x;}
-  });
-  out.push(cur);
-  return out;
-}
-
 /* ── commands ────────────────────────────────────────────────────────────── */
 var C={
  legend:function(){legendPanel();},
  help:function(){blank();
   head('COMMANDS');row('');
+  (MOBILE?
+  [['board','the panel, live'],['why','the problem it solves'],
+   ['install','get it'],['providers','teach it a tool'],
+   ['legend','gets / could / cannot'],
+   ['privacy','what it refuses'],['doctor','what it finds here'],
+   ['open','why MIT is the point'],['donate','if it saved you'],
+   ['copy','install lines'],['wallet','address, clipboard'],
+   ['saver','screen goes dark'],
+   ['github','the repository'],['cls','clear the screen']]
+  :
   [['board','the panel, live'],['why','the problem this exists for'],
    ['install','get it'],['providers','teach it a new tool'],
    ['legend','every provider: gets, could get, cannot'],
@@ -493,13 +617,26 @@ var C={
    ['open','why MIT is the whole point'],['donate','if it saved you something'],
    ['copy','install lines to clipboard'],['wallet','address to clipboard'],
    ['saver','the screen goes dark (Alt+S)'],
-   ['github','open the repository'],['cls','clear the screen']]
+   ['github','open the repository'],['cls','clear the screen']])
   .forEach(function(c){row('  [[y]]'+pad(c[0],12)+'[[/]][[d]]'+c[1]+'[[/]]');});
-  row('');foot('function keys along the bottom do the same');blank();},
+  row('');foot(MOBILE?'the bar below does the same':'function keys along the bottom do the same');blank();},
 
  board:function(){blank();board();blank();},
 
  why:function(){blank();
+  if(MOBILE){
+    head('FOUR DIALECTS');row('');
+    prose('d','Ask each vendor how much you have left. Every answer is honest, and useless beside the others:');row('');
+    [['codex','38% left','counts down · 5h rolling'],
+     ['claude','87% used','counts up · calendar week'],
+     ['grok','2.1M / 35M','raw tokens · month'],
+     ['gemini','"limited"','no number at all']].forEach(function(v){
+      row('  [[y]]'+pad(v[0],9)+'[[/]][[w]]'+v[1]+'[[/]]');
+      row('    [[f]]'+v[2]+'[[/]]');row('');});
+    prose('d','One counts down. One counts up. One hands you arithmetic homework. One shrugs. OmniGauge inverts what needs inverting and states every window the same way - so the comparison is finally worth making.');
+    row('');
+    prose('d','It is usually not the plan you were worried about.');
+    row('');foot('tap Board to see it live');blank();return;}
   head('FOUR VENDORS. FOUR DIALECTS.');row('');
   row('  [[d]]Ask each one how much you have left. Every answer is honest,[[/]]');
   row('  [[d]]and useless beside the others:[[/]]');row('');
@@ -519,6 +656,20 @@ var C={
   row('');foot('press F3 to see it normalized');blank();},
 
  install:function(){blank();
+  if(MOBILE){
+    head('INSTALL');row('');
+    prose('d','Python 3.8+ · no dependencies · one file. Three commands, shown whole so they wrap - each is one copyable line:');
+    row('');foot('');
+    line('  [[y]]git clone https://github.com/omnigauge/omnigauge.git[[/]]','cmd');
+    line('  [[y]]install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge[[/]]','cmd');
+    line('  [[y]]omnigauge --refresh[[/]]','cmd');
+    blank();
+    head('THEN');row('');
+    row('  [[c]]'+pad('omnigauge',11)+'[[/]][[f]]the board[[/]]');
+    row('  [[c]]'+pad('--watch',11)+'[[/]][[f]]refresh in place[[/]]');
+    row('  [[c]]'+pad('--check',11)+'[[/]][[f]]exits 0/1/2 for cron[[/]]');
+    row('  [[c]]'+pad('--since 7d',11)+'[[/]][[f]]any window[[/]]');
+    row('');foot('type  copy  for the three lines');blank();return;}
   head('INSTALL','Python 3.8+ · no dependencies · one file');row('');
   row('  [[y]]C:\\>[[/]] git clone https://github.com/omnigauge/omnigauge.git');
   row('  [[y]]C:\\>[[/]] install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge');
@@ -531,6 +682,12 @@ var C={
   row('');foot('type  copy  to copy the three lines');blank();},
 
  providers:function(){blank();
+  if(MOBILE){
+    head('ONE FILE EACH');row('');
+    prose('d','Drop one file in providers/, run omnigauge --doctor, and it appears on the board.');row('');
+    prose('d','It answers four questions: installed? where are the files? how many tokens? what does the quota panel say?');row('');
+    prose('d','claude, codex and grok ship as providers - copy the closest.');
+    row('');foot('MIT · fork it, send it back');blank();return;}
   head('A PROVIDER IS ONE FILE');row('');
   row('  [[d]]Drop it in[[/]] [[c]]providers/[[/]][[d]], run[[/]] [[c]]omnigauge --doctor[[/]][[d]], and it[[/]]');
   row('  [[d]]appears on the board.[[/]]');row('');
@@ -542,10 +699,26 @@ var C={
   row('');foot('MIT · fork it, ship it, send it back');blank();},
 
  privacy:function(){blank();
+  if(MOBILE){
+    head('THINGS IT WILL NOT DO');row('');
+    row('  [[w]]No keys to read your agents.[[/]]');
+    prose('d','Quota and tokens come from files already on your own disk. Nothing to paste, nothing to leak.');row('');
+    row('  [[w]]Spend is the exception.[[/]]');
+    prose('d','The optional spend panel takes vendor keys: 0600, never argv, refused if group- or world-readable. Leave it off and no credential is involved.');row('');
+    row('  [[w]]It will not phone home.[[/]]');
+    prose('d','No telemetry, no account, no server.');row('');
+    row('  [[w]]It will not guess.[[/]]');
+    prose('d','A failed parse shows NO QUOTA PARSED and the raw screen - never an invented number.');
+    row('');foot('');blank();return;}
   head('THINGS IT WILL NOT DO');row('');
   row('  [[w]]It will not ask for a key to read your agents.[[/]]');
-  row('  [[d]]You are already logged into these tools. It reads what they[[/]]');
-  row('  [[d]]write to your own disk. There is no credential to lose.[[/]]');row('');
+  row('  [[d]]Plan quota and token volume come from files your agents[[/]]');
+  row('  [[d]]already write to your own disk. Nothing to paste, nothing[[/]]');
+  row('  [[d]]to leak.[[/]]');row('');
+  row('  [[w]]The optional spend panel is the exception.[[/]]');
+  row('  [[d]]Dollar spend needs a vendor key: stored 0600, never passed[[/]]');
+  row('  [[d]]as an argument, refused outright if group- or world-readable.[[/]]');
+  row('  [[d]]Leave spend off and no credential is involved at all.[[/]]');row('');
   row('  [[w]]It will not phone home.[[/]]');
   row('  [[d]]No telemetry, no account, no server. What you spend is[[/]]');
   row('  [[d]]nobody\'s business, mine included.[[/]]');row('');
@@ -557,6 +730,17 @@ var C={
   row('');foot('the optional spend panel takes keys - yours, 0600, your own billing');blank();},
 
  doctor:function(){blank();
+  if(MOBILE){
+    head('DOCTOR');row('');
+    prose('f','what it prints on the author\'s machine - yours will differ:');row('');
+    [['claude','~/.claude/projects','342 transcripts',1],
+     ['codex','~/.codex/sessions','211 threads',1],
+     ['grok','~/.grok','3 sessions',1],
+     ['gemini','not installed','write a provider',0]].forEach(function(d){
+      row('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]')+' [[w]]'+pad(d[0],9)+'[[/]]'
+          +(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]');
+      row('    [[d]]'+d[1]+'[[/]]');row('');});
+    foot('');blank();return;}
   head('DOCTOR','this is what it prints on your machine, not here');row('');
   [['claude','~/.claude/projects','342 transcripts',1],
    ['codex','~/.codex/sessions','211 threads',1],
@@ -567,6 +751,15 @@ var C={
   row('');foot('');blank();},
 
  open:function(){blank();
+  if(MOBILE){
+    head('READ THE SOURCE');row('');
+    prose('d','A tool that can see every token you spend should not be trusted on faith. So do not trust it.');row('');
+    prose('w','The whole thing is one Python file.');
+    prose('d','About 1,600 lines. No dependency tree, nothing minified. Read it end to end and know exactly what it does with your data, which is nothing.');row('');
+    prose('y','Fork it. Ship it. Sell it. Rename it.');
+    prose('d','MIT means all of that is yours. Teach it a tool I have never used, and send that part back.');row('');
+    row('  [[c]]github.com/omnigauge/omnigauge[[/]]');
+    row('');foot('');blank();return;}
   head('DO NOT TAKE MY WORD FOR IT','MIT - one file - no dependencies');row('');
   row('  [[d]]A tool that can see every token you spend is exactly the kind[[/]]');
   row('  [[d]]you should not trust on faith. So do not.[[/]]');row('');
@@ -581,6 +774,24 @@ var C={
   foot('every provider on the board was somebody\'s afternoon');blank();},
 
  donate:function(){blank();
+  if(MOBILE){
+    head('DONATE');row('');
+    prose('d','MIT and stays that way. No paid tier, nothing held back, nothing gated on this.');row('');
+    row('  [[w]]Solana[[/]]');
+    row('');foot('optional, and it changes nothing');
+    line('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]','cmd');
+    (function(){var b=out.querySelectorAll('b.y');
+      for(var i=b.length-1;i>=0;i--)
+        if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
+          b[i].title='double-click to copy';break;}})();
+    blank();
+    head('NO TOKEN');row('');
+    prose('w','There will be no OmniGauge token from the developer of OmniGauge.');
+    prose('d','No presale. No airdrop. No Phase 3. Anyone can launch one - the ask is creator fees plus 3% of supply to the address above, socials pointed at @OmniGauge and omnigauge.dev, and no LARPing as this project.');row('');
+    prose('w','X is the only place OmniGauge exists.');
+    prose('d','No Discord, no Telegram, no "community". Anywhere else is not us.');row('');
+    prose('f','If you launch one, say so - the email on the GitHub profile is the channel. A listing is not an endorsement. DYOR.');
+    row('');foot('double-click the address to copy');blank();return;}
   head('DONATE','optional, and it changes nothing');row('');
   row('  [[d]]OmniGauge is MIT and stays that way. No paid tier, no hosted[[/]]');
   row('  [[d]]version waiting behind it, no feature held back. Nothing here[[/]]');
@@ -625,13 +836,16 @@ var C={
     'git clone https://github.com/omnigauge/omnigauge.git\n'+
     'install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge\n'+
     'omnigauge --refresh');
-  blank();line('  [[g]]Copied[[/]] [[d]]- three install lines on your clipboard[[/]]');blank();},
+  blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- three install lines[[/]]'
+    :'  [[g]]Copied[[/]] [[d]]- three install lines on your clipboard[[/]]');blank();},
  wallet:function(){navigator.clipboard.writeText(
     'BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx');
-  blank();line('  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');blank();},
+  blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- Solana address[[/]]'
+    :'  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');blank();},
 
  saver:function(){blank();
-   line('  [[d]]Screen going dark. Any key brings it back.[[/]]');blank();bottom();
+   line(MOBILE?'  [[d]]Going dark. Tap to come back.[[/]]'
+     :'  [[d]]Screen going dark. Any key brings it back.[[/]]');blank();bottom();
    setTimeout(goDark,420);},
 
  cls:function(){out.innerHTML='';},
@@ -781,7 +995,7 @@ function dialog(title,body){
   document.getElementById('mb').innerHTML=body;
   modal.classList.add('on'); document.getElementById('mok').focus();
 }
-function closeDialog(){modal.classList.remove('on');inp.focus();}
+function closeDialog(){modal.classList.remove('on');if(!MOBILE)inp.focus();}
 document.getElementById('mok').addEventListener('click',closeDialog);
 modal.addEventListener('click',function(e){
   if(e.target===modal||e.target.hasAttribute('data-close'))closeDialog();});
@@ -798,14 +1012,29 @@ C.about=function(){dialog('About OmniGauge',
 
 /* ── DOS-era commands, answered in character ───────────────────────────────── */
 C.ver=function(){blank();line('  [[w]]OmniGauge [Version 1.0][[/]]');
+  if(MOBILE){line('  [[f]](c) 2026 · MIT[[/]]');
+    line('  [[f]]no rights reserved worth mentioning[[/]]');blank();return;}
   line('  [[f]](c) 2026 · MIT · no rights reserved worth mentioning[[/]]');blank();};
 C.mem=function(){blank();
+  if(MOBILE){
+    line('  [[d]]655,360 bytes free[[/]]');
+    line('  [[f]]2,032,000,000 tokens this week -[[/]]');
+    line('  [[f]]the number that actually costs[[/]]');
+    line('  [[f]]you something[[/]]');blank();return;}
   line('  [[d]]    655,360 bytes total conventional memory[[/]]');
   line('  [[d]]    655,360 bytes free[[/]]');
   line('  [[f]]  2,032,000,000 tokens burned this week - that is the number[[/]]');
   line('  [[f]]  that actually costs you something[[/]]');blank();};
 C.dir=function(){blank();
   line('  [[d]] Volume in drive C is OMNIGAUGE[[/]]');blank();
+  if(MOBILE){
+    [['OMNIGAUGE','','one file, ~1,600 lines'],
+     ['PROVIDERS','<DIR>','claude.py, the example'],
+     ['INSTALL','SH','copies to ~/.local/bin'],['LICENSE','','MIT']]
+    .forEach(function(f){
+      line('  [[w]]'+pad(f[0],10)+'[[/]][[d]]'+f[1]+'[[/]]');
+      line('    [[d]]'+f[2]+'[[/]]');});
+    blank();return;}
   [['OMNIGAUGE','','one file, ~1,600 lines'],['PROVIDERS','<DIR>','claude.py - the worked example'],
    ['INSTALL','SH','copies one file to ~/.local/bin'],['LICENSE','','MIT']]
   .forEach(function(f){line('  [[w]]'+pad(f[0],12)+'[[/]][[d]]'+pad(f[1],8)+f[2]+'[[/]]');});
@@ -905,12 +1134,14 @@ function fit(){
   var pad=parseFloat(getComputedStyle(document.getElementById('scr')).paddingLeft)*2;
   var avail=document.documentElement.clientWidth-pad-2;
   var size=avail/per;
-  // floor keeps a phone legible; ceiling keeps a desktop from turning an
-  // 80-column terminal into a billboard — a terminal should sit in a screen,
-  // not fill it
-  size=Math.max(6.2,Math.min(14.5,size));
+  var wantMobile=size<9;
+  if(wantMobile!==MOBILE){setMode(wantMobile); if(booted)rerender();}
+  if(MOBILE)size=avail/(per/78*42);
+  size=Math.max(6.2,Math.min(MOBILE?15:14.5,size));
   document.documentElement.style.setProperty('--fs',size.toFixed(2)+'px');
 }
+var booted=false;
+function rerender(){out.innerHTML='';LIVE.dry=LIVE.today=null;start(true);}
 fit();
 addEventListener('resize',fit);
 addEventListener('orientationchange',function(){setTimeout(fit,120);});
@@ -922,6 +1153,14 @@ function clock(){var d=new Date();
 clock();setInterval(clock,20000);
 
 /* ── power-on self test ──────────────────────────────────────────────────── */
+var POST_M=[
+ '[[w]]OmniGauge BIOS v1.0[[/]]',
+ '',
+ '[[d]]Counting tokens ...[[/]] [[CNT]] [[g]]OK[[/]]',
+ '[[d]]claude OK · codex OK · grok OK[[/]]',
+ '',
+ '[[f]]MIT · one file · read it first[[/]]',
+ ''];
 var POST=[
  '[[w]]OmniGauge BIOS v1.0[[/]] [[f]]· one gauge for every plan you pay for[[/]]',
  '',
@@ -945,15 +1184,15 @@ function final(txt){
   return paint(txt).replace('[[CNT]]','<b class="w"><i id="cnt">0</i></b>');
 }
 var postSkip=false;
-function start(){
-  blank(); wordmark(); blank(); blank();
+function start(instant){
+  blank(); wordmark(); blank(); if(!MOBILE)blank();
   addEventListener('keydown',function skip(){
     postSkip=true;removeEventListener('keydown',skip);});
-  var i=0;
+  var i=0, SEQ=MOBILE?POST_M:POST;
   (function step(){
-    if(i<POST.length){
-      var txt=POST[i++], el=line('');
-      if(RM||postSkip||!txt.trim()){el.innerHTML=final(txt||' ');bottom();setTimeout(step,0);return;}
+    if(i<SEQ.length){
+      var txt=SEQ[i++], el=line('');
+      if(RM||instant||postSkip||!txt.trim()){el.innerHTML=final(txt||' ');bottom();setTimeout(step,0);return;}
       var plain=txt.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').replace('[[CNT]]','0'), j=0;
       (function type(){
         if(postSkip){el.innerHTML=final(txt);bottom();setTimeout(step,0);return;}
@@ -970,10 +1209,18 @@ function start(){
         if(k<1)requestAnimationFrame(up);})(t0);}
     else if(cn)cn.textContent=(2032000000).toLocaleString();
     board();blank();
-    line('  [[f]]Type[[/]] [[y]]help[[/]][[f]], or press[[/]] [[y]]F2[[/]] [[f]]if you are wondering what this is for.[[/]]');
+    if(MOBILE)
+      line('  [[f]]Tap[[/]] [[y]]Why[[/]] [[f]]below if you are wondering.[[/]]');
+    else
+      line('  [[f]]Type[[/]] [[y]]help[[/]][[f]], or press[[/]] [[y]]F2[[/]] [[f]]if you are wondering what this is for.[[/]]');
     blank();
-    prom.style.display='flex';inp.focus();bottom();
-    if(!RM)setInterval(tick,1000);
+    prom.style.display='flex';if(!MOBILE)inp.focus();bottom();
+    if(!booted&&!RM)setInterval(tick,1000);
+    if(MOBILE&&!booted)dialog('Small screen detected',
+     '<b class="w">Condensed instrument loaded.</b>\n\n'+
+     '<b class="d">OmniGauge folded itself to fit. The full cockpit - every panel, every command, the function keys - runs on desktop.</b>\n\n'+
+     '<b class="f">Worth a return trip.</b>');
+    booted=true;
   })();
 }
 function tick(){
@@ -987,6 +1234,7 @@ function tick(){
 start();
 /* headless deploy gate: lets tests/site_harness.js drive the real renderer
    and measure real rendered rows. Not an API; do not build on it. */
-window.__og={run:run,out:out,vis:vis};
+window.__og={run:run,out:out,vis:vis,W:function(){return W;},
+  mode:function(m){setMode(m);out.innerHTML='';}};
 })();
 </script>

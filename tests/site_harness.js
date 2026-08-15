@@ -1,10 +1,16 @@
 /* Minimal DOM, real renderer. Loads the site script from site/index.html,
-   boots it, drives every text command, and MEASURES the rendered rows —
-   the page's width invariant broke once as arithmetic and once as a glyph,
-   and both were only ever caught by measuring.
+   boots it, drives every text command IN BOTH MODES, and MEASURES the
+   rendered rows — the page's width invariant broke once as arithmetic and
+   once as a glyph, and both were only ever caught by measuring.
+
+   Desktop is a 78-column grid; mobile is 42. Panel rows must measure the
+   grid exactly; loose lines must fit inside it. The one exemption is the
+   `cmd` class — a copyable string longer than the mobile grid (an install
+   command, the donation address) that CSS soft-wraps while the text stays
+   one selectable line. Those are exempt from width, never from glyphs.
 
    Run: node tests/site_harness.js site/index.html
-   Exit 0 = every panel row is exactly 78 columns and carries no
+   Exit 0 = every measured row obeys its mode's grid and carries no
    fallback-risk glyph. Nonzero = the failure list is on stdout. */
 'use strict';
 const fs = require('fs');
@@ -72,42 +78,61 @@ global.open = () => {};
 
 eval(m[1]);
 
-// The POST chain steps through zero-delay timeouts; measure after it drains.
-setTimeout(() => {
-  const og = global.__og;
-  if (!og) { console.error('window.__og hook missing'); process.exit(2); }
-  for (const c of ['help', 'why', 'board', 'install', 'providers', 'legend',
-                   'privacy', 'doctor', 'open', 'donate', 'ver', 'mem', 'dir']) {
-    og.run(c);
-  }
+const CMDS = ['help', 'why', 'board', 'install', 'providers', 'legend',
+              'privacy', 'doctor', 'open', 'donate', 'ver', 'mem', 'dir',
+              'copy', 'wallet', 'exit'];
 
-  // The ban covers EVERY emitted line, loose ones included - checking only
-  // panel rows left five survivors, one of them in a panel header.
-  const banned = /[—–“”→▟▛▎▋▁▂▃▄▅▆▇]/;
-  let rows = 0, loose = 0, bad = [];
+// The ban covers EVERY emitted line, loose ones included - checking only
+// panel rows left five survivors, one of them in a panel header.
+const banned = /[—–“”→▟▛▎▋▁▂▃▄▅▆▇]/;
+
+function measure(og, label, width, bad) {
+  let rows = 0, loose = 0;
   for (const child of og.out.children) {
     if (/\bpan\b/.test(child.className)) {
       for (const r of child.children) {
         const t = r.textContent;
         rows++;
-        if (t.length !== 78) bad.push(`len ${t.length}: ${JSON.stringify(t)}`);
+        if (t.length !== width)
+          bad.push(`${label} len ${t.length} (want ${width}): ${JSON.stringify(t)}`);
         const g = t.match(banned);
-        if (g) bad.push(`glyph ${JSON.stringify(g[0])}: ${JSON.stringify(t)}`);
+        if (g) bad.push(`${label} glyph ${JSON.stringify(g[0])}: ${JSON.stringify(t)}`);
       }
     } else {
       const t = child.textContent;
       loose++;
       const g = t.match(banned);
-      if (g) bad.push(`glyph ${JSON.stringify(g[0])} in loose line: ${JSON.stringify(t)}`);
+      if (g) bad.push(`${label} glyph ${JSON.stringify(g[0])} in loose line: ${JSON.stringify(t)}`);
+      if (!/\bcmd\b/.test(child.className) && t.trimEnd().length > width)
+        bad.push(`${label} loose len ${t.trimEnd().length} > ${width}: ${JSON.stringify(t)}`);
     }
   }
-  if (rows < 100) bad.push(`only ${rows} panel rows measured - the drive did not run`);
+  if (rows < 100) bad.push(`${label}: only ${rows} panel rows measured - the drive did not run`);
+  return { rows, loose };
+}
+
+// The POST chain steps through zero-delay timeouts; measure after it drains.
+setTimeout(() => {
+  const og = global.__og;
+  if (!og) { console.error('window.__og hook missing'); process.exit(2); }
+  const bad = [];
+
+  for (const c of CMDS) og.run(c);
+  if (og.W() !== 78) bad.push(`desktop mode W=${og.W()}, expected 78`);
+  const d = measure(og, 'desktop', 78, bad);
+
+  og.mode(true);
+  if (og.W() !== 42) bad.push(`mobile mode W=${og.W()}, expected 42`);
+  for (const c of CMDS) og.run(c);
+  const mo = measure(og, 'mobile', 42, bad);
+  og.mode(false);
+
   if (bad.length) {
-    console.error(`FAIL: ${bad.length} problem(s) across ${rows} panel + ${loose} loose rows`);
-    for (const b of bad.slice(0, 20)) console.error('  ' + b);
+    console.error(`FAIL: ${bad.length} problem(s) across desktop ${d.rows}+${d.loose} / mobile ${mo.rows}+${mo.loose} rows`);
+    for (const b of bad.slice(0, 25)) console.error('  ' + b);
     process.exit(1);
   }
-  console.log(`OK: ${rows} panel rows all exactly 78 columns; ` +
-              `${rows + loose} total lines free of fallback-risk glyphs`);
+  console.log(`OK: desktop ${d.rows} panel rows at 78 cols, mobile ${mo.rows} panel rows at 42 cols; ` +
+              `${d.rows + d.loose + mo.rows + mo.loose} total lines free of fallback-risk glyphs`);
   process.exit(0);
 }, 150);
