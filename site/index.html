@@ -108,7 +108,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
    of the box's centre and the page reads as left-aligned even though it is not.
    Optical centring: shift right by roughly half the shortfall. --nudge is the
    only knob; raise it to push further right, set it to 0 for true geometry. */
-:root{--nudge:6ch}
+:root{--nudge:10ch}
 #page{width:max-content;margin:0 auto;padding-bottom:1.2em;
       transform:translateX(var(--nudge))}
 @media (max-width:820px){:root{--nudge:0ch}}   /* no room to spare on a phone */
@@ -900,15 +900,11 @@ inp.addEventListener('keydown',function(e){
 });
 var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
 addEventListener('keydown',function(e){
-  /* Alt+S, not F11. F11 belongs to the browser chrome — Firefox handles it
-     before the page is dispatched at all, so preventDefault has nothing to
-     prevent and the keydown simply never arrives. F11 is still attempted for
-     the browsers that do deliver it, but Alt+S is the one that is advertised
-     because it is the one that always works. */
+  /* Alt+S only. F11 belongs to the browser - a person pressing it wants
+     fullscreen, and answering with a screensaver hijacks that intent. */
   if((e.key==='s'||e.key==='S')&&e.altKey&&!e.ctrlKey&&!e.metaKey){
     e.preventDefault(); goDark(); return;
   }
-  if(e.key==='F11'){ e.preventDefault(); goDark(); return; }
   if(modal.classList.contains('on')){
     if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();}
     else if(e.key==='Tab'){
@@ -1265,10 +1261,10 @@ function start(instant){
     blank();
     prom.style.display='flex';if(!MOBILE)inp.focus();bottom();
     if(!booted&&!RM)setInterval(tick,1000);
-    if(MOBILE&&!booted)dialog('Small screen detected',
-     '<b class="w">Condensed instrument loaded.</b>\n\n'+
-     '<b class="d">OmniGauge folded itself to fit. The full cockpit - every panel, every command, the function keys - runs on desktop.</b>\n\n'+
-     '<b class="f">Worth a return trip.</b>');
+    if(MOBILE&&!booted)dialog('Mobile view',
+     '<b class="d">Condensed to fit this screen.</b>\n'+
+     '<b class="f">'+'─'.repeat(22)+'</b>\n'+
+     '<b class="w">Get the full picture on your desktop.</b>');
     booted=true;
   })();
 }
