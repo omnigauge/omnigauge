@@ -291,9 +291,15 @@ function wordmark(){
 
 /* ── live figures ────────────────────────────────────────────────────────── */
 var S={dry:15120,tok:2.032,burn:180};
-/* eight block heights is enough to show a shape, and a shape is the point */
-function spark(v){var B='▁▂▃▄▅▆▇█',mx=Math.max.apply(null,v);
-  return v.map(function(x){return B[Math.min(7,Math.round(x/mx*7))];}).join(' ');}
+/* Height was the obvious way to draw a week, and it cost seven partial-block
+   glyphs — the same family that rendered the CLI panels ragged, because a font
+   without them substitutes a face with a different advance. Intensity carries
+   the shape instead: one glyph the terminals all have, four colour steps. */
+function spark(v){var mx=Math.max.apply(null,v);
+  return v.map(function(x){
+    var k=x/mx, c=k>=.85?'r':k>=.6?'y':k>=.3?'g':'f';
+    return '[['+c+']]█[[/]]';
+  }).join(' ');}
 function fmt(s){var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%60);
   return h+':'+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0');}
 
@@ -324,7 +330,7 @@ function board(){
   row('  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]');
   row('  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]');
   row('');
-  row('  [[f]]last 7 days[[/]]    [[c]]'+spark([31,44,38,72,66,91,97])+'[[/]]  [[f]]Mon → Sun[[/]]');
+  row('  [[f]]last 7 days[[/]]    [[c]]'+spark([31,44,38,72,66,91,97])+'  [[f]]Mon - Sun[[/]]');
   row('');
   foot('representative figures · the tool reads yours');
 }
