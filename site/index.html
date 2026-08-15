@@ -1,0 +1,730 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OmniGauge — every AI plan you pay for, on one screen</title>
+<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. No API keys, no telemetry, no network calls of its own.">
+<meta property="og:title" content="OmniGauge">
+<meta property="og:description" content="Every AI plan you pay for, on one screen.">
+<meta property="og:image" content="https://omnigauge.dev/banner.png">
+<meta property="og:url" content="https://omnigauge.dev">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0a1746">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Turbo Vision, rebuilt rather than emulated.
+
+   1985 chose that blue because CGA had sixteen colours and blue was the one
+   that did not hurt after eight hours. The palette here keeps the relationships
+   — blue field, cyan structure, yellow for the thing that needs you — and drops
+   the parts that were hardware limits: #0000AA is corrected to a blue with some
+   depth, the drop shadows are real alpha instead of a dithered character, and
+   the type is hinted rather than a 9x16 ROM bitmap.
+
+   No fonts, no CDN, no analytics, no framework. One file. A tool whose claim is
+   that it makes no network calls should not have a homepage that phones out.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root{
+  /* CGA had sixteen colours and used all of them at once because it could.
+     A modern reading keeps the relationships and drops the shouting: the field
+     desaturates, the structure recedes, and saturation is spent only where a
+     number needs you. Nothing here is at full chroma except a critical row. */
+  --field:#091228;      /* the desktop */
+  --panel:#0e1b3c;      /* raised surface, barely above the field */
+  --edge:#22345f;       /* panel border */
+  --shadow:rgba(1,4,14,.45);
+  --white:#dbe3f2; --cyan:#5aa6c9; --yellow:#c9974f; --gray:#7d8cae;
+  --dim:#4e5c7d; --red:#c47070; --green:#6ea888;
+  --barbg:#8d9cbe; --barink:#091228; --hot:#7d2f2f;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,"DejaVu Sans Mono",Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{color:var(--white);font-family:var(--mono);
+     /* the famous desktop was never a flat fill — it was a ▒ dither, because a
+        flat expanse of CGA blue banded horribly. Rendered here as a 4px dot
+        lattice at 3% instead of a character, which is what it always wanted
+        to be. */
+     background-color:var(--field);
+     background-image:radial-gradient(circle at 1px 1px,rgba(150,185,255,.045) 1px,transparent 0);
+     background-size:4px 4px;
+     font-size:13px;line-height:1.38;overflow:hidden;
+     -webkit-font-smoothing:antialiased;text-rendering:optimizeSpeed}
+/* set by fit(): one number drives the whole interface, so a phone gets the
+   same 78 columns as a 5K display rather than a different, worse layout */
+html{--fs:13px}
+body{font-size:var(--fs)}
+
+/* the faintest nod to a phosphor mask — present, never a costume */
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.010) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay}
+
+/* ── menu bar ─────────────────────────────────────────────────────────────── */
+#menu{position:fixed;top:0;left:0;right:0;height:1.65em;background:var(--barbg);
+  color:var(--barink);display:flex;align-items:center;gap:1.5em;padding:0 1.1em;z-index:60;
+  font-size:.94em;letter-spacing:.02em;box-shadow:0 .18em .45em rgba(1,4,14,.35)}
+#menu span{cursor:pointer;user-select:none;padding:0 .35em}
+#menu span:hover{background:var(--barink);color:var(--barbg)}
+#menu u{color:var(--hot);text-decoration:none}
+#menu .rt{margin-left:auto;color:#4a5c8c}
+#menu span.on{background:var(--barink);color:var(--barbg)}
+#drop{position:fixed;z-index:70;background:var(--barbg);color:var(--barink);
+  box-shadow:.5em .3em 0 var(--shadow);border:1px solid #8fa0c8;display:none;
+  padding:.25em 0;min-width:15em;font-size:.96em}
+#drop div{padding:.12em 1.1em;cursor:pointer;white-space:nowrap}
+#drop div:hover{background:var(--barink);color:var(--barbg)}
+#drop u{color:var(--hot);text-decoration:none}
+#drop div:hover u{color:var(--yellow)}
+#drop hr{border:0;border-top:1px solid #8fa0c8;margin:.25em 0}
+
+/* ── screen ───────────────────────────────────────────────────────────────── */
+#scr{height:100%;overflow-y:auto;overflow-x:hidden;padding:2.7em .6em 3.2em;
+  scrollbar-width:thin;scrollbar-color:#2f56b8 transparent}
+#scr::-webkit-scrollbar{width:9px}
+#scr::-webkit-scrollbar-thumb{background:#2f56b8}
+#page{width:max-content;margin:0 auto;padding-bottom:1.2em}   /* the 78 columns, centred at any size */
+#out{white-space:pre}
+b{font-weight:400}
+.c{color:var(--cyan)} .y{color:var(--yellow)} .g{color:var(--green)}
+.r{color:var(--red)}  .d{color:var(--gray)}   .f{color:var(--dim)}
+.w{color:var(--white)}
+a{color:var(--cyan)}
+
+/* Turbo Vision drew its shadow with ░ characters. This is that idea with alpha. */
+.pan{display:block;width:max-content;background:var(--panel);background-image:none;padding:.2em .6em;
+  box-shadow:.5em .32em 0 var(--shadow);border:0;margin:.15em 0 .5em}
+
+.ln{display:flex;align-items:baseline;gap:0;margin-top:.9em;flex-wrap:wrap;
+  border-top:1px solid rgba(120,150,220,.10);padding-top:.75em}
+.ps{color:var(--yellow);flex:none;margin-right:.6ch}
+/* sized to its own content in ch units — a monospace ch IS the advance width,
+   so the block cursor lands exactly where the next character will. flex:1 put
+   the input across the whole row and pushed the cursor to the far margin. */
+#in{background:transparent;border:0;outline:0;color:var(--white);font:inherit;
+  flex:none;width:1ch;min-width:0;padding:0;caret-color:transparent}
+#cur{flex:none;color:var(--white);animation:bl 1.06s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+
+/* ── function key bar ─────────────────────────────────────────────────────── */
+#keys{position:fixed;left:0;right:0;bottom:0;height:1.7em;display:flex;
+  align-items:stretch;z-index:60;font-size:.9em;background:var(--field);
+  box-shadow:0 -.18em .45em rgba(1,4,14,.35)}
+#keys b{display:flex;align-items:center;color:var(--dim);padding:0 .4em 0 .55em;flex:none}
+#keys i{display:flex;align-items:center;background:var(--barbg);color:var(--barink);
+  padding:0 .65em;font-style:normal;cursor:pointer;flex:none;letter-spacing:.01em}
+#keys i:hover{background:var(--white)}
+#keys .sp{flex:1;background:var(--field)}
+
+@media (prefers-reduced-motion:reduce){#cur{animation:none}body::after{display:none}}
+/* the Turbo Vision dialog: centred, double border, hard shadow, one button
+   that already has focus — because in 1985 you could not assume a mouse */
+#modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;
+  justify-content:center;background:rgba(4,10,34,.35)}
+#modal.on{display:flex}
+#modal .box{background:var(--panel);box-shadow:.7em .45em 0 var(--shadow);
+  border:1px solid var(--edge);min-width:min(46em,92vw);max-width:92vw}
+#modal .tb{background:var(--barbg);color:var(--barink);padding:.1em .8em;
+  display:flex;justify-content:space-between;align-items:center}
+#modal .tb u{color:var(--hot);text-decoration:none;cursor:pointer;padding:0 .3em}
+#modal .bd{padding:1em 1.4em .6em;white-space:pre-wrap;color:var(--white)}
+#modal .bt{padding:.4em 0 1em;text-align:center}
+#modal button{font:inherit;background:var(--barbg);color:var(--barink);border:0;
+  padding:.15em 2.2em;cursor:pointer;box-shadow:.35em .25em 0 var(--shadow)}
+#modal button:hover,#modal button:focus{background:var(--white);outline:0}
+
+/* a critical reading should not sit there politely */
+@keyframes bk{0%,100%{opacity:1}50%{opacity:.55}}
+.crit b.r:first-child{animation:bk 1.9s ease-in-out infinite}
+
+/* DOS screensavers existed because phosphor burned. This one is a joke that
+   knows it is a joke, and any key kills it. */
+#saver{position:fixed;inset:0;z-index:90;background:var(--field);display:none;
+  overflow:hidden;cursor:none}
+#saver.on{display:block}
+#saver div{position:absolute;white-space:pre;color:var(--cyan);font-size:1.05em}
+
+#crt{position:fixed;inset:0;z-index:95;background:#cfe0f5;pointer-events:none;
+  animation:strike .42s ease-out forwards}
+@keyframes strike{
+  0%{opacity:.95;transform:scaleY(.004)}
+  22%{opacity:.75;transform:scaleY(.03)}
+  48%{opacity:.30;transform:scaleY(1)}
+  100%{opacity:0;transform:scaleY(1)}}
+@media (prefers-reduced-motion:reduce){#crt{display:none}}
+
+noscript div{white-space:normal;max-width:68ch;color:var(--gray);padding:1em 0}
+noscript h1{color:var(--white);font-size:1.5em;margin-bottom:.4em}
+noscript pre{color:var(--cyan);margin:.8em 0}
+</style>
+
+<div id="crt"></div>
+<div id="menu">
+  <span data-m="gauge"><u>G</u>auge</span>
+  <span data-m="view"><u>V</u>iew</span>
+  <span data-m="help"><u>H</u>elp</span>
+  <span class="rt" id="clock">--:--</span>
+</div>
+<div id="drop"></div>
+
+<div id="scr">
+<noscript><div>
+  <h1>OmniGauge</h1>
+  <p>Every AI plan you pay for, on one screen. Claude Code, OpenAI Codex and Grok CLI —
+  plan quota, token volume, burn rate and time to reset, side by side in your terminal.</p>
+  <p>Each vendor reports usage in a different unit, over a different window, in a different
+  direction. Codex counts down, Claude counts up, Grok gives raw tokens against a cap, Gemini
+  says "limited". OmniGauge normalizes all of it to percent consumed against a common window,
+  so you can see which plan runs out first.</p>
+  <p>No API keys — it reads what your agents already write to disk. No telemetry. No network
+  calls of its own. One Python file, no dependencies, MIT.</p>
+  <pre>git clone https://github.com/omnigauge/omnigauge.git
+install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
+omnigauge --refresh</pre>
+  <p><a href="https://github.com/omnigauge/omnigauge">github.com/omnigauge/omnigauge</a></p>
+</div></noscript>
+<div id="page"><div id="out"></div>
+<div class="ln" id="prompt" style="display:none">
+  <span class="ps">C:\OMNIGAUGE&gt;</span><input id="in" size="1" autocomplete="off"
+    autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="command line">
+  <span id="cur">█</span>
+</div>
+</div></div>
+
+<div id="modal"><div class="box" role="dialog" aria-modal="true">
+  <div class="tb"><span id="mt">About</span><u data-close>■</u></div>
+  <div class="bd" id="mb"></div>
+  <div class="bt"><button id="mok">&nbsp;OK&nbsp;</button></div>
+</div></div>
+<div id="saver"><div id="sv"></div></div>
+<div id="keys">
+  <b>F1</b><i data-c="about">About</i>
+  <b>F2</b><i data-c="why">Why</i>
+  <b>F3</b><i data-c="board">Board</i>
+  <b>F4</b><i data-c="install">Install</i>
+  <b>F5</b><i data-c="providers">Providers</i>
+  <b>F6</b><i data-c="privacy">Privacy</i>
+  <b>F7</b><i data-c="donate">Donate</i>
+  <b>F8</b><i data-c="open">Source</i>
+  <b>F9</b><i data-c="help">Cmds</i>
+  <span class="sp"></span>
+  <b>F10</b><i data-c="github">GitHub</i>
+</div>
+
+<script>
+(function(){
+var RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+var out=document.getElementById('out'),scr=document.getElementById('scr'),
+    inp=document.getElementById('in'),prom=document.getElementById('prompt');
+var W=78, IN=W-2;
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function vis(s){return s.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,'').length;}
+function pad(s,n){return s+' '.repeat(Math.max(0,n-vis(s)));}
+function rpad(s,n){return ' '.repeat(Math.max(0,n-vis(s)))+s;}
+/* Column widths live in one place. A number column that is left-padded puts
+   24%, 0% and 97% at three different columns, which is exactly the comparison
+   the whole tool exists to make possible. */
+var COL={mark:4,agent:18,window:9,bar:20,used:8,reset:12};
+function paint(s){return esc(s).replace(/\[\[([cygrdfw])\]\]/g,'<b class="$1">')
+  .replace(/\[\[\/\]\]/g,'</b>');}
+function line(s,cls){var d=document.createElement('div');
+  if(cls)d.className=cls;d.innerHTML=paint(s||' ');out.appendChild(d);return d;}
+function blank(){line(' ');}
+function bottom(){scr.scrollTop=scr.scrollHeight;}
+
+/* ── double-line panels, the way DOS drew a dialog ───────────────────────── */
+var open=null;
+function pan(){var d=document.createElement('div');d.className='pan';
+  out.appendChild(d);open=d;return d;}
+function put(s){var d=document.createElement('div');d.innerHTML=paint(s||' ');
+  (open||out).appendChild(d);return d;}
+function head(t,sub){
+  pan();
+  var l='[[c]]╔══[[/]][[w]]▌ '+t+' ▐[[/]]', r=sub?'[[d]] '+sub+' [[/]]':'';
+  put(l+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(l)-vis(r)+1))+'[[/]]'+r+'[[c]]╗[[/]]');
+}
+function row(t){return put('[[c]]║[[/]]'+pad(t||'',IN)+'[[c]]║[[/]]');}
+/* A meter that is simply present has no weight. Filling it costs 420ms and
+   makes the number feel measured rather than asserted. */
+function meter(el,build,target){
+  if(RM){el.innerHTML=paint(build(target));return;}
+  var t0=null;
+  requestAnimationFrame(function step(t){
+    if(t0===null)t0=t;
+    var k=Math.min(1,(t-t0)/420), e=1-Math.pow(1-k,3);
+    el.innerHTML=paint(build(target*e));
+    if(k<1)requestAnimationFrame(step);
+  });
+}
+function foot(n){
+  if(n){var s='[[d]] '+n+' [[/]]';
+    put('[[c]]╚══[[/]]'+s+'[[c]]'+'═'.repeat(Math.max(2,IN-vis(s)-2))+'╝[[/]]');}
+  else put('[[c]]╚'+'═'.repeat(IN)+'╝[[/]]');
+  open=null;
+}
+function bar(p,w){w=w||20;
+  var full=Math.round(p/100*w), col=p>=90?'r':p>=70?'y':p>=1?'g':'f';
+  return '[['+col+']]'+'▓'.repeat(full)+'[[/]][[f]]'+'·'.repeat(Math.max(0,w-full))+'[[/]]';
+}
+
+
+/* A 5x5 block font, because the machines that owned this blue had no other way
+   to set type large. Nine glyphs is all this word needs. */
+var GLY={
+ O:['█████','█   █','█   █','█   █','█████'],
+ M:['█   █','██ ██','█ █ █','█   █','█   █'],
+ N:['█   █','██  █','█ █ █','█  ██','█   █'],
+ I:['█████','  █  ','  █  ','  █  ','█████'],
+ G:['█████','█    ','█  ██','█   █','█████'],
+ A:['█████','█   █','█████','█   █','█   █'],
+ U:['█   █','█   █','█   █','█   █','█████'],
+ E:['█████','█    ','████ ','█    ','█████']};
+function wordmark(){
+  var a='OMNI'.split(''), b='GAUGE'.split('');
+  for(var r=0;r<5;r++){
+    var L=a.map(function(ch){return GLY[ch][r];}).join(' ');
+    var R=b.map(function(ch){return GLY[ch][r];}).join(' ');
+    line('  [[c]]'+L+'[[/]] [[d]]'+R+'[[/]]');
+  }
+}
+
+/* ── live figures ────────────────────────────────────────────────────────── */
+var S={dry:15120,tok:2.032,burn:180};
+/* eight block heights is enough to show a shape, and a shape is the point */
+function spark(v){var B='▁▂▃▄▅▆▇█',mx=Math.max.apply(null,v);
+  return v.map(function(x){return B[Math.min(7,Math.round(x/mx*7))];}).join(' ');}
+function fmt(s){var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%60);
+  return h+':'+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0');}
+
+function board(){
+  head('PLAN QUOTA','normalized to % consumed');
+  row('');
+  row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)+pad('WINDOW',COL.window)+pad('',COL.bar)+rpad('USED',COL.used)+rpad('RESETS IN',COL.reset)+'[[/]]');
+  [['claude','week',24,'4d 09h'],['claude','session',5,'12:19am'],
+   ['codex','week',97,'5d 02h'],['codex/spark','week',0,'6d 23h'],
+   ['grok/x premium+','week',26,'2d 16h']].forEach(function(r){
+    var crit=r[2]>=90;
+    var build=function(v){
+      var m=r[2]>=1?(crit?'[[r]]■[[/]]':'[[g]]■[[/]]'):'[[f]]□[[/]]';
+      return '[[c]]║[[/]]'+pad(pad('  '+m,COL.mark)+pad(r[0],COL.agent)
+        +pad(r[1],COL.window)+bar(v)
+        +rpad(Math.round(v)+'%',COL.used)+rpad(r[3],COL.reset),IN)+'[[c]]║[[/]]';
+    };
+    var el=row(''); meter(el,build,r[2]);
+    if(crit)el.classList.add('crit');
+  });
+  row('    [[f]]codex reported "3% left" — inverted to match the others[[/]]');
+  row('');
+  foot('subscription windows · no dollar balance exists for these plans');
+  blank();
+  head('LIVE','this page is doing the arithmetic, not showing a picture');
+  row('');
+  row('  [[f]]burn rate[[/]]      [[c]]'+S.burn+'K[[/]] [[d]]tokens/hour[[/]]');
+  row('  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]');
+  row('  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]');
+  row('');
+  row('  [[f]]last 7 days[[/]]    [[c]]'+spark([31,44,38,72,66,91,97])+'[[/]]  [[f]]Mon → Sun[[/]]');
+  row('');
+  foot('representative figures · the tool reads yours');
+}
+
+/* ── commands ────────────────────────────────────────────────────────────── */
+var C={
+ help:function(){blank();
+  head('COMMANDS');row('');
+  [['board','the panel, live'],['why','the problem this exists for'],
+   ['install','get it'],['providers','teach it a new tool'],
+   ['privacy','what it refuses to do'],['doctor','what it finds on your machine'],
+   ['open','why MIT is the whole point'],['donate','if it saved you something'],
+   ['copy','install lines to clipboard'],['wallet','address to clipboard'],
+   ['saver','the screen goes dark'],
+   ['github','open the repository'],['cls','clear the screen']]
+  .forEach(function(c){row('  [[y]]'+pad(c[0],12)+'[[/]][[d]]'+c[1]+'[[/]]');});
+  row('');foot('function keys along the bottom do the same');blank();},
+
+ board:function(){blank();board();blank();},
+
+ why:function(){blank();
+  head('FOUR VENDORS. FOUR DIALECTS.');row('');
+  row('  [[d]]Ask each one how much you have left. Every answer is honest,[[/]]');
+  row('  [[d]]and useless beside the others:[[/]]');row('');
+  [['codex','38% left','counts down · 5h rolling'],
+   ['claude','87% used','counts up · calendar week'],
+   ['grok','2.1M / 35M','raw tokens · month'],
+   ['gemini','"limited"','no number at all']].forEach(function(v){
+    row('    '+pad('[[y]]'+v[0]+'[[/]]',11)+pad('[[w]]'+v[1]+'[[/]]',14)
+        +'[[f]]'+v[2]+'[[/]]');});
+  row('');
+  row('  [[d]]One counts down. One counts up. One hands you arithmetic[[/]]');
+  row('  [[d]]homework. One shrugs. So 38% left becomes[[/]] [[y]]62% used[[/]][[d]], raw[[/]]');
+  row('  [[d]]tokens become a percentage, every window is stated the same[[/]]');
+  row('  [[d]]way — and the comparison is finally worth making.[[/]]');
+  row('');
+  row('  [[d]]It is usually not the plan you were worried about.[[/]]');
+  row('');foot('press F3 to see it normalized');blank();},
+
+ install:function(){blank();
+  head('INSTALL','Python 3.8+ · no dependencies · one file');row('');
+  row('  [[y]]C:\\>[[/]] git clone https://github.com/omnigauge/omnigauge.git');
+  row('  [[y]]C:\\>[[/]] install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge');
+  row('  [[y]]C:\\>[[/]] omnigauge --refresh');
+  row('');
+  row('  [[d]]then[[/]]  [[c]]omnigauge[[/]]        [[f]]the board[[/]]');
+  row('        [[c]]--watch[[/]]          [[f]]refresh in place while you work[[/]]');
+  row('        [[c]]--check[[/]]          [[f]]headless · exits 0/1/2 for cron[[/]]');
+  row('        [[c]]--since 7d[[/]]       [[f]]any window, including lifetime[[/]]');
+  row('');foot('type  copy  to copy the three lines');blank();},
+
+ providers:function(){blank();
+  head('A PROVIDER IS ONE FILE');row('');
+  row('  [[d]]Drop it in[[/]] [[c]]providers/[[/]][[d]], run[[/]] [[c]]omnigauge --doctor[[/]][[d]], and it[[/]]');
+  row('  [[d]]appears on the board.[[/]]');row('');
+  row('  [[d]]It answers four questions: are you installed, where are your[[/]]');
+  row('  [[d]]files, how many tokens, and what does your quota panel say.[[/]]');
+  row('');
+  row('  [[d]]The Claude provider is the worked example. It is short.[[/]]');
+  row('');foot('MIT · fork it, ship it, send it back');blank();},
+
+ privacy:function(){blank();
+  head('THINGS IT WILL NOT DO');row('');
+  row('  [[w]]It will not ask for an API key.[[/]]');
+  row('  [[d]]You are already logged into these tools. It reads what they[[/]]');
+  row('  [[d]]write to your own disk. There is no credential to lose.[[/]]');row('');
+  row('  [[w]]It will not phone home.[[/]]');
+  row('  [[d]]No telemetry, no account, no server. What you spend is[[/]]');
+  row('  [[d]]nobody\u2019s business, mine included.[[/]]');row('');
+  row('  [[w]]It will not guess.[[/]]');
+  row('  [[d]]When a vendor changes its UI and a parse fails you get[[/]]');
+  row('  [[r]]  NO QUOTA PARSED[[/]] [[d]]and the raw screen — never a plausible[[/]]');
+  row('  [[d]]number with nothing behind it. A dashboard that invents a[[/]]');
+  row('  [[d]]figure is worse than one that admits it is blind.[[/]]');
+  row('');foot('');blank();},
+
+ doctor:function(){blank();
+  head('DOCTOR','this is what it prints on your machine, not here');row('');
+  [['claude','~/.claude/projects','342 transcripts',1],
+   ['codex','~/.codex/sessions','211 threads',1],
+   ['grok','~/.grok','3 sessions',1],
+   ['gemini','not installed','write a provider',0]].forEach(function(d){
+    row(pad('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]'),COL.mark)+pad('[[w]]'+d[0]+'[[/]]',12)
+        +pad('[[d]]'+d[1]+'[[/]]',24)+(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]');});
+  row('');foot('');blank();},
+
+ open:function(){blank();
+  head('DON\u2019T TAKE MY WORD FOR IT','MIT \u00b7 one file \u00b7 no dependencies');row('');
+  row('  [[d]]A tool that can see every token you spend is exactly the kind[[/]]');
+  row('  [[d]]you should not trust on faith. So do not.[[/]]');row('');
+  row('  [[w]]The whole thing is one Python file.[[/]] [[d]]About 1,600 lines. No[[/]]');
+  row('  [[d]]dependency tree hiding behind it, nothing minified, nothing[[/]]');
+  row('  [[d]]compiled. You can read it end to end in an afternoon and know[[/]]');
+  row('  [[d]]exactly what it does with your data, which is nothing.[[/]]');row('');
+  row('  [[y]]Fork it. Ship it. Sell it. Rename it.[[/]] [[d]]MIT means all of that[[/]]');
+  row('  [[d]]is yours. The only thing worth asking is that when you teach[[/]]');
+  row('  [[d]]it a tool I have never used, you send that part back.[[/]]');row('');
+  row('  [[c]]github.com/omnigauge/omnigauge[[/]]');row('');
+  foot('every provider on the board was somebody\u2019s afternoon');blank();},
+
+ donate:function(){blank();
+  head('DONATE','optional, and it changes nothing');row('');
+  row('  [[d]]OmniGauge is MIT and stays that way. No paid tier, no hosted[[/]]');
+  row('  [[d]]version waiting behind it, no feature held back. Nothing here[[/]]');
+  row('  [[d]]is gated on this.[[/]]');row('');
+  row('  [[w]]Solana[[/]]');
+  row('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]');row('');
+  row('  [[f]]If you got more out of this than it cost you to read the[[/]]');
+  row('  [[f]]source, that trade already worked.[[/]]');row('');
+  row('  [[c]]' + '\u2500'.repeat(70) + '[[/]]');row('');
+  row('  [[w]]There will be no OmniGauge token.[[/]]');
+  row('  [[d]]No presale. No airdrop. No community round. No Phase 3.[[/]]');row('');
+  row('  [[d]]You can launch one. Someone always does. If you do, point[[/]]');
+  row('  [[d]]the creator rewards at the address above and we will call[[/]]');
+  row('  [[d]]it even.[[/]]');row('');
+  row('  [[y]]What you may not do is LARP as this project while you do it.[[/]]');
+  row('  [[d]]No "official". No borrowed name. No invented team. Launch[[/]]');
+  row('  [[d]]your own thing and be honest that it is yours.[[/]]');row('');
+  foot('type  wallet  to copy the address');blank();},
+
+ copy:function(){navigator.clipboard.writeText(
+    'git clone https://github.com/omnigauge/omnigauge.git\n'+
+    'install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge\n'+
+    'omnigauge --refresh');
+  blank();line('  [[g]]Copied[[/]] [[d]]— three install lines on your clipboard[[/]]');blank();},
+ wallet:function(){navigator.clipboard.writeText(
+    'BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx');
+  blank();line('  [[g]]Copied[[/]] [[d]]— Solana address on your clipboard[[/]]');blank();},
+
+ saver:function(){blank();
+   line('  [[d]]Screen going dark. Any key brings it back.[[/]]');blank();bottom();
+   setTimeout(marquee,420);},
+
+ cls:function(){out.innerHTML='';},
+ github:function(){window.open('https://github.com/omnigauge/omnigauge','_blank');},
+ x:function(){window.open('https://x.com/omnigauge','_blank');}
+};
+C.omnigauge=C.board; C.clear=C.cls; C['?']=C.help;
+C.w=C.wallet; C.source=C.open; C.license=C.open;
+C.screensaver=C.saver; C.ss=C.saver; C.dvd=C.saver;
+
+function run(raw){
+  var c=raw.trim().toLowerCase();
+  line('[[y]]C:\\OMNIGAUGE>[[/]] '+esc(raw));
+  if(!c)return;
+  if(C[c])C[c]();
+  else{blank();
+    line('  [[r]]Bad command or file name[[/]] — [[w]]'+esc(raw.trim())+'[[/]]');
+    line('  [[f]]It refuses to guess what you meant. Type[[/]] [[y]]help[[/]][[f]].[[/]]');blank();}
+}
+
+var hist=[],hi=-1;
+function resize(){inp.style.width=(inp.value.length+1)+'ch';}
+inp.addEventListener('input',resize);
+resize();
+inp.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){var v=inp.value;inp.value='';resize();
+    if(v.trim()){hist.push(v);hi=hist.length;} run(v); bottom();}
+  else if(e.key==='ArrowUp'){if(hi>0){hi--;inp.value=hist[hi];resize();}e.preventDefault();}
+  else if(e.key==='ArrowDown'){if(hi<hist.length-1){hi++;inp.value=hist[hi];}
+    else{hi=hist.length;inp.value='';}resize();e.preventDefault();}
+  else if(e.key==='Tab'){e.preventDefault();
+    var p=inp.value.trim().toLowerCase(),
+        m=Object.keys(C).filter(function(k){return k.indexOf(p)===0&&k.length>1;});
+    if(m.length===1){inp.value=m[0];resize();}
+    else if(m.length>1){line('[[y]]C:\\OMNIGAUGE>[[/]] '+esc(inp.value));
+      line('  [[d]]'+m.join('   ')+'[[/]]');bottom();}}
+});
+var FK={F1:'about',F2:'why',F3:'board',F4:'install',F5:'providers',F6:'privacy',F7:'donate',F8:'open',F9:'help',F10:'github'};
+addEventListener('keydown',function(e){
+  if(modal.classList.contains('on')){
+    if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();closeDialog();} return;}
+  if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
+    if(m){e.preventDefault();openMenu(document.querySelector('[data-m='+m+']'));return;}}
+  if(FK[e.key]){e.preventDefault();inp.value='';resize();run(FK[e.key]);bottom();return;}
+});
+/* pull-downs — clicking a title opens it, moving along the bar switches it,
+   the way every DOS application behaved */
+var MENUS={
+ gauge:[['board','<u>B</u>oard','board'],['doctor','<u>D</u>octor','doctor'],['-'],
+        ['install','<u>I</u>nstall','install']],
+ view:[['why','<u>W</u>hy this exists','why'],['providers','<u>P</u>roviders','providers'],['open','<u>O</u>pen source','open'],
+       ['privacy','P<u>r</u>ivacy','privacy'],['donate','<u>D</u>onate','donate'],['-'],['cls','C<u>l</u>ear screen','cls']],
+ help:[['help','<u>C</u>ommands','help'],['about','<u>A</u>bout','about'],['github','<u>G</u>itHub','github'],
+       ['x','<u>X</u> / @omnigauge','x']]
+};
+var drop=document.getElementById('drop'), menuOpen=null;
+function closeMenu(){drop.style.display='none';menuOpen=null;
+  document.querySelectorAll('#menu span').forEach(function(x){x.classList.remove('on');});}
+function openMenu(sp){
+  var k=sp.dataset.m; if(!k)return;
+  closeMenu(); menuOpen=k; sp.classList.add('on');
+  drop.innerHTML='';
+  MENUS[k].forEach(function(it){
+    if(it[0]==='-'){drop.appendChild(document.createElement('hr'));return;}
+    var d=document.createElement('div'); d.innerHTML=it[1]; d.dataset.c=it[2];
+    drop.appendChild(d);
+  });
+  var r=sp.getBoundingClientRect();
+  drop.style.left=r.left+'px'; drop.style.top=r.bottom+'px'; drop.style.display='block';
+}
+document.getElementById('menu').addEventListener('click',function(e){
+  var sp=e.target.closest('span[data-m]'); if(!sp){closeMenu();return;}
+  if(menuOpen===sp.dataset.m)closeMenu(); else openMenu(sp); e.stopPropagation();});
+document.getElementById('menu').addEventListener('mouseover',function(e){
+  if(!menuOpen)return; var sp=e.target.closest('span[data-m]'); if(sp)openMenu(sp);});
+drop.addEventListener('click',function(e){
+  var d=e.target.closest('[data-c]'); if(!d)return;
+  closeMenu(); inp.value=''; resize(); run(d.dataset.c); bottom(); inp.focus(); e.stopPropagation();});
+addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
+
+function wire(el){el.addEventListener('click',function(e){
+  var t=e.target.closest('[data-c]'); if(!t)return;
+  inp.value='';resize();run(t.dataset.c);bottom();inp.focus();});}
+wire(document.getElementById('keys'));
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#menu,#drop'))closeMenu();
+  if(!e.target.closest('a,[data-c]'))inp.focus();});
+
+/* ── modal ─────────────────────────────────────────────────────────────── */
+var modal=document.getElementById('modal');
+function dialog(title,body){
+  document.getElementById('mt').textContent=title;
+  document.getElementById('mb').innerHTML=body;
+  modal.classList.add('on'); document.getElementById('mok').focus();
+}
+function closeDialog(){modal.classList.remove('on');inp.focus();}
+document.getElementById('mok').addEventListener('click',closeDialog);
+modal.addEventListener('click',function(e){
+  if(e.target===modal||e.target.hasAttribute('data-close'))closeDialog();});
+
+C.about=function(){dialog('About OmniGauge',
+ '<b class="w">OmniGauge 1.0</b>\n'+
+ '<b class="d">One gauge for every AI plan you pay for.</b>\n\n'+
+ '<b class="d">Reads what Claude Code, Codex and Grok already write to your\n'+
+ 'disk. Normalizes four incompatible counters to one denominator.\n'+
+ 'Asks for no key, reports to nobody, invents nothing.</b>\n\n'+
+ '<b class="f">MIT · one Python file · no dependencies</b>\n'+
+ '<b class="c">github.com/omnigauge/omnigauge</b>');};
+
+/* ── DOS-era commands, answered in character ───────────────────────────────── */
+C.ver=function(){blank();line('  [[w]]OmniGauge [Version 1.0][[/]]');
+  line('  [[f]](c) 2026 · MIT · no rights reserved worth mentioning[[/]]');blank();};
+C.mem=function(){blank();
+  line('  [[d]]    655,360 bytes total conventional memory[[/]]');
+  line('  [[d]]    655,360 bytes free[[/]]');
+  line('  [[f]]  2,032,000,000 tokens burned this week — that is the number[[/]]');
+  line('  [[f]]  that actually costs you something[[/]]');blank();};
+C.dir=function(){blank();
+  line('  [[d]] Volume in drive C is OMNIGAUGE[[/]]');blank();
+  [['OMNIGAUGE','','one file, ~1,600 lines'],['PROVIDERS','<DIR>','claude.py — the worked example'],
+   ['INSTALL','SH','copies one file to ~/.local/bin'],['LICENSE','','MIT']]
+  .forEach(function(f){line('  [[w]]'+pad(f[0],12)+'[[/]][[d]]'+pad(f[1],8)+f[2]+'[[/]]');});
+  blank();};
+C.exit=function(){blank();line('  [[d]]There is no exit. This is a web page.[[/]]');
+  line('  [[f]]Try[[/]] [[y]]install[[/]] [[f]]instead.[[/]]');blank();};
+C.time=function(){blank();line('  [[w]]Current time is '+new Date().toLocaleTimeString()+'[[/]]');blank();};
+
+/* ── screensaver ───────────────────────────────────────────────────────────── */
+var saver=document.getElementById('saver'),sv=document.getElementById('sv'),
+    idle=0,sx=60,sy=60,dx=1.3,dy=.9,sTimer=null;
+/* The DVD-logo problem. Everyone who has ever watched one of these has waited
+   for the corner, and almost nobody has seen it — so it is worth counting. */
+var PAL=['#5aa6c9','#c9974f','#6ea888','#c47070','#8d9cbe','#a98fc4','#c9c07a'],
+    pi=0, corners=0, bounced=0;
+function marquee(){
+  if(saver.classList.contains('on')) return;
+  clearInterval(sTimer);
+  sv.innerHTML='<b class="c">OMNI</b><b class="y">GAUGE</b>'+
+    '<b class="f">   every AI plan you pay for, on one screen</b>';
+  sv.style.color='';
+  saver.classList.add('on');
+  sTimer=setInterval(function(){
+    sx+=dx;sy+=dy;
+    var w=saver.clientWidth-sv.offsetWidth, h=saver.clientHeight-sv.offsetHeight;
+    var hx=(sx<=0||sx>=w), hy=(sy<=0||sy>=h);
+    if(hx)dx=-dx; if(hy)dy=-dy;
+    if(hx||hy){
+      bounced++;
+      pi=(pi+1)%PAL.length;
+      sv.querySelectorAll('b').forEach(function(b){b.style.color=PAL[pi];});
+    }
+    if(hx&&hy){                                   /* the corner. actually hit. */
+      corners++;
+      sv.innerHTML='<b style="color:'+PAL[pi]+'">PERFECT CORNER \u00d7'+corners+'</b>';
+      setTimeout(function(){
+        if(!saver.classList.contains('on'))return;
+        sv.innerHTML='<b class="c">OMNI</b><b class="y">GAUGE</b>'+
+          '<b class="f">   every AI plan you pay for, on one screen</b>';
+        sv.querySelectorAll('b').forEach(function(b){b.style.color=PAL[pi];});
+      },1400);
+    }
+    sv.style.left=Math.max(0,Math.min(w,sx))+'px';
+    sv.style.top=Math.max(0,Math.min(h,sy))+'px';
+  },28);
+}
+function wake(){if(!saver.classList.contains('on'))return;
+  saver.classList.remove('on');clearInterval(sTimer);
+  if(bounced){
+    blank();
+    line('  [[d]]'+bounced+' bounce'+(bounced==1?'':'s')+
+      (corners?', [[/]][[y]]'+corners+' perfect corner'+(corners==1?'':'s')+'[[/]]'
+              :'[[d]], no corners yet[[/]]'));
+    blank();bottom();
+    bounced=0;
+  }
+  inp.focus();}
+['keydown','mousemove','click','touchstart','wheel'].forEach(function(ev){
+  addEventListener(ev,function(){idle=0;wake();},{passive:true});});
+if(!RM) setInterval(function(){ if(++idle>110 && !saver.classList.contains('on')) marquee(); },1000);
+
+/* ── one grid, every screen ────────────────────────────────────────────────
+   The advance width of a monospace glyph is not a constant across platforms —
+   it is roughly .6em, but "roughly" puts the right-hand │ off the screen on a
+   phone. So measure the real ratio in the real font, then solve for the size
+   that makes 78 columns exactly fill the viewport. */
+setTimeout(function(){var c=document.getElementById('crt');if(c)c.remove();},700);
+
+function fit(){
+  var probe=document.createElement('span');
+  probe.style.cssText='position:absolute;visibility:hidden;white-space:pre;'+
+    'font-family:var(--mono);font-size:100px';
+  probe.textContent='0'.repeat(78);
+  document.body.appendChild(probe);
+  var per=probe.getBoundingClientRect().width/100;   // px of width per 1px font-size
+  probe.remove();
+  var pad=parseFloat(getComputedStyle(document.getElementById('scr')).paddingLeft)*2;
+  var avail=document.documentElement.clientWidth-pad-2;
+  var size=avail/per;
+  // floor keeps a phone legible; ceiling keeps a desktop from turning an
+  // 80-column terminal into a billboard — a terminal should sit in a screen,
+  // not fill it
+  size=Math.max(6.2,Math.min(14.5,size));
+  document.documentElement.style.setProperty('--fs',size.toFixed(2)+'px');
+}
+fit();
+addEventListener('resize',fit);
+addEventListener('orientationchange',function(){setTimeout(fit,120);});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+
+function clock(){var d=new Date();
+  document.getElementById('clock').textContent=
+    String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+clock();setInterval(clock,20000);
+
+/* ── power-on self test ──────────────────────────────────────────────────── */
+var POST=[
+ '[[w]]OmniGauge BIOS v1.0[[/]] [[f]]· one gauge for every plan you pay for[[/]]',
+ '',
+ '[[d]]Counting tokens ...[[/]] [[w]]<i id="cnt">0</i>[[/]] [[g]]OK[[/]]',
+ '',
+ '[[d]]Detecting agents ...[[/]]',
+ '  claude   [[g]]OK[[/]]   [[f]]342 transcripts[[/]]',
+ '  codex    [[g]]OK[[/]]   [[f]]211 threads[[/]]',
+ '  grok     [[g]]OK[[/]]   [[f]]3 sessions[[/]]',
+ '  gemini   [[f]]--[[/]]   [[f]]no provider installed[[/]]',
+ '',
+ '[[d]]Normalizing windows ...[[/]] [[g]]OK[[/]]',
+ '[[d]]Inverting vendor counters ...[[/]] [[g]]OK[[/]]',
+ '',
+ '[[f]]MIT · one file · 1,600 lines · read it before you run it[[/]]',
+ ''];
+function start(){
+  blank(); wordmark(); blank(); blank();
+  var i=0;
+  (function step(){
+    if(i<POST.length){
+      var txt=POST[i++], el=line('');
+      if(RM||!txt.trim()){el.innerHTML=paint(txt||' ');bottom();setTimeout(step,0);return;}
+      var plain=txt.replace(/\[\[[a-z]\]\]|\[\[\/\]\]/g,''), j=0;
+      (function type(){
+        j+=2;
+        el.innerHTML=paint(txt).replace(/(<[^>]*>)|./g,function(m,tag,off){return m;});
+        el.textContent=plain.slice(0,j);
+        if(j<plain.length){setTimeout(type,9);}
+        else{el.innerHTML=paint(txt);bottom();setTimeout(step,55);}
+      })();
+      bottom();return;}
+    var cn=document.getElementById('cnt');
+    if(cn&&!RM){var v=0,tgt=2032000000,t0=performance.now();
+      (function up(now){var k=Math.min(1,(now-t0)/700);
+        v=Math.floor(tgt*k*k);cn.textContent=v.toLocaleString();
+        if(k<1)requestAnimationFrame(up);})(t0);}
+    else if(cn)cn.textContent=(2032000000).toLocaleString();
+    board();blank();
+    line('  [[f]]Type[[/]] [[y]]help[[/]][[f]], or press[[/]] [[y]]F2[[/]] [[f]]if you are wondering what this is for.[[/]]');
+    blank();
+    prom.style.display='flex';inp.focus();bottom();
+    if(!RM)setInterval(tick,1000);
+  })();
+}
+function tick(){
+  S.dry=Math.max(0,S.dry-1); S.tok+=S.burn/3600/1e6;
+  out.querySelectorAll('.pan div').forEach(function(el){
+    var t=el.textContent;
+    if(t.indexOf('║  dry in')===0)
+      el.innerHTML=paint('[[c]]║[[/]]'+pad('  [[f]]dry in[[/]]         [[y]]'+fmt(S.dry)+'[[/]] [[d]]at that pace[[/]]',IN)+'[[c]]║[[/]]');
+    else if(t.indexOf('║  today')===0)
+      el.innerHTML=paint('[[c]]║[[/]]'+pad('  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]',IN)+'[[c]]║[[/]]');
+  });
+}
+start();
+})();
+</script>
