@@ -30,6 +30,31 @@ def api_usage(creds) -> dict:      # optional: billed spend/credits     (api)
 Only what applies is needed. A tokens-only provider implements `detect`, `files`
 and `scan`. A quota-only provider implements `detect`, `QUOTA` and `parse_quota`.
 
+### `CAPS` — the capability declaration
+
+Every provider declares what it gets, could get, and cannot get. The legend
+(`omnigauge --providers`, and the site's `legend` command) is generated from
+these declarations — never hardcoded — so your provider appears in it the
+moment it loads.
+
+```python
+CAPS = dict(
+    tokens="obtained",                                # on the board now
+    quota="available: the vendor panel shows it, not read yet",
+    reset="unavailable: the endpoint does not state the window end",
+    models="obtained: from the session summary",
+    lifetime="obtained",
+    spend="unavailable: subscription plans have no dollar balance",
+    burn="obtained: derived from the quota series",
+)
+```
+
+Three states, not two — `obtained`, `available`, `unavailable` — each with an
+optional note after a colon. **The third state is the honest one and the most
+useful.** "unavailable: the vendor writes the schema and zeroes every value"
+saves the next person a day; a blank cell says nothing. All seven capabilities
+must be declared; a test enforces the states.
+
 ### `scan` returns
 
 ```python
@@ -114,6 +139,32 @@ def scan(path, since=0):
 
 That is the whole thing. Drop it in `providers/`, run `omnigauge --doctor`, and it
 appears.
+
+## A documented negative: Cursor
+
+Cursor is not supported, and the reason is worth more than the support would
+have been. It took three passes to get right:
+
+1. `~/.cursor` (the CLI's directory) has no token fields. Concluding "not
+   viable" from that was wrong reasoning — it is the wrong directory.
+2. The IDE's SQLite store (`state.vscdb`, table `cursorDiskKV`, keys
+   `bubbleId:*`) carries `tokenCount.inputTokens`, `tokenCount.outputTokens`
+   and `modelInfo.modelName` on **every** row. Concluding "viable" from that
+   was also wrong — it confirmed the *schema*, not the *data*.
+3. Summing the values: 244,274 rows searched for a single nonzero token count.
+   None. The schema is local; the numbers are server-side only.
+
+**Field presence is not data presence.** A grep proves a key exists; only
+reading the values proves anything is in it. Two rules fall out: a tool can
+have several homes (CLI dir, IDE storage, OS application-support path — check
+all three before concluding absence), and open the database, don't grep the
+directory — `composer.content.*` blobs have no token fields while `bubbleId:*`
+rows all do, in the same file. Open it `mode=ro&immutable=1`, never copy a
+12 GB database, never open a live one read-write.
+
+If Cursor ever writes real values, this becomes a provider in an afternoon —
+and until then the legend says `unavailable` with this reason instead of
+shipping a tidy row of zeros.
 
 ## Submitting one
 

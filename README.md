@@ -199,6 +199,8 @@ omnigauge --since 7d           # 24h | 7d | 30d | today | all
 omnigauge --watch              # live redraw, 10s
 omnigauge --watch 5 --quota-every 10m
 omnigauge --json               # machine-readable
+omnigauge --providers          # the legend: what each source gets, could get,
+                               #   and cannot get - with the reasons
 omnigauge --no-color
 ```
 
@@ -266,6 +268,9 @@ window is a time-based percentage; these are real money.
 |---|---|---|
 | OpenAI | 30-day spend, requests, tokens | **Admin** key, Restricted, `Usage API Scope = Read` |
 | X / Twitter | post consumption against your project cap | app Bearer Token, one per account |
+| OpenRouter | credit dollars used, and % of the key's limit when one is set | API key |
+| Moonshot / Kimi | available balance (blocks inference at zero) | API key |
+| DeepSeek | total balance, per currency | API key |
 
 ```bash
 omnigauge --setup      # hidden input, written 0600, refuses to read looser modes
