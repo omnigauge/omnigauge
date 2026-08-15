@@ -62,6 +62,18 @@ omnigauge --refresh <name>          # does quota parse? PARTIAL is a failure
 A parse failure dumps the raw screen to
 `~/.local/share/omnigauge/last-scrape-<name>.txt`. Attach that to the issue.
 
+## Tests
+
+```bash
+python3 -m unittest discover -s tests          # CLI: widths, parsers, exit codes, OAuth vector
+node tests/site_harness.js site/index.html     # site: real renderer, measured rows
+```
+
+The panel-width invariant has broken three times — twice as arithmetic, once as
+font fallback — and every catch came from measuring rendered lines, never from
+reading the code. The suite renders and measures. A PR that touches any text UI
+should keep it green.
+
 ## What gets rejected
 
 - Anything that transmits usage data anywhere by default
