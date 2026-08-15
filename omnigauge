@@ -620,6 +620,89 @@ def lifetime_totals(agent, con, progress=False):
     return t
 
 
+# ─────────────────────────────────  alerts  ──────────────────────────────────
+#
+# The incumbents track and report. None of them tell you BEFORE it hurts —
+# tokscale's own docs say it "cannot set usage budgets or trigger alerts". This
+# is that. It is also the only part designed to run headless, from cron.
+
+ALERTS = os.path.join(DATA, "alerts.json")
+DEFAULT_ALERTS = {
+    "pct_used": 85,            # warn once any window crosses this
+    "dry_before_reset": True,  # warn when the forecast says it empties early
+    "notify": True,            # desktop notification if a notifier exists
+    "webhook": "",             # optional POST target
+    "quiet_hours": [],         # e.g. [23, 7] — no desktop popups overnight
+}
+
+
+def load_alerts():
+    cfg = dict(DEFAULT_ALERTS)
+    if os.path.exists(ALERTS):
+        try:
+            cfg.update(json.load(io.open(ALERTS, encoding="utf-8")))
+        except Exception as e:
+            SCAN_ERRORS.append(f"alerts.json unreadable: {e}")
+    return cfg
+
+
+def evaluate_alerts(con, cfg):
+    """Return (severity, [messages]). Severity drives the process exit code so
+    cron and CI can act on it: 0 fine, 1 warning, 2 critical."""
+    fired, sev = [], 0
+    for agent, rows in quota_rows(con).items():
+        for r in rows:
+            name = short_model(agent, r["model"])
+            reset_s = countdown(r["reset"], _as_seconds=True) if r["reset"] else None
+            if cfg.get("dry_before_reset") and r.get("dry_in") is not None \
+               and reset_s is not None and r["dry_in"] < reset_s:
+                fired.append(f"{name} runs dry in {dur(r['dry_in'])} — "
+                             f"{dur(reset_s - r['dry_in'])} BEFORE its window resets")
+                sev = 2
+            elif r["pct"] >= cfg.get("pct_used", 85):
+                fired.append(f"{name} at {r['pct']:.0f}% of its {r['window']} window"
+                             + (f", resets in {dur(reset_s)}" if reset_s else ""))
+                sev = max(sev, 1)
+    return sev, fired
+
+
+def notify(cfg, messages, sev):
+    """Best-effort, never fatal. A monitor that crashes the cron job it runs in
+    is worse than no monitor."""
+    if not messages:
+        return
+    title = "omnigauge — quota critical" if sev >= 2 else "omnigauge — quota warning"
+    body = "\n".join(messages[:6])
+    hours = cfg.get("quiet_hours") or []
+    quiet = False
+    if len(hours) == 2:
+        h = time.localtime().tm_hour
+        a, b = hours
+        quiet = (a <= h or h < b) if a > b else (a <= h < b)
+    if cfg.get("notify") and not quiet:
+        for argv in (["notify-send", "-u", "critical" if sev >= 2 else "normal", title, body],
+                     ["osascript", "-e",
+                      f'display notification "{body[:180]}" with title "{title}"'],
+                     ["wsl-notify-send.exe", title, body]):
+            if shutil.which(argv[0]):
+                try:
+                    subprocess.run(argv, capture_output=True, timeout=10)
+                    break
+                except Exception:
+                    pass
+    if cfg.get("webhook"):
+        import urllib.request
+        payload = json.dumps(dict(source="omnigauge", severity=sev,
+                                  text=f"{title}\n{body}", messages=messages,
+                                  host=os.uname().nodename, at=int(time.time()))).encode()
+        try:
+            req = urllib.request.Request(cfg["webhook"], data=payload,
+                                         headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=15)
+        except Exception as e:
+            SCAN_ERRORS.append(f"webhook failed: {type(e).__name__}: {e}")
+
+
 # ──────────────────────────── API spend & credits ─────────────────────────────
 #
 # SEPARATE from plan quota, always. A subscription window and a dollar balance
@@ -1132,6 +1215,17 @@ def render(args):
         mid()
         bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
+    cfg = load_alerts()
+    sev, msgs = evaluate_alerts(con, cfg)
+    if msgs:
+        top("ALERTS", f"threshold {cfg['pct_used']}% · forecast {'on' if cfg['dry_before_reset'] else 'off'}")
+        mid()
+        for m in msgs[:6]:
+            col = s.crit if sev >= 2 else s.warn
+            mid(f"  {col}▲{s.r} {m}")
+        mid()
+        bot("omnigauge --check runs this headless and exits 0/1/2 for cron")
+
     ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
     if ins:
         top("WHAT IS DRIVING USAGE", "reported by the vendor")
@@ -1402,6 +1496,9 @@ def main():
                    help="live redraw every SEC seconds (default 10)")
     p.add_argument("--quota-every", default="15m", type=parse_every, metavar="DUR",
                    help="how often --watch re-scrapes quota (default 15m; 0 = never)")
+    p.add_argument("--check", action="store_true",
+                   help="headless: evaluate alerts, notify, exit 0/1/2 (for cron)")
+    p.add_argument("--quiet", action="store_true", help="with --check, print only on alert")
     p.add_argument("--doctor", action="store_true",
                    help="what is connected, what is missing, and how to fix it")
     p.add_argument("--setup", action="store_true",
@@ -1415,6 +1512,20 @@ def main():
     CWD_OVERRIDE = a.cwd
     if a.no_color: S.on = False
     S.theme = a.theme
+
+    if a.check:
+        con = db()
+        cfg = load_alerts()
+        sev, msgs = evaluate_alerts(con, cfg)
+        con.close()
+        if msgs:
+            for m in msgs:
+                print(("CRITICAL: " if sev >= 2 else "WARNING: ") + m)
+            notify(cfg, msgs, sev)
+        elif not a.quiet:
+            print("ok — every window within thresholds")
+        # exit code IS the interface: 0 fine, 1 warning, 2 critical
+        sys.exit(sev)
 
     if a.doctor:
         doctor(); return

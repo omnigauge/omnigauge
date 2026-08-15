@@ -71,6 +71,43 @@ Forecasting is deliberately conservative: two readings at least ten minutes
 apart or it says nothing, a detected reset truncates the series, and a flat or
 falling rate produces no estimate rather than a fabricated one.
 
+## Alerts
+
+The part the incumbents disclaim. `omnigauge --check` evaluates every window,
+notifies, and **exits with a code** so cron and CI can act on it:
+
+```bash
+omnigauge --check          # 0 = fine · 1 = warning · 2 = will run dry early
+omnigauge --check --quiet  # silent unless something fires
+```
+
+```
+WARNING:  codex at 98% of its week window, resets in 5d 0h
+CRITICAL: codex runs dry in 1h 26m — 4d 21h BEFORE its window resets
+```
+
+Every fifteen minutes, from cron:
+
+```cron
+*/15 * * * * $HOME/.local/bin/omnigauge --check --quiet >/dev/null 2>&1
+```
+
+Configure in `~/.local/share/omnigauge/alerts.json`:
+
+```json
+{
+  "pct_used": 85,
+  "dry_before_reset": true,
+  "notify": true,
+  "webhook": "https://hooks.example.com/…",
+  "quiet_hours": [23, 7]
+}
+```
+
+Desktop notifications use whatever exists — `notify-send`, `osascript`,
+`wsl-notify-send.exe` — and failure is never fatal. A monitor that crashes the
+cron job it runs inside is worse than no monitor.
+
 ## Why the numbers are kept apart
 
 This is the whole design, and it is deliberate.
