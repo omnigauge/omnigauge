@@ -1860,14 +1860,20 @@ def main():
         if extra:
             print(f"  additional X accounts already set: {', '.join(extra)}")
         while True:
-            label = input("  add another X account? label, e.g. acct3 "
-                          "(blank to finish): ").strip().lower()
+            label = input("  add another X account? short NAME only, e.g. acct3 - "
+                          "the bearer comes next, hidden (blank to finish): ").strip().lower()
             if not label:
                 break
-            if not re.fullmatch(r"\w+", label):
-                print("  letters, digits and _ only")
+            if len(label) > 24 or not re.fullmatch(r"\w+", label):
+                # A pasted secret lands here on reflex after a run of hidden
+                # prompts. Say what happened; do not repeat it back.
+                if len(label) > 24:
+                    print("  that looked like a KEY, not a name - it was NOT stored, "
+                          "but it DID echo: clear your scrollback. Name first.")
+                else:
+                    print("  letters, digits and _ only")
                 continue
-            v = getpass.getpass(f"  X developer bearer - {label}: ").strip()
+            v = getpass.getpass(f"  X developer bearer - {label} (hidden): ").strip()
             if v:
                 cur[f"x_{label}_bearer"] = v
         fd = os.open(CREDS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
