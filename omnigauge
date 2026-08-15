@@ -649,6 +649,16 @@ BUILTIN_CAPS = {
 }
 
 
+# Verified absences are worth as much as presences: each of these was
+# concluded by reading real data on a real install, not from a directory
+# listing. providers/README.md carries the full forensics.
+NEGATIVES = [
+    ("cursor", "the IDE writes token fields and zeroes every value"),
+    ("antigravity", "records trajectories; no token accounting at all"),
+    ("copilot", "no token accounting in its logs"),
+]
+
+
 def cap_state(v):
     return (v or "").split(":", 1)[0].strip()
 
@@ -719,6 +729,13 @@ def legend():
                 mid(f"{'':<15}{s.gry}{cont}{s.r}")
         mid()
         bot("the glyph is the state; the words are why")
+    if NEGATIVES:
+        top("VERIFIED NEGATIVES", "read on real installs, not guessed")
+        mid()
+        for name, why in NEGATIVES:
+            mid(f"  {s.faint}-{s.r} {s.b}{name:<12}{s.r}{s.gry}{why}{s.r}")
+        mid()
+        bot("a missing provider with a reason beats a broken one")
     print()
 
 

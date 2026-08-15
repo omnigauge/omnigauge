@@ -23,7 +23,7 @@ SITE = os.path.join(ROOT, "site", "index.html")
 START, END = "/*LEGEND-DATA*/", "/*END-LEGEND-DATA*/"
 
 
-def registry_rows():
+def registry():
     ld = importlib.machinery.SourceFileLoader("omnigauge", os.path.join(ROOT, "omnigauge"))
     og = importlib.util.module_from_spec(importlib.util.spec_from_loader("omnigauge", ld))
     sys.modules["omnigauge"] = og
@@ -31,11 +31,12 @@ def registry_rows():
     og.PROVIDER_DIRS = [os.path.join(ROOT, "providers")]
     og.load_providers()
     og.all_agents()
-    return [{"n": n, "k": k, "c": caps} for n, k, caps in og.legend_rows()]
+    return {"sources": [{"n": n, "k": k, "c": caps} for n, k, caps in og.legend_rows()],
+            "negatives": [{"n": n, "why": w} for n, w in og.NEGATIVES]}
 
 
 def block():
-    data = json.dumps(registry_rows(), separators=(",", ":"), sort_keys=True)
+    data = json.dumps(registry(), separators=(",", ":"), sort_keys=True)
     return f"{START}var LEGEND={data};{END}"
 
 
