@@ -462,7 +462,7 @@ var C={
 
  saver:function(){blank();
    line('  [[d]]Screen going dark. Any key brings it back.[[/]]');blank();bottom();
-   setTimeout(marquee,420);},
+   setTimeout(goDark,420);},
 
  cls:function(){out.innerHTML='';},
  github:function(){window.open('https://github.com/omnigauge/omnigauge','_blank');},
@@ -606,11 +606,21 @@ var saver=document.getElementById('saver'),sv=document.getElementById('sv'),
    for the corner, and almost nobody has seen it — so it is worth counting. */
 var PAL=['#5aa6c9','#c9974f','#6ea888','#c47070','#8d9cbe','#a98fc4','#c9c07a'],
     pi=0, corners=0, bounced=0;
+/* The wake-on-any-input listener is registered after the key handler, so a
+   keystroke that starts the saver also reaches the waker and kills it inside
+   the same event — it turned on and off before a frame was ever drawn. The
+   command worked only because it happened to defer with a timeout.
+
+   Two guards, because relying on listener order is how this broke: start on a
+   timeout so the current event finishes first, and refuse to wake within a
+   moment of starting, whatever the order turns out to be. */
+var darkAt=0;
 function goDark(){
   var el=document.documentElement;
   if(!document.fullscreenElement && el.requestFullscreen)
     el.requestFullscreen().catch(function(){});   /* refused is fine, saver runs anyway */
-  marquee();
+  darkAt=Date.now();
+  setTimeout(marquee,0);
 }
 function marquee(){
   if(saver.classList.contains('on')) return;
@@ -643,7 +653,9 @@ function marquee(){
     sv.style.top=Math.max(0,Math.min(h,sy))+'px';
   },28);
 }
-function wake(){if(!saver.classList.contains('on'))return;
+function wake(){
+  if(Date.now()-darkAt<400)return;           /* it only just went dark */
+  if(!saver.classList.contains('on'))return;
   saver.classList.remove('on');clearInterval(sTimer);
   if(document.fullscreenElement && document.exitFullscreen)
     document.exitFullscreen().catch(function(){});
