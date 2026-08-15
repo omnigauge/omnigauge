@@ -925,7 +925,7 @@ addEventListener('keydown',function(e){
       return;}
     if(e.key==='Enter'){var sel=drop.querySelector('.sel');
       if(sel){e.preventDefault();closeMenu();inp.value='';resize();
-        run(sel.dataset.c);bottom();inp.focus();return;}}
+        run(sel.dataset.c);bottom();if(!MOBILE)inp.focus();return;}}
   }
   if(e.altKey){var m={g:'gauge',v:'view',h:'help'}[e.key.toLowerCase()];
     if(m){e.preventDefault();openMenu(document.querySelector('[data-m='+m+']'));return;}}
@@ -965,12 +965,12 @@ document.getElementById('menu').addEventListener('mouseover',function(e){
   if(!menuOpen)return; var sp=e.target.closest('span[data-m]'); if(sp)openMenu(sp);});
 drop.addEventListener('click',function(e){
   var d=e.target.closest('[data-c]'); if(!d)return;
-  closeMenu(); inp.value=''; resize(); run(d.dataset.c); bottom(); inp.focus(); e.stopPropagation();});
+  closeMenu(); inp.value=''; resize(); run(d.dataset.c); bottom(); if(!MOBILE)inp.focus(); e.stopPropagation();});
 addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
 
 function wire(el){el.addEventListener('click',function(e){
   var t=e.target.closest('[data-c]'); if(!t)return;
-  inp.value='';resize();run(t.dataset.c);bottom();inp.focus();});}
+  inp.value='';resize();run(t.dataset.c);bottom();if(!MOBILE)inp.focus();});}
 wire(document.getElementById('keys'));
 /* role="button" is a promise: Enter and Space must work wherever a finger would */
 function keyable(el){el.addEventListener('keydown',function(e){
@@ -991,7 +991,9 @@ out.addEventListener('dblclick',function(e){
 
 document.addEventListener('click',function(e){
   if(!e.target.closest('#menu,#drop'))closeMenu();
-  if(!e.target.closest('a,[data-c]'))inp.focus();});
+  /* On a phone, focus means the keyboard. Only a touch on the command
+     line itself may summon it - never a panel, a button, or a menu. */
+  if(!e.target.closest('a,[data-c]')&&(!MOBILE||e.target.closest('#prompt')))inp.focus();});
 
 /* ── modal ─────────────────────────────────────────────────────────────── */
 var modal=document.getElementById('modal');
@@ -1116,7 +1118,7 @@ function wake(){
     blank();bottom();
     bounced=0;
   }
-  inp.focus();}
+  if(!MOBILE)inp.focus();}
 ['keydown','mousemove','click','touchstart','wheel'].forEach(function(ev){
   addEventListener(ev,function(){idle=0;wake();},{passive:true});});
 if(!RM) setInterval(function(){ if(++idle>110 && !saver.classList.contains('on')) marquee(); },1000);
