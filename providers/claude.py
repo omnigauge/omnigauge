@@ -1,0 +1,146 @@
+"""Claude Code — reference provider.
+
+This is the implementation to copy. It exercises every part of the contract:
+token counting from transcripts, per-model attribution, quota scraped from the
+CLI's own panel, and a declared set of windows that must parse.
+
+See providers/README.md for the contract itself.
+"""
+import glob
+import io
+import json
+import os
+import re
+
+import omnigauge as og
+
+NAME = "claude"
+KIND = "agent"
+
+
+# ── presence ────────────────────────────────────────────────────────────────
+
+def detect():
+    return bool(files()) or og.installed("claude")
+
+
+def files():
+    """Claude encodes the project path with BOTH '/' and '_' collapsed to '-',
+    so ~/work/my_app becomes -home-you-work-my-app. Getting that wrong yields an
+    empty directory rather than an error, which reads as "no usage" — a silent
+    wrong answer, the worst kind."""
+    return glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl"))
+
+
+# ── token counting ──────────────────────────────────────────────────────────
+
+def scan(path, since=0):
+    t = og.blank()
+    for line in io.open(path, errors="replace"):
+        if '"usage"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except Exception:
+            continue
+        msg = d.get("message") or {}
+        u = msg.get("usage")
+        if not isinstance(u, dict):
+            continue
+        ts = d.get("timestamp", "")
+        if since and ts and og._epoch(ts) < since:
+            continue
+        t["msgs"] += 1
+        t["tin"] += u.get("input_tokens", 0)
+        t["tout"] += u.get("output_tokens", 0)
+        t["cache_read"] += u.get("cache_read_input_tokens", 0)
+        t["cache_write"] += u.get("cache_creation_input_tokens", 0)
+        t["think"] += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
+        og.add_model(
+            t, msg.get("model"),
+            out=u.get("output_tokens", 0),
+            total=(u.get("output_tokens", 0) + u.get("cache_read_input_tokens", 0)
+                   + u.get("input_tokens", 0)),
+            msgs=1,
+        )
+    return t
+
+
+# ── plan quota ──────────────────────────────────────────────────────────────
+
+QUOTA = dict(
+    argv=["claude"],
+    keys="/usage",
+    # Wait for a prompt marker before typing. A fixed sleep broke the day Claude
+    # shipped a slower splash screen: the keystrokes landed before the input box
+    # was live and the scrape returned a welcome screen.
+    ready=r"(Try \"|❯|>\s*$|for shortcuts)",
+    done=r"Current (week|session)",
+    # Windows that MUST parse. Missing one is a PARTIAL, treated as failure —
+    # plausible rows with the headline absent are worse than no rows at all.
+    expect=[("week", "all"), ("session", "all")],
+)
+
+
+def parse_quota(screen):
+    """Claude reports PERCENT USED, so no inversion is needed here. Codex
+    reports percent REMAINING and inverts in its own provider.
+
+    Line-based on purpose. A single collapsed-whitespace regex silently dropped
+    the weekly row — the headline number — because Claude injects a promo line
+    between the reset line and the next heading, and the pattern's lookahead
+    expected a heading there.
+    """
+    rows, pend = [], None
+    for raw in screen.splitlines():
+        line = raw.strip()
+        m = re.match(r"Current (session|week)\s*(?:\(([^)]*)\))?\s*$", line, re.I)
+        if m:
+            if pend and pend["pct_used"] is not None:
+                rows.append(pend)
+            model = (m.group(2) or "all").strip()
+            if model.lower() in ("all models", ""):
+                model = "all"
+            pend = dict(window=m.group(1).lower(), model=model,
+                        pct_used=None, raw_value=None, reset_at=None)
+            continue
+        if pend is None:
+            continue
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%\s*used", line, re.I)
+        if m and pend["pct_used"] is None:
+            pend["pct_used"] = float(m.group(1))
+            pend["raw_value"] = f"{m.group(1)}% used"
+            continue
+        m = re.match(r"Resets\s+(.+?)\s*$", line, re.I)
+        if m and pend["reset_at"] is None:
+            pend["reset_at"] = m.group(1).strip()
+    if pend and pend["pct_used"] is not None:
+        rows.append(pend)
+    return rows
+
+
+def insights(screen):
+    """Claude volunteers why the week is high. It is genuinely actionable, so
+    it is kept and shown rather than discarded."""
+    return [l.strip() for l in screen.splitlines()
+            if re.match(r"\d+% of your usage", l.strip(), re.I)]
+
+
+# ── where to launch it ──────────────────────────────────────────────────────
+
+def scrape_cwd():
+    """Launching Claude somewhere it has not seen raises a blocking
+    workspace-trust dialog which swallows the keystrokes. omnigauge will NOT
+    auto-accept that — trusting a folder is a real security decision and it
+    persists. Reuse a directory the CLI has demonstrably run in, taken from its
+    own session registry."""
+    best, newest = None, 0
+    for f in glob.glob(os.path.expanduser("~/.claude/sessions/*.json")):
+        try:
+            d = json.load(io.open(f, encoding="utf-8"))
+            cwd, st = d.get("cwd"), os.path.getmtime(f)
+            if cwd and os.path.isdir(cwd) and st > newest:
+                best, newest = cwd, st
+        except Exception:
+            continue
+    return best or os.getcwd()

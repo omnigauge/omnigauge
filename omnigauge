@@ -310,6 +310,7 @@ def load_providers():
             if os.path.basename(f).startswith("_"):
                 continue
             try:
+                sys.modules.setdefault("omnigauge", sys.modules[__name__])
                 spec = importlib.util.spec_from_file_location(
                     "omnigauge_provider_" + os.path.basename(f)[:-3], f)
                 mod = importlib.util.module_from_spec(spec)
@@ -517,6 +518,23 @@ def scan_grok(path, since=0):
 
 SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_codex),
                 grok=(grok_files, scan_grok))
+
+
+def register_provider_quota():
+    """A provider may bring its own QUOTA spec, parser, insights and cwd —
+    overriding a built-in of the same name. That is how a contributor fixes a
+    vendor UI change without touching the core."""
+    for name, mod in PROVIDERS.items():
+        q = getattr(mod, "QUOTA", None)
+        if not q or not hasattr(mod, "parse_quota"):
+            continue
+        AGENTS[name] = dict(
+            argv=q["argv"], keys=q["keys"], ready=q["ready"], done=q["done"],
+            expect=q.get("expect", []), parse=mod.parse_quota,
+            source=q.get("source", "cli_usage"),
+            insights=getattr(mod, "insights", None),
+            cwd=getattr(mod, "scrape_cwd", None),
+        )
 
 
 def all_agents():
@@ -967,7 +985,9 @@ def refresh(which):
         print(f"  {agent:<8} scraping…", end="", flush=True)
         screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"],
                                   spec["ready"], spec["done"],
-                                  cwd=CWD_OVERRIDE or scrape_cwd(agent))
+                                  cwd=(CWD_OVERRIDE
+                                       or (spec["cwd"]() if spec.get("cwd") else None)
+                                       or scrape_cwd(agent)))
         if err:
             print(f" {s.bred}FAILED{s.r} — {err}"); continue
         try:
@@ -1216,12 +1236,14 @@ def render(args):
         bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
     cfg = load_alerts()
-    sev, msgs = evaluate_alerts(con, cfg)
+    # NOT `sev` — assigning that name anywhere in render() makes it local for the
+    # whole function and shadows the sev() severity helper used above.
+    alert_sev, msgs = evaluate_alerts(con, cfg)
     if msgs:
         top("ALERTS", f"threshold {cfg['pct_used']}% · forecast {'on' if cfg['dry_before_reset'] else 'off'}")
         mid()
         for m in msgs[:6]:
-            col = s.crit if sev >= 2 else s.warn
+            col = s.crit if alert_sev >= 2 else s.warn
             mid(f"  {col}▲{s.r} {m}")
         mid()
         bot("omnigauge --check runs this headless and exits 0/1/2 for cron")
@@ -1481,6 +1503,9 @@ def NOW_fn():
 
 
 def main():
+    load_providers()
+    register_provider_quota()
+    all_agents()
     p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.")
     p.add_argument("--refresh", nargs="?", const="claude,codex,grok", metavar="AGENTS")
     p.add_argument("--since", default="24h", choices=["24h", "7d", "30d", "today", "all"])
