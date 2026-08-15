@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="assets/logo-400.png" width="120" alt="OmniGauge">
+  <img src="assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan you pay for, on one screen">
 </p>
-
-<h1 align="center">OmniGauge</h1>
 
 <p align="center">
   <em>One gauge for every AI agent and API account you run.</em><br>
