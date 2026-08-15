@@ -139,6 +139,10 @@ a{color:var(--cyan)}
 /* a critical reading should not sit there politely */
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.55}}
 .crit b.r:first-child{animation:bk 1.9s ease-in-out infinite}
+/* the address is the one string here anybody needs to move; make it behave
+   like something you can pick up */
+b.addr{cursor:pointer;border-bottom:1px dotted rgba(201,151,79,.45)}
+b.addr:hover{color:var(--white)}
 
 /* DOS screensavers existed because phosphor burned. This one is a joke that
    knows it is a joke, and any key kills it. */
@@ -442,6 +446,10 @@ var C={
   row('  [[d]]is gated on this.[[/]]');row('');
   row('  [[w]]Solana[[/]]');
   row('  [[y]]BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx[[/]]');row('');
+  (function(){var b=out.querySelectorAll('b.y');
+    for(var i=b.length-1;i>=0;i--)
+      if(b[i].textContent.trim()==='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx'){b[i].className='y addr';
+        b[i].title='double-click to copy';break;}})();
   row('  [[f]]If you got more out of this than it cost you to read the[[/]]');
   row('  [[f]]source, that trade already worked.[[/]]');row('');
   row('  [[c]]' + '\u2500'.repeat(70) + '[[/]]');row('');
@@ -453,7 +461,7 @@ var C={
   row('  [[y]]What you may not do is LARP as this project while you do it.[[/]]');
   row('  [[d]]No "official". No borrowed name. No invented team. Launch[[/]]');
   row('  [[d]]your own thing and be honest that it is yours.[[/]]');row('');
-  foot('type  wallet  to copy the address');blank();},
+  foot('double-click the address, or type  wallet');blank();},
 
  copy:function(){navigator.clipboard.writeText(
     'git clone https://github.com/omnigauge/omnigauge.git\n'+
@@ -560,6 +568,17 @@ function wire(el){el.addEventListener('click',function(e){
   var t=e.target.closest('[data-c]'); if(!t)return;
   inp.value='';resize();run(t.dataset.c);bottom();inp.focus();});}
 wire(document.getElementById('keys'));
+/* double-click anywhere on the address copies it — the selection the browser
+   makes on dblclick stops at punctuation, so copying by hand gets a fragment */
+out.addEventListener('dblclick',function(e){
+  var t=e.target;
+  if(!t||t.textContent.trim()!=='BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx')return;
+  navigator.clipboard.writeText('BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx').then(function(){
+    blank();line('  [[g]]Copied[[/]] [[d]]- Solana address on your clipboard[[/]]');
+    blank();bottom();
+  });
+});
+
 document.addEventListener('click',function(e){
   if(!e.target.closest('#menu,#drop'))closeMenu();
   if(!e.target.closest('a,[data-c]'))inp.focus();});
