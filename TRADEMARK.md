@@ -11,6 +11,9 @@ trademarks, and nothing here licenses one.
 - The name **OmniGauge**, in any capitalisation or spacing
 - The OmniGauge logo and any mark used to identify this project
 - The domain **omnigauge.dev** and the account **@OmniGauge**
+- The files under `assets/` — logo, wordmark, banner, favicons. They carry
+  their own notice (`assets/LICENSE`) and are **not** part of the MIT grant.
+  The code is free; the brand is not.
 
 OmniGauge™ is an unregistered mark claimed through use. First public use:
 August 2026.
@@ -40,6 +43,14 @@ you saying any of the following:
 
 The distinction is simple: describing a relationship to this project is fine,
 claiming to *be* it is not.
+
+## What is and is not covered, plainly
+
+MIT covers every line of code, and with it the whole way this thing looks -
+the double-line frames, the gauge bars, the palette. Someone may build a tool
+that looks exactly like this. What they may not do is call it OmniGauge, put
+this mark on it, or point a lookalike domain or account at it. The design is
+free to imitate; the identity is not free to take.
 
 ## The honest part
 

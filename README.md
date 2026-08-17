@@ -388,5 +388,6 @@ A usage meter for AI tools, written by one. The source is right there either way
 
 ## Licence
 
-MIT. Use it, fork it, ship it. The code is yours under that licence; the name
-is not — see [TRADEMARK.md](TRADEMARK.md).
+MIT. Use it, fork it, ship it. The code is yours under that licence — and with it
+the look, which anyone may imitate. The name, the mark and the files under `assets/`
+are not part of the grant — see [TRADEMARK.md](TRADEMARK.md) and `assets/LICENSE`.
