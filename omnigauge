@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS snapshots (
 );
 CREATE INDEX IF NOT EXISTS ix_snap ON snapshots(agent, usage_type, collected_at DESC);
 
+-- last good answer per spend source. The X usage endpoint's budget is tiny
+-- and a dashboard must never rate-limit itself out of its own data: fetches
+-- respect a TTL, and a failed fetch serves the last good value WITH ITS AGE.
+CREATE TABLE IF NOT EXISTS api_cache (
+  name TEXT PRIMARY KEY, payload TEXT NOT NULL, fetched_at INTEGER NOT NULL
+);
+
 -- incremental lifetime cache: a 140GB rollup must never rescan unchanged files
 CREATE TABLE IF NOT EXISTS filecache (
   path TEXT PRIMARY KEY, agent TEXT, mtime REAL, size INTEGER,
@@ -1319,11 +1326,41 @@ def x_usage(token, label):
     return out
 
 
+API_TTL = int(os.environ.get("OMNIGAUGE_SPEND_TTL_SEC", "900"))
+
+
+def cached_api(con, name, fetch):
+    """Fetch through the TTL cache. Within TTL the stored answer is served
+    and the vendor is not called at all. On a failed fetch the last good
+    answer is served WITH ITS AGE and the error alongside - a sourced stale
+    number beats a red row that threw the data away. Only a failure with no
+    history ever renders as an error."""
+    row = con.execute("SELECT payload, fetched_at FROM api_cache WHERE name=?",
+                      (name,)).fetchone()
+    if row and NOW - row[1] < API_TTL:
+        r = json.loads(row[0])
+        r["age"] = NOW - row[1]
+        return r
+    r = fetch()
+    if not r.get("err"):
+        con.execute("INSERT OR REPLACE INTO api_cache(name,payload,fetched_at) "
+                    "VALUES(?,?,?)", (name, json.dumps(r), NOW))
+        con.commit()
+        return r
+    if row:
+        stale = json.loads(row[0])
+        stale["age"] = NOW - row[1]
+        stale["stale"] = r["err"]
+        return stale
+    return r
+
+
 def collect_api(con):
     creds = load_creds()
     rows = []
     if creds.get("openai_admin_key"):
-        r = openai_spend(creds["openai_admin_key"])
+        r = cached_api(con, "openai",
+                       lambda: openai_spend(creds["openai_admin_key"]))
         rows.append(("openai", "org · 30d", r))
     # Any x_<label>_bearer in the credentials file is an X account on the
     # board - the fixed two-slot design predates operators with three.
@@ -1331,7 +1368,9 @@ def collect_api(con):
         m = re.fullmatch(r"x_(\w+)_bearer", k)
         if m and creds[k]:
             label = f"x/{m.group(1)}"
-            rows.append((label, "posts · cap", x_usage(creds[k], label)))
+            rows.append((label, "posts · cap",
+                         cached_api(con, label,
+                                    lambda b=creds[k], l=label: x_usage(b, l))))
     for name, mod in api_providers().items():
         if not hasattr(mod, "api_usage"):
             continue
@@ -1345,11 +1384,12 @@ def collect_api(con):
             except Exception as e:
                 SCAN_ERRORS.append(f"{name}: detect() raised {type(e).__name__}: {e}")
                 continue
-        try:
-            r = mod.api_usage(creds)
-        except Exception as e:
-            r = dict(source=name, err=f"{type(e).__name__}: {e}")
-        rows.append((name, "api", r))
+        def _fetch(mod=mod, name=name):
+            try:
+                return mod.api_usage(creds)
+            except Exception as e:
+                return dict(source=name, err=f"{type(e).__name__}: {e}")
+        rows.append((name, "api", cached_api(con, name, _fetch)))
     return rows, creds
 
 
@@ -1606,20 +1646,25 @@ def api_row_text(name, window, r):
     (loud, never a zero), a balance (prepaid vendors), usage against a cap,
     or plain spend. Factored so the widths are assertable like quota rows."""
     lead = f"  {s.accent}▸{s.r} {s.b}{name:<16.16}{s.r} {s.gry}{window:<12.12}{s.r}"
+    # A stale row is a SERVED row: the last good answer, with its age and the
+    # reason it could not be refreshed. Only failure-with-no-history is red.
+    suff = (f"  {s.warn}· {dur(r['age'])} old · {r['stale'][:24]}{s.r}"
+            if r.get("stale") else "")
     if r.get("err"):
         return (f"  {s.crit}▸{s.r} {s.b}{name:<16.16}{s.r} {s.gry}{window:<12.12}{s.r}"
                 f"{s.crit}{r['err'][:39]}{s.r}")
     if r.get("balance") is not None:
         cur = f" {r['currency']}" if r.get("currency") else ""
         note = f"  {r['note']}" if r.get("note") else ""
-        return lead + f"{s.wht}{r['balance']:>10}{s.r}{s.gry}{cur} balance{note}{s.r}"
+        return lead + f"{s.wht}{r['balance']:>10}{s.r}{s.gry}{cur} balance{note}{s.r}" + suff
     if r.get("cap"):
         return (lead + f"{bar(r['pct'] or 0, 14)} {s.wht}{r['pct']:>5.2f}%{s.r}"
-                f"{s.gry}  {r['used']:,.0f} / {human(r['cap'])} {r.get('unit', 'posts')}{s.r}")
+                f"{s.gry}  {r['used']:,.0f} / {human(r['cap'])} {r.get('unit', 'posts')}{s.r}"
+                + suff)
     spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "-"
     return (lead + f"{s.wht}{spend:>10}{s.r}{s.gry}"
             f"{(f'  {r["requests"]:,} req' if r.get('requests') else ''):<14}"
-            f"{(f'  {human(r["tokens"])} tok' if r.get('tokens') else '')}{s.r}")
+            f"{(f'  {human(r["tokens"])} tok' if r.get('tokens') else '')}{s.r}" + suff)
 
 
 def since_epoch(name):

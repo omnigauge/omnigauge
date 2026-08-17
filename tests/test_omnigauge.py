@@ -199,6 +199,48 @@ class TestPanelWidths(unittest.TestCase):
                 self.assertFalse(hits, f"{flag}: glyph {hits} in line:\n{l!r}")
 
 
+class TestApiCache(unittest.TestCase):
+    """The spend panel must never rate-limit itself out of its own data: a
+    TTL keeps fetches rare, and a failed fetch serves the last good answer
+    WITH ITS AGE. Only failure-with-no-history renders as an error."""
+
+    def test_ttl_serves_without_calling_vendor(self):
+        con = og.db()
+        con.execute("DELETE FROM api_cache"); con.commit()
+        calls = []
+        def ok(): calls.append(1); return dict(spend_usd=1.0)
+        def boom(): calls.append(1); return dict(err="HTTP 429")
+        r1 = og.cached_api(con, "t1", ok)
+        self.assertEqual(r1["spend_usd"], 1.0)
+        r2 = og.cached_api(con, "t1", boom)      # within TTL: vendor not called
+        self.assertEqual(len(calls), 1, "TTL hit still called the vendor")
+        self.assertEqual(r2["spend_usd"], 1.0)
+        self.assertIn("age", r2)
+
+    def test_failed_fetch_serves_stale_with_age_and_reason(self):
+        con = og.db()
+        con.execute("DELETE FROM api_cache"); con.commit()
+        og.cached_api(con, "t1", lambda: dict(used=874, cap=3_000_000,
+                                              pct=0.03, unit="posts"))
+        con.execute("UPDATE api_cache SET fetched_at=? WHERE name='t1'",
+                    (og.NOW - og.API_TTL - 7200,))
+        con.commit()
+        r = og.cached_api(con, "t1", lambda: dict(err="HTTP 429"))
+        self.assertEqual(r["used"], 874, "stale fetch lost the last good value")
+        self.assertEqual(r["stale"], "HTTP 429")
+        line = strip_ansi(og.api_row_text("x/a", "posts · cap", r))
+        self.assertIn("874", line)
+        self.assertIn("429", line)
+        self.assertIn("old", line)
+
+    def test_no_history_failure_stays_loud(self):
+        con = og.db()
+        con.execute("DELETE FROM api_cache"); con.commit()
+        r = og.cached_api(con, "t-none", lambda: dict(err="HTTP 429"))
+        self.assertEqual(r.get("err"), "HTTP 429")
+        self.assertIn("429", strip_ansi(og.api_row_text("x/a", "posts · cap", r)))
+
+
 class TestParsers(unittest.TestCase):
     CLAUDE = """\
   Settings
