@@ -111,16 +111,60 @@ class TestPanelWidths(unittest.TestCase):
         self.assert_frame(lines, 100)
 
     def test_quota_row_fits_default_80_column_terminal(self):
-        """The board's widest row must fit IN=78 — a default terminal."""
-        for W in (80, 100):
+        """The board's widest row must fit IN=78 — a default terminal — and
+        every wider tier (forecast at 97, MARGIN at 106, 24H trend at 114)
+        must frame just as exactly."""
+        for W in (80, 100, 106, 114, 140):
             og.W, og.IN = W, W - 3
             row = og.quota_row_text(
                 agent="grok", model="x premium+", window="week", pct=97.4,
                 rate=1.44, dry_in=5160, reset="Aug 19, 6pm (UTC)",
-                at=int(time.time()) - 420)
+                at=int(time.time()) - 420, trend="░▒▓█▓█")
             lines = render_lines(self.panel, "PLAN QUOTA", "normalized to % consumed",
                                  [row], "note")
             self.assert_frame(lines, W)
+            plain = strip_ansi(row)
+            if W >= 106:
+                self.assertIn("-", plain, "MARGIN missing at wide width")
+            if W >= 114:
+                self.assertIn("░▒▓█", plain, "trend strip missing at widest tier")
+
+    def test_margin_is_a_signed_verdict(self):
+        og.W, og.IN = 120, 117
+        neg = strip_ansi(og.margin_text(3600, 7200))       # dry before reset
+        pos = strip_ansi(og.margin_text(7200, 3600))       # reset before dry
+        self.assertTrue(neg.strip().startswith("-"), neg)
+        self.assertTrue(pos.strip().startswith("+"), pos)
+        self.assertEqual(strip_ansi(og.margin_text(None, 3600)).strip(), "-")
+
+    def test_trend_strip_from_snapshot_history(self):
+        con = og.db()
+        con.execute("DELETE FROM snapshots")
+        now = int(time.time())
+        for i, pct in enumerate((10.0, 20.0, 30.0, 60.0)):
+            con.execute(
+                "INSERT INTO snapshots(product,source,agent,window,model,usage_type,"
+                "pct_used,raw_value,reset_at,collected_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                ("claude_plan", "cli", "claude", "week", "all", "plan_quota",
+                 pct, f"{pct:.0f}% used", "Aug 30, 6pm", now - (3 - i) * 6 * 3600))
+        con.commit()
+        t = og.trend(con, "claude", "week", "all", now)
+        self.assertIsNotNone(t)
+        self.assertEqual(len(t), 6)
+        self.assertEqual(t.strip()[0], "░", "lowest reading is the light cell")
+        self.assertEqual(t.strip()[-1], "█", "highest reading is the full cell")
+        self.assertIsNone(og.trend(con, "grok", "week", "x", now), "no data -> None")
+        con.execute("DELETE FROM snapshots"); con.commit()
+
+    def test_build_id_and_change_detection(self):
+        b = og.build_id()
+        self.assertEqual(len(b), 8)
+        og._BUILD_AT_START = None
+        self.assertFalse(og.binary_changed(), "arming call must report unchanged")
+        self.assertFalse(og.binary_changed(), "same bytes -> unchanged")
+        og._BUILD_AT_START = "deadbeef"
+        self.assertTrue(og.binary_changed(), "different fingerprint -> changed")
+        og._BUILD_AT_START = None
 
     def test_full_render_frame_integrity(self):
         """Integration: a real render() over a seeded DB, measured line by line."""
@@ -138,10 +182,13 @@ class TestPanelWidths(unittest.TestCase):
 
         class A:  # minimal args
             since, brief, theme = "24h", True, "ink"
-        for W in (80, 100):
+        for W in (80, 100, 106, 114, 140):
             og.W, og.IN = W, W - 3
             lines = render_lines(og.render, A)
             self.assert_frame(lines, W)
+            plain = "\n".join(strip_ansi(l) for l in lines)
+            if W >= 99:
+                self.assertIn("THINK%", plain, f"THINK% missing at W={W}")
 
     def test_volume_table_fills_its_box(self):
         """Elastic columns: the volume header must reach the right border at

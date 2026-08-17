@@ -113,6 +113,41 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
+VERSION = "1.0"
+
+
+def build_id():
+    """A short fingerprint of THIS file's bytes - what a bug report needs and
+    what a long-running board compares against to notice it is stale."""
+    import hashlib
+    try:
+        with open(os.path.realpath(__file__), "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()[:8]
+    except OSError:
+        return "unknown"
+
+
+_BUILD_AT_START = None
+
+
+def binary_changed():
+    """True once the file this process was launched from has been rewritten.
+    A --watch left running through an install kept drawing yesterday's code -
+    a session reset rendered as a wall clock for hours after the fix landed.
+    The board says so and re-execs itself rather than lying quietly."""
+    global _BUILD_AT_START
+    cur = build_id()
+    if _BUILD_AT_START is None:
+        _BUILD_AT_START = cur
+        return False
+    return cur != _BUILD_AT_START
+
+
+def reexec():
+    sys.stdout.write("\033[?25h\033[?1049l")
+    sys.stdout.flush()
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 
 def db():
     os.makedirs(DATA, exist_ok=True)
@@ -178,7 +213,11 @@ class S:
 
 
 s = S()
-W = min(shutil.get_terminal_size((100, 30)).columns, 100)
+# 120, not 100: the board grows a MARGIN column at 103 and a 24H trend at
+# 111, so a wide terminal earns more instrument. Past 120 the tables would
+# be stretching, not saying more - a board should sit in a screen, not
+# fill it.
+W = min(shutil.get_terminal_size((100, 30)).columns, 120)
 
 
 def vis(t):
@@ -1594,19 +1633,45 @@ AGENTS = {
 CWD_OVERRIDE = None
 
 
+def _scrape_one(agent):
+    """The tmux half of a refresh - no DB, no printing, safe to run in a
+    thread. Returns (screen, err)."""
+    spec = AGENTS[agent]
+    return tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"],
+                       spec["ready"], spec["done"],
+                       cwd=(CWD_OVERRIDE
+                            or (spec["cwd"]() if spec.get("cwd") else None)
+                            or scrape_cwd(agent)))
+
+
 def refresh(which):
+    """Scrape every installed agent AT ONCE, then parse and store in order.
+    Serial scraping cost ~30s per agent - a three-agent refresh was a
+    ninety-second wait for what is three independent tmux sessions (each
+    already has its own name, so they never collided). Parsing and the DB
+    stay single-threaded and deterministic; only the waiting is parallel."""
+    import threading
     con = db()
+    todo = [a for a in which if installed(a)]
     for agent in which:
-        spec = AGENTS[agent]
-        if not installed(agent):
+        if agent not in todo:
             print(f"  {s.gry}{agent:<8} not installed - skipped{s.r}")
-            continue
-        print(f"  {agent:<8} scraping…", end="", flush=True)
-        screen, err = tmux_scrape(f"am-{agent}", spec["argv"], spec["keys"],
-                                  spec["ready"], spec["done"],
-                                  cwd=(CWD_OVERRIDE
-                                       or (spec["cwd"]() if spec.get("cwd") else None)
-                                       or scrape_cwd(agent)))
+    if not todo:
+        con.close(); return
+    print(f"  {s.gry}scraping {', '.join(todo)} in parallel…{s.r}", flush=True)
+    results = {}
+    def run(a):
+        try:
+            results[a] = _scrape_one(a)
+        except Exception as e:
+            results[a] = (None, f"{type(e).__name__}: {e}")
+    threads = [threading.Thread(target=run, args=(a,), daemon=True) for a in todo]
+    for th in threads: th.start()
+    for th in threads: th.join()
+    for agent in todo:
+        spec = AGENTS[agent]
+        screen, err = results.get(agent, (None, "no result"))
+        print(f"  {agent:<8}", end="", flush=True)
         if err:
             print(f" {s.bred}FAILED{s.r} - {err}"); continue
         try:
@@ -1664,8 +1729,48 @@ def quota_rows(con):
         seen.add(k)
         row = dict(window=r[1], model=r[2], pct=r[3], raw=r[4], reset=r[5], at=r[6])
         row.update(burn(con, r[0], r[1], r[2], r[3], r[6]))
+        row["trend"] = trend(con, r[0], r[1], r[2], r[6])
         q.setdefault(r[0], []).append(row)
     return q
+
+
+def trend(con, agent, window, model, at_now, span=24 * 3600, cells=6):
+    """USED as a tiny glyph strip - burn is a slope averaged flat; the trend
+    shows acceleration. Six equal time buckets over the LAST span seconds of
+    the series (up to 24h) - the strip covers what history exists, so a
+    fresh install shows shape after an hour of readings instead of a blank
+    day. Latest reading per bucket, scaled to the strip's own min..max so a
+    slow week still shows its shape. Only glyphs already load-bearing on the
+    board: ░ ▒ ▓ █ (a bucket with no reading is a space). None when fewer
+    than two buckets have data or the series is under ten minutes long."""
+    rows = list(con.execute(
+        "SELECT pct_used, collected_at FROM snapshots WHERE usage_type='plan_quota' "
+        "AND agent=? AND window=? AND IFNULL(model,'')=IFNULL(?,'') AND collected_at>=? "
+        "ORDER BY collected_at", (agent, window, model, at_now - span)))
+    if len(rows) < 2:
+        return None
+    t0 = rows[0][1]
+    span = max(600, at_now - t0)
+    if at_now - t0 < 600:
+        return None
+    buckets = [None] * cells
+    for pct, at in rows:
+        i = min(cells - 1, int((at - t0) / span * cells))
+        buckets[i] = pct                       # latest reading wins
+    have = [b for b in buckets if b is not None]
+    if len(have) < 2:
+        return None
+    lo, hi = min(have), max(have)
+    ramp = "░▒▓█"
+    out = []
+    for b in buckets:
+        if b is None:
+            out.append(" ")
+        elif hi == lo:
+            out.append("▒")
+        else:
+            out.append(ramp[min(3, int((b - lo) / (hi - lo) * 4))])
+    return "".join(out)
 
 
 def burn(con, agent, window, model, pct_now, at_now, lookback=6 * 3600):
@@ -1742,17 +1847,33 @@ def _quota_layout():
     """Column plan for PLAN QUOTA at the current width. The full board needs
     94 columns of content; below that the forecast columns come out (the doom
     sub-row and --check still carry the forecast) and the bar keeps its size
-    where it fits. 80-column terminals are the default case, not an edge case."""
+    where it fits. 80-column terminals are the default case, not an edge case.
+    From 103 columns a MARGIN column joins: the verdict of DRY IN against
+    RESETS IN in one signed number, so the tightest plan reads at a glance."""
     full = IN >= 94
-    bar_w = min(22, max(8, IN - (72 if full else 53)))
-    return full, bar_w
+    margin = IN >= 103
+    trend_col = IN >= 111
+    bar_w = min(22, max(8, IN - (89 if trend_col else 81 if margin else 72 if full else 53)))
+    return full, bar_w, margin, trend_col
 
 
-def quota_row_text(agent, model, window, pct, rate, dry_in, reset, at):
+def margin_text(dry_in, reset_s):
+    """Signed headroom between running dry and the reset. Negative and red
+    when the plan runs out first; positive and green when the reset comes
+    first; '-' when either half is unknown."""
+    if dry_in is None or reset_s is None:
+        return f"{s.gry}{'-':>9}{s.r}"
+    d = dry_in - reset_s
+    if d < 0:
+        return f"{s.crit}{'-' + dur(-d):>9}{s.r}"
+    return f"{s.ok}{'+' + dur(d):>9}{s.r}"
+
+
+def quota_row_text(agent, model, window, pct, rate, dry_in, reset, at, trend=None):
     """One PLAN QUOTA row, laid out for the current width. The READ column is
     the reading's age — a PARTIAL refresh leaves the missing window's previous
     reading on the board, and READ is what keeps that visible."""
-    full, bar_w = _quota_layout()
+    full, bar_w, margin, trend_col = _quota_layout()
     nm = short_model(agent, model)
     cd = countdown(reset) or (short_reset(reset)[:11] if reset else "-")
     pc = sev(pct) if pct >= 70 else s.wht
@@ -1764,7 +1885,12 @@ def quota_row_text(agent, model, window, pct, rate, dry_in, reset, at):
         rate_s = f"{rate:.2f}%" if rate else "-"
         dcol = s.crit if doom else s.gry
         row += f"{s.gry}{rate_s:>9}{s.r}{dcol}{dur(dry_in):>10}{s.r}"
-    row += f"{s.gry}{cd:>10}{s.r}{s.faint}{age(at):>6}{s.r}"
+    row += f"{s.gry}{cd:>10}{s.r}"
+    if margin:
+        row += margin_text(dry_in, reset_s)
+    if trend_col:
+        row += f"  {s.gry}{(trend or ''):<6}{s.r}"
+    row += f"{s.faint}{age(at):>6}{s.r}"
     return row
 
 
@@ -1813,10 +1939,13 @@ def render(args):
 
     # ── quota panel
     top("PLAN QUOTA", "normalized to % consumed")
-    full_cols, bar_w = _quota_layout()
+    full_cols, bar_w, margin_col, trend_col = _quota_layout()
     hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<8}{'':<{bar_w + 2}}{'USED':>5}"
            + (f"{'BURN/h':>9}{'DRY IN':>10}" if full_cols else "")
-           + f"{'RESETS IN':>10}{'READ':>6}{s.r}")
+           + f"{'RESETS IN':>10}"
+           + (f"{'MARGIN':>9}" if margin_col else "")
+           + (f"  {'TREND':<6}" if trend_col else "")
+           + f"{'READ':>6}{s.r}")
     mid(hdr)
     if not flat:
         mid(f"  {s.gry}nothing collected - run{s.r} {s.bcya}omnigauge --refresh{s.r}")
@@ -1842,7 +1971,7 @@ def render(args):
             first_row = False
             mid(quota_row_text(agent=agent, model=r["model"], window=r["window"],
                                pct=r["pct"], rate=r.get("rate"), dry_in=r.get("dry_in"),
-                               reset=r["reset"], at=r["at"]))
+                               reset=r["reset"], at=r["at"], trend=r.get("trend")))
             reset_s = countdown(r["reset"], _as_seconds=True) if r["reset"] else None
             if (r.get("dry_in") is not None and reset_s is not None
                     and r["dry_in"] < reset_s):
@@ -1861,20 +1990,28 @@ def render(args):
         # ELASTIC: the seven numeric columns split the whole inner width, so
         # the table fills its box at any terminal - fixed widths left a third
         # of a wide frame empty and CLIPPED at a strict 80.
-        cw = max(8, (IN - 12) // 7)
-        lw = max(cw, (IN - 13) - cw * 6)      # TOTAL absorbs the remainder,
-                                              # minus one breath off the border
+        # THINK% = reasoning tokens as a share of output - '4.45M / 140.86M'
+        # says nothing at a glance; '3.2%' says which agent over-thinks.
+        # It joins from 96 columns; below that the seven columns keep the box.
+        ratio = IN >= 96
+        ncol = 8 if ratio else 7
+        cw = max(8, (IN - 12 - (7 if ratio else 0)) // 7)
+        lw = max(cw, (IN - 13 - (7 if ratio else 0)) - cw * 6)  # TOTAL absorbs
+                                              # the remainder, minus one breath
         top(title, note)
         mid(f"  {s.gry}{'AGENT':<10}{'FILES':>{cw}}{'MSGS':>{cw}}{'OUTPUT':>{cw}}"
-            f"{'THINK':>{cw}}{'CACHE-RD':>{cw}}{'INPUT':>{cw}}{'TOTAL':>{lw}}{s.r}")
+            f"{'THINK':>{cw}}" + (f"{'THINK%':>7}" if ratio else "")
+            + f"{'CACHE-RD':>{cw}}{'INPUT':>{cw}}{'TOTAL':>{lw}}{s.r}")
         for agent in data:
             t = data[agent]
             if t is None:
                 mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
             tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
+            tr = (f"{t['think'] / t['tout'] * 100:>6.1f}%" if t["tout"] else f"{'-':>7}")
             mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>{cw},}{t['msgs']:>{cw},}"
                 f"{s.bgrn}{human(t['tout']):>{cw}}{s.r}{s.wht}{human(t['think']):>{cw}}{s.r}"
-                f"{s.gry}{human(t['cache_read']):>{cw}}{human(t['tin']):>{cw}}{s.r}"
+                + (f"{s.gry}{tr}{s.r}" if ratio else "")
+                + f"{s.gry}{human(t['cache_read']):>{cw}}{human(t['tin']):>{cw}}{s.r}"
                 f"{s.b}{human(tot):>{lw}}{s.r}")
         bot("not comparable to vendor counters · different denominators")
 
@@ -1904,16 +2041,25 @@ def render(args):
             top("BY MODEL", "lifetime · every version you have run")
             mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<{mw}}{'MSGS':>9}{'OUTPUT':>11}"
                 f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
+            # A log axis for the bar: one 95% leader flattened every other
+            # row to nothing on a linear scale, and the comparison the panel
+            # exists for lives among the small ones. Four decades, so 0.01%
+            # is the first cell and 100% the last. The number beside it is
+            # still linear truth; the foot says which axis the bar is on.
+            import math as _m
             for a_, mo, mv in rows:
                 share = mv["total"] / grand * 100
-                w = max(0, int(round(share / 100 * sw)))
+                w = 0
+                if share > 0:
+                    w = int(round((_m.log10(max(share, 0.01)) + 2) / 4 * sw))
+                    w = max(1, min(sw, w))
                 cap = "▌" if 0 < w < sw else ""
                 spark = (s.accent + "█" * w + cap
                          + s.faint + "░" * (sw - w - len(cap)) + s.r)
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
-            bot("codex rollups are attributed to the LAST model seen in the file")
+            bot("share bar is LOG scale, 0.01% to 100% · codex rollups attributed to the LAST model in the file")
 
     api_rows, creds = collect_api(con)
     if api_rows or not creds:
@@ -2171,6 +2317,11 @@ def interactive(args):
     with RawTTY():
       try:
         while True:
+            if binary_changed():
+                sys.stdout.write("\033[2J\033[H")
+                print(f"\n  {s.warn}omnigauge was updated on disk - restarting with the new build{s.r}")
+                time.sleep(1.2)
+                reexec()
             sys.stdout.write("\033[2J\033[H")
             if not _MEMO:
                 # Say it is working instead of leaving a live-looking key bar on
@@ -2365,6 +2516,11 @@ def watch(args):
                     print(f"\n  {s.b}refreshing quota{s.r} {s.gry}({', '.join(which)} · ~30s each){s.r}")
                     refresh(which)
                 last_quota = NOW_fn()
+            if binary_changed():
+                sys.stdout.write("\033[2J\033[H")
+                print(f"\n  {s.warn}omnigauge was updated on disk - restarting with the new build{s.r}")
+                time.sleep(1.2)
+                reexec()
             sys.stdout.write("\033[2J\033[H")
             render(args)
             nxt = args.quota_every - (NOW_fn() - last_quota) if args.quota_every else None
@@ -2380,6 +2536,7 @@ def NOW_fn():
 
 
 def main():
+    binary_changed()          # arm: remember the build we launched from
     load_providers()
     register_provider_quota()
     all_agents()
@@ -2407,6 +2564,8 @@ def main():
     p.add_argument("--providers", action="store_true",
                    help="the providers legend: what each source gets, could get, "
                         "and cannot get - with reasons")
+    p.add_argument("--version", action="store_true",
+                   help="print version and build fingerprint")
     p.add_argument("--scan-roots", action="store_true",
                    help="hunt mounted drives for agent stores discovery does not cover")
     p.add_argument("--doctor", action="store_true",
@@ -2449,6 +2608,8 @@ def main():
 
     if a.doctor:
         doctor(); return
+    if a.version:
+        print(f"omnigauge {VERSION} build {build_id()} epoch {SCAN_EPOCH}"); return
     if a.scan_roots:
         scan_roots(); return
 
