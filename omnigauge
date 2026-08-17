@@ -2060,9 +2060,16 @@ def render(args):
                 if share >= 0.01:
                     w = int(round((_m.log10(share) + 2) / 4 * sw))
                     w = max(1, min(sw, w))
+                # Lower-half blocks: the bar owns the bottom of its cell, so
+                # consecutive rows carry their own air without a blank line
+                # between them - neither clustered nor padded.
+                # A ▌ cap and a DOT track, not ░: fifteen filled tracks stacked
+                # line-on-line fused into one slab; the dotted track leaves
+                # each bar reading as its own row without a blank line - the
+                # middle between clustered and padded.
                 cap = "▌" if 0 < w < sw else ""
                 spark = (s.accent + "█" * w + cap
-                         + s.faint + "░" * (sw - w - len(cap)) + s.r)
+                         + s.faint + "·" * (sw - w - len(cap)) + s.r)
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
