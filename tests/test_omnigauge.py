@@ -48,11 +48,13 @@ def render_lines(fn, *a, **kw):
 
 
 def frame_widths(lines):
-    """Visible width of every frame line (╭ │ ╰), ignoring blanks/loose lines."""
+    """Visible width of every frame line (╔ ║ ╚), ignoring blanks/loose lines.
+    The frame wears the site's double-line dress now; the invariant is the
+    same one that broke three times: every line of a panel measures alike."""
     out = []
     for l in lines:
         p = strip_ansi(l)
-        if p.strip()[:1] in ("╭", "│", "╰"):
+        if p.strip()[:1] in ("╔", "║", "╚"):
             out.append((len(p.rstrip("\n")), p))
     return out
 

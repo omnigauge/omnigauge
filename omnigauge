@@ -207,32 +207,39 @@ IN = W - 3
 
 
 def top(title, sub=""):
-    t = f" {s.b}{s.bcya}{title}{s.r}{s.gry} "
+    """The site's frame, worn by the terminal: ╔══▌ TITLE ▐════ sub ═╗ with
+    double-line sides and a blank row of air baked in after the head - John:
+    'we have plenty of room to play with... i dont want everything as cramped
+    looking as it is.'"""
+    tabs = f"{s.accent}▌{s.r}{s.b}{s.wht} {title} {s.r}{s.accent}▐{s.r}"
     tail = f"{s.gry} {sub} {s.r}" if sub else ""
-    # IN - 1, not IN - 2: the row is ' │' + IN + '│', so the header must be
-    # ' ╭─' + title + fill + sub + '╮'. Budgeting two for '╭─' and one for '╮'
-    # while only subtracting two total left every panel's top-right corner one
-    # column short of its own body.
-    fill = IN - vis(t) - vis(tail) - 1
+    # geometry: ' ╔══' (4) + tabs + ═-fill + tail + '╗' (1) must equal W,
+    # and W = IN + 3.
+    fill = IN - 2 - vis(tabs) - vis(tail)
     if fill < 1 and tail:            # the sub is decoration; the frame is not
-        tail, fill = "", IN - vis(t) - 1
+        tail, fill = "", IN - 2 - vis(tabs)
     if fill < 1:
-        t, fill = clip(t, IN - 2), 1
-    print(f"\n {s.faint}╭─{s.r}{t}{s.faint}{'─' * fill}{s.r}{tail}{s.faint}╮{s.r}")
+        tabs = (f"{s.accent}▌{s.r}{s.b}{s.wht} "
+                f"{clip(title, IN - 8)} {s.r}{s.accent}▐{s.r}")
+        fill = max(1, IN - 2 - vis(tabs))
+    print(f"\n\n {s.accent}╔══{s.r}{tabs}{s.accent}{'═' * fill}{s.r}"
+          f"{tail}{s.accent}╗{s.r}")
+    mid()
 
 
 def mid(text=""):
     text = clip(text, IN)
-    print(f" {s.faint}│{s.r}{text}{' ' * max(0, IN - vis(text))}{s.faint}│{s.r}")
+    print(f" {s.accent}║{s.r}{text}{' ' * max(0, IN - vis(text))}{s.accent}║{s.r}")
 
 
 def bot(note=""):
+    mid()
     if note:
         n = clip(f"{s.gry} {note} {s.r}", IN - 3)
         fill = IN - vis(n) - 2
-        print(f" {s.faint}╰{'─' * 2}{s.r}{n}{s.faint}{'─' * max(1, fill)}╯{s.r}")
+        print(f" {s.accent}╚{'═' * 2}{s.r}{n}{s.accent}{'═' * max(1, fill)}╝{s.r}")
     else:
-        print(f" {s.faint}╰{'─' * IN}╯{s.r}")
+        print(f" {s.accent}╚{'═' * IN}╝{s.r}")
 
 
 # Eighth blocks gave sub-character resolution — and cost seven rare glyphs.
@@ -922,7 +929,6 @@ def legend():
     """The providers legend: what each source actually gets, could get, and
     cannot get. ● obtained · ○ available, not read yet · - unavailable."""
     top("PROVIDERS", "what ships, what it gets, and what it cannot get")
-    mid()
     short = {"lifetime": "LIFE", "models": "MODEL"}
     hdr = "  " + f"{'SOURCE':<11}{'KIND':<6}" + "".join(
         f"{short.get(c, c).upper():>8}" for c in CAPABILITIES)
@@ -939,11 +945,9 @@ def legend():
             if ":" in (v or "") or st not in CAP_STATES:
                 notes.append((name, c, v))
         mid(f"  {s.b}{name:<11.11}{s.r}{s.gry}{kind:<6}{s.r}{cells}")
-    mid()
     bot("● obtained · ○ available, not read yet · - unavailable")
     if notes:
         top("THE REASONS", "the third state is the honest one")
-        mid()
         last = None
         for name, c, v in notes:
             st, _, why = (v or "").partition(":")
@@ -959,14 +963,11 @@ def legend():
             mid(f"  {mark} {s.gry}{c:<9}{s.r}{s.gry}{first}{s.r}")
             for cont in rest:
                 mid(f"{'':<15}{s.gry}{cont}{s.r}")
-        mid()
         bot("the glyph is the state; the words are why")
     if NEGATIVES:
         top("VERIFIED NEGATIVES", "read on real installs, not guessed")
-        mid()
         for name, why in NEGATIVES:
             mid(f"  {s.faint}-{s.r} {s.b}{name:<12}{s.r}{s.gry}{why}{s.r}")
-        mid()
         bot("a missing provider with a reason beats a broken one")
     print()
 
@@ -1704,7 +1705,6 @@ def render(args):
 
     # ── quota panel
     top("PLAN QUOTA", "normalized to % consumed")
-    mid()
     full_cols, bar_w = _quota_layout()
     hdr = (f"  {s.gry}{'':<3}{'AGENT':<17}{'WINDOW':<8}{'':<{bar_w + 2}}{'USED':>5}"
            + (f"{'BURN/h':>9}{'DRY IN':>10}" if full_cols else "")
@@ -1731,7 +1731,6 @@ def render(args):
                 mid(f"  {s.crit}{'':<6}▲ runs dry {short} BEFORE the window resets{s.r}")
             if r["raw"] and "left" in (r["raw"] or ""):
                 mid(f'  {s.gry}{"":<21}vendor said "{r["raw"]}" - inverted{s.r}')
-    mid()
     bot("subscription windows · no dollar balance exists for these plans")
 
     # ── volume panel
@@ -1741,7 +1740,6 @@ def render(args):
         data = {a_: (getter(a_) if SCANNERS[a_][0]() else None)
                 for a_ in agent_order()}
         top(title, note)
-        mid()
         mid(f"  {s.gry}{'AGENT':<10}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}"
             f"{'THINK':>10}{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}{s.r}")
         for agent in data:
@@ -1753,7 +1751,6 @@ def render(args):
                 f"{s.bgrn}{human(t['tout']):>11}{s.r}{s.wht}{human(t['think']):>10}{s.r}"
                 f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
                 f"{s.b}{human(tot):>11}{s.r}")
-        mid()
         bot("not comparable to vendor counters · different denominators")
 
     vol_table("TOKEN VOLUME", f"local transcripts · {args.since}",
@@ -1775,7 +1772,6 @@ def render(args):
             rows.sort(key=lambda r: -r[2]["total"])
             grand = sum(r[2]["total"] for r in rows) or 1
             top("BY MODEL", "lifetime · every version you have run")
-            mid()
             mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<22}{'MSGS':>9}{'OUTPUT':>11}"
                 f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
             for a_, mo, mv in rows:
@@ -1785,20 +1781,17 @@ def render(args):
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:21]:<22}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
-            mid()
             bot("codex rollups are attributed to the LAST model seen in the file")
 
     api_rows, creds = collect_api(con)
     if api_rows or not creds:
         top("API SPEND & CREDITS", "real dollars · never merged with plan quota")
-        mid()
         if not api_rows:
             mid(f"  {s.gry}no API credentials configured{s.r}")
             mid(f"  {s.gry}add one with{s.r} {s.accent}omnigauge --setup{s.r}"
                 f"{s.gry} - needs an OpenAI ADMIN key (scope api.usage.read){s.r}")
         for name, window, r in api_rows:
             mid(api_row_text(name, window, r))
-        mid()
         bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
     cfg = load_alerts()
@@ -1807,28 +1800,22 @@ def render(args):
     alert_sev, msgs = evaluate_alerts(con, cfg)
     if msgs:
         top("ALERTS", f"threshold {cfg['pct_used']}% · forecast {'on' if cfg['dry_before_reset'] else 'off'}")
-        mid()
         for m in msgs[:6]:
             col = s.crit if alert_sev >= 2 else s.warn
             mid(f"  {col}▲{s.r} {m}")
-        mid()
         bot("omnigauge --check runs this headless and exits 0/1/2 for cron")
 
     ins = list(con.execute("SELECT agent,text FROM insights ORDER BY id"))
     if ins:
         top("WHAT IS DRIVING USAGE", "reported by the vendor")
-        mid()
         for a_, t in ins:
             mid(f"  {s.bcya}▸{s.r} {t}")
-        mid()
         bot()
     if SCAN_ERRORS:
         uniq = sorted({e for e in SCAN_ERRORS})
         top("SCAN ERRORS", f"{len(SCAN_ERRORS)} file(s) failed to parse")
-        mid()
         for e in uniq[:6]:
             mid(f"  {s.crit}▸{s.r} {e[:W-8]}")
-        mid()
         bot("counts above are INCOMPLETE - these files were skipped")
     print()
     con.close()
@@ -1931,7 +1918,6 @@ def drain():
 
 def why_panel():
     top("FOUR VENDORS. FOUR DIALECTS.")
-    mid()
     mid(f"  {s.gry}Ask each one how much you have left. Every answer is honest,{s.r}")
     mid(f"  {s.gry}and useless beside the others:{s.r}")
     mid()
@@ -1945,13 +1931,11 @@ def why_panel():
     mid(f"  {s.gry}homework. One shrugs. Here, every window is percent consumed -{s.r}")
     mid(f"  {s.gry}and the question that matters gets answered: do you run dry{s.r}")
     mid(f"  {s.gry}BEFORE the reset does.{s.r}")
-    mid()
     bot("it is usually not the plan you were worried about")
 
 
 def privacy_panel():
     top("THINGS IT WILL NOT DO")
-    mid()
     mid(f"  {s.wht}It will not ask for a key to read your agents.{s.r}")
     mid(f"  {s.gry}Plan quota and token volume come from files your agents{s.r}")
     mid(f"  {s.gry}already write to your own disk. Nothing to paste, nothing{s.r}")
@@ -1969,13 +1953,11 @@ def privacy_panel():
     mid(f"  {s.wht}It will not guess.{s.r}")
     mid(f"  {s.gry}When a parse fails you get{s.r} {s.crit}NO QUOTA PARSED{s.r}{s.gry} and the raw{s.r}")
     mid(f"  {s.gry}screen - never a plausible number with nothing behind it.{s.r}")
-    mid()
     bot("the optional spend panel takes keys - yours, 0600, your own billing")
 
 
 def donate_panel():
     top("DONATE", "optional, and it changes nothing")
-    mid()
     mid(f"  {s.gry}MIT, no paid tier, nothing gated on this.{s.r}")
     mid()
     mid(f"  {s.wht}Solana{s.r}")
@@ -1983,13 +1965,11 @@ def donate_panel():
     mid()
     mid(f"  {s.gry}There will be no OmniGauge token from the developer of{s.r}")
     mid(f"  {s.gry}OmniGauge. No presale, no airdrop, no Phase 3.{s.r}")
-    mid()
     bot("if it saved you something, the trade already worked")
 
 
 def about_panel():
     top("ABOUT OMNIGAUGE")
-    mid()
     mid(f"  {s.b}{s.wht}OmniGauge 1.0{s.r} {s.gry}- one gauge for every AI plan you pay for{s.r}")
     mid()
     mid(f"  {s.gry}Reads what your agent CLIs already write. Normalizes every{s.r}")
@@ -1997,7 +1977,6 @@ def about_panel():
     mid()
     mid(f"  {s.gry}Written by Claude Opus 5.0. Maintained by Claude Fable 5.{s.r}")
     mid(f"  {s.gry}MIT · one Python file · github.com/omnigauge/omnigauge{s.r}")
-    mid()
     bot("read it before you run it")
 
 
