@@ -254,6 +254,33 @@ class TestPanelWidths(unittest.TestCase):
             hits = banned & set(p)
             self.assertFalse(hits, f"fallback-risk glyph {hits} in line:\n{p!r}")
 
+    def test_every_panel_closes_its_box(self):
+        """An open box passes the width assert - every line IS the right width -
+        so it needs its own guard: in each rendered panel function, the count
+        of head lines (╔) equals the count of foot lines (╚). why_panel shipped
+        for a night with a top border, sides, and no bottom."""
+        con = og.db()
+        con.execute("DELETE FROM snapshots"); con.commit(); og.memo_clear()
+        og.W, og.IN = 100, 97
+        for fn in (og.why_panel, og.privacy_panel, og.about_panel, og.donate_panel,
+                   og.legend):
+            plain = [strip_ansi(l) for l in render_lines(fn)]
+            heads = sum(1 for l in plain if l.lstrip().startswith("╔"))
+            feet = sum(1 for l in plain if l.lstrip().startswith("╚"))
+            self.assertGreater(heads, 0, f"{fn.__name__}: no panel rendered")
+            self.assertEqual(heads, feet, f"{fn.__name__}: {heads} head(s), {feet} foot(s) - open box")
+        # and with data in the DB, why_panel's live branch closes too
+        now = int(time.time())
+        con.execute("INSERT INTO snapshots(product,source,agent,window,model,usage_type,"
+                    "pct_used,raw_value,reset_at,collected_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    ("codex_plan","cli","codex","week","all","plan_quota",97.0,"3% left","Aug 20, 6pm",now))
+        con.commit(); og.memo_clear()
+        plain = [strip_ansi(l) for l in render_lines(og.why_panel)]
+        self.assertEqual(sum(1 for l in plain if l.lstrip().startswith("╔")),
+                         sum(1 for l in plain if l.lstrip().startswith("╚")), "why_panel live branch: open box")
+        self.assertTrue(any("3% left" in l for l in plain), "live branch did not show the vendor's own words")
+        con.execute("DELETE FROM snapshots"); con.commit(); og.memo_clear()
+
     def test_no_fallback_glyphs_in_doctor_or_legend(self):
         banned = set("—–‘’“”→▟▛▎▋▁▂▃▄▅▆▇")
         env = dict(os.environ, OMNIGAUGE_HOME=tempfile.mkdtemp(prefix="og-doc-"))

@@ -2274,6 +2274,7 @@ def why_panel():
     mid(f"  {s.gry}Some count down. Some count up. Here, every window is percent{s.r}")
     mid(f"  {s.gry}consumed - and the question that matters gets answered: do you{s.r}")
     mid(f"  {s.gry}run dry BEFORE the reset does.{s.r}")
+    bot("it is usually not the plan you were worried about")
 
 
 def privacy_panel():
