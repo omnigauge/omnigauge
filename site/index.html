@@ -1,8 +1,8 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniGauge — every AI plan you pay for, on one screen</title>
-<meta name="description" content="One terminal dashboard for every AI plan you pay for - Claude Code, Codex, Grok, Aider, Goose, and API accounts. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
+<title>OmniGauge — every AI plan and API account you pay for, on one screen</title>
+<meta name="description" content="One terminal dashboard for every AI plan and API account you pay for - Claude Code, Codex, Grok, Aider, Goose, and OpenAI, X, OpenRouter, Moonshot, DeepSeek spend. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
 <link rel="canonical" href="https://omnigauge.dev/">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -1046,7 +1046,7 @@ modal.addEventListener('click',function(e){
 
 C.about=function(){dialog('About OmniGauge',
  '<b class="w">OmniGauge 1.0</b>\n'+
- '<b class="d">One gauge for every AI plan you pay for.</b>\n\n'+
+ '<b class="d">One gauge for every AI plan and API account you pay for.</b>\n\n'+
  '<b class="d">Reads what Claude Code, Codex and Grok already write to your\n'+
  'disk. Normalizes four incompatible counters to one denominator.\n'+
  'Asks for no key, reports to nobody, invents nothing.</b>\n\n'+
@@ -1106,7 +1106,7 @@ var darkAt=0;
 function svHTML(){return MOBILE
   ? '<b class="c">OMNI</b><b class="y">GAUGE</b>'
   : '<b class="c">OMNI</b><b class="y">GAUGE</b>'+
-    '<b class="f">   every AI plan you pay for, on one screen</b>';}
+    '<b class="f">   every AI plan and API account, on one screen</b>';}
 function goDark(){
   var el=document.documentElement;
   if(!MOBILE && !document.fullscreenElement && el.requestFullscreen)

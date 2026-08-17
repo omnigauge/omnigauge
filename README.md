@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan you pay for, on one screen">
+  <img src="assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan and API account you pay for, on one screen">
 </p>
 
 <p align="center">
@@ -14,8 +14,8 @@
 </p>
 
 
-One dashboard for every AI plan you pay for — **Claude Code**, **Codex**, **Grok**, **Aider**,
-**Goose**, and your API accounts — plan quota and token volume, side by side, in your terminal.
+One dashboard for every AI plan and API account you pay for — **Claude Code**, **Codex**,
+**Grok**, **Aider**, **Goose**, OpenAI, X, OpenRouter, Moonshot, DeepSeek — plan quota and token volume, side by side, in your terminal.
 
 No keys for the part that matters — plan quota and token volume come from files
 those tools already write to your disk, and from each CLI's own quota panel.

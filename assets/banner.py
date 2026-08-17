@@ -17,8 +17,8 @@ stack(im,x0,y0,int(16*s*C),int(30*s*C),int(5*s*C),int(18*s*C),ROWS)
 d=ImageDraw.Draw(im)
 f=F(76*C); tx=350*C; ty=160*C
 d.text((tx,ty),"Omni",font=f,fill=WHITE+(255,)); d.text((tx+f.getlength("Omni"),ty),"Gauge",font=f,fill=CYAN+(255,))
-ft=F(25*C); d.text((tx+5*C,262*C),"every AI plan you pay for",font=ft,fill=GRAY+(255,)); d.text((tx+5*C,298*C),"on one screen",font=ft,fill=GRAY+(255,))
-tag_right=max(tx+5*C+ft.getlength("every AI plan you pay for"), tx+f.getlength("OmniGauge"))  # widest text, not just the tagline
+ft=F(25*C); d.text((tx+5*C,262*C),"every AI plan and API account",font=ft,fill=GRAY+(255,)); d.text((tx+5*C,298*C),"you pay for, on one screen",font=ft,fill=GRAY+(255,))
+tag_right=max(tx+5*C+ft.getlength("every AI plan and API account"), tx+5*C+ft.getlength("you pay for, on one screen"), tx+f.getlength("OmniGauge"))  # widest text
 IN=45; fp=F(21*C); cw=fp.getlength("0"); lh=32*C; B=CYAN
 def L(segs): return sum(len(t) for t,_ in segs)
 def head(t,sub): l=[("╔══",B),("▌ ",B),(t,WHITE),(" ▐",B)]; r=[(" "+sub+" ",GRAY),("╗",B)]; return l+[("═"*(IN+3-L(l)-L(r)),B)]+r

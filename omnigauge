@@ -2313,7 +2313,7 @@ def donate_panel():
 
 def about_panel():
     top("ABOUT OMNIGAUGE")
-    mid(f"  {s.b}{s.wht}OmniGauge 1.0{s.r} {s.gry}- one gauge for every AI plan you pay for{s.r}")
+    mid(f"  {s.b}{s.wht}OmniGauge 1.0{s.r} {s.gry}- every AI plan and API account you pay for{s.r}")
     mid()
     mid(f"  {s.gry}Reads what your agent CLIs already write. Normalizes every{s.r}")
     mid(f"  {s.gry}vendor's counter to percent consumed. Invents nothing.{s.r}")
