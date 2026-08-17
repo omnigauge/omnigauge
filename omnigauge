@@ -58,7 +58,7 @@ APP = "omnigauge"
 # sends money to a dead wallet quietly. One constant per file is the most that
 # can be single-sourced across a Python script, a static page and a markdown
 # document — so there are three edit points, not six, and each file has one.
-DONATE_SOL = "BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx"
+DONATE_SOL = "HDDEfcYnLh4w8yG5Rn8chcm15xo1LavkvtRGeTRGAUGE"
 DATA = os.environ.get("OMNIGAUGE_HOME") or os.path.join(
     os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), APP)
 DB = os.path.join(DATA, "usage.db")

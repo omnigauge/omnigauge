@@ -325,7 +325,7 @@ you want it. It would be a separate panel, never merged into plan quota.
 Optional, and it changes nothing about the tool — OmniGauge is MIT and always
 will be, with no paid tier and no telemetry.
 
-**Solana:** `BHi4KtTJxk5K3FaAFxRcoQYrLveUbARFky13VwxxXxx`
+**Solana:** `HDDEfcYnLh4w8yG5Rn8chcm15xo1LavkvtRGeTRGAUGE`
 
 If you get more use out of this than it cost you to read the source, that is
 already the trade working.
