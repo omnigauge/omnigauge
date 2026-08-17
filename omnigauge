@@ -2050,13 +2050,7 @@ def render(args):
             # is the first cell and 100% the last. The number beside it is
             # still linear truth; the foot says which axis the bar is on.
             import math as _m
-            first = True
             for a_, mo, mv in rows:
-                # Same air as the quota gauges: sixteen bars line-on-line read
-                # as one staircase, not sixteen readings.
-                if not first:
-                    mid()
-                first = False
                 share = mv["total"] / grand * 100
                 w = 0
                 # Below the axis floor the bar stays EMPTY. Lighting a cell
