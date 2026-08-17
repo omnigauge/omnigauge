@@ -2034,8 +2034,13 @@ def render(args):
             for mo, mv in t["models"].items():
                 rows.append((a_, mo, mv))
         if rows:
-            rows.sort(key=lambda r: -r[2]["total"])
             grand = sum(r[2]["total"] for r in rows) or 1
+            # Group by agent, agents ordered by their biggest model, models
+            # by size inside the group - so the panel reads as blocks.
+            best = {}
+            for a_, mo, mv in rows:
+                best[a_] = max(best.get(a_, 0), mv["total"])
+            rows.sort(key=lambda r: (-best[r[0]], -r[2]["total"]))
             # ELASTIC: MODEL gets real room and the share bar absorbs the
             # rest of the inner width - the fixed 90-column layout clipped
             # at 80 and stranded a wide frame's right third.
@@ -2050,7 +2055,15 @@ def render(args):
             # is the first cell and 100% the last. The number beside it is
             # still linear truth; the foot says which axis the bar is on.
             import math as _m
+            # Air between AGENT groups, not between every bar: four gaps in a
+            # sixteen-row panel. Rows inside a group are one agent's models,
+            # so their closeness means something; the gap marks the change.
+            # (A dot track alone read the same as none at John's font size.)
+            prev_agent = None
             for a_, mo, mv in rows:
+                if prev_agent is not None and a_ != prev_agent:
+                    mid()
+                prev_agent = a_
                 share = mv["total"] / grand * 100
                 w = 0
                 # Below the axis floor the bar stays EMPTY. Lighting a cell
