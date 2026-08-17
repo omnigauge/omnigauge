@@ -2059,11 +2059,14 @@ def render(args):
             # sixteen-row panel. Rows inside a group are one agent's models,
             # so their closeness means something; the gap marks the change.
             # (A dot track alone read the same as none at John's font size.)
-            prev_agent = None
+            first = True
             for a_, mo, mv in rows:
-                if prev_agent is not None and a_ != prev_agent:
+                # The quota design, bar and air alike: █ fill, ▌ cap, ░ track,
+                # and a line between rows so a zero-line-gap terminal cannot
+                # fuse them - the same treatment John chose for the gauges.
+                if not first:
                     mid()
-                prev_agent = a_
+                first = False
                 share = mv["total"] / grand * 100
                 w = 0
                 # Below the axis floor the bar stays EMPTY. Lighting a cell
@@ -2085,8 +2088,9 @@ def render(args):
                 # (John's terminal has zero line gap). The filled square sits
                 # inside its cell with air above and below by design, so each
                 # row's bar stands alone. Already load-bearing (the quota dot).
-                spark = (s.accent + "■" * w
-                         + s.faint + "·" * (sw - w) + s.r)
+                cap = "▌" if 0 < w < sw else ""
+                spark = (s.accent + "█" * w + cap
+                         + s.faint + "░" * (sw - w - len(cap)) + s.r)
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
