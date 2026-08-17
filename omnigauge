@@ -1739,18 +1739,24 @@ def render(args):
         # between mid() calls tears the frame apart.
         data = {a_: (getter(a_) if SCANNERS[a_][0]() else None)
                 for a_ in agent_order()}
+        # ELASTIC: the seven numeric columns split the whole inner width, so
+        # the table fills its box at any terminal - fixed widths left a third
+        # of a wide frame empty and CLIPPED at a strict 80.
+        cw = max(8, (IN - 12) // 7)
+        lw = max(cw, (IN - 13) - cw * 6)      # TOTAL absorbs the remainder,
+                                              # minus one breath off the border
         top(title, note)
-        mid(f"  {s.gry}{'AGENT':<10}{'FILES':>7}{'MSGS':>8}{'OUTPUT':>11}"
-            f"{'THINK':>10}{'CACHE-RD':>11}{'INPUT':>11}{'TOTAL':>11}{s.r}")
+        mid(f"  {s.gry}{'AGENT':<10}{'FILES':>{cw}}{'MSGS':>{cw}}{'OUTPUT':>{cw}}"
+            f"{'THINK':>{cw}}{'CACHE-RD':>{cw}}{'INPUT':>{cw}}{'TOTAL':>{lw}}{s.r}")
         for agent in data:
             t = data[agent]
             if t is None:
                 mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
             tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
-            mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>7,}{t['msgs']:>8,}"
-                f"{s.bgrn}{human(t['tout']):>11}{s.r}{s.wht}{human(t['think']):>10}{s.r}"
-                f"{s.gry}{human(t['cache_read']):>11}{human(t['tin']):>11}{s.r}"
-                f"{s.b}{human(tot):>11}{s.r}")
+            mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>{cw},}{t['msgs']:>{cw},}"
+                f"{s.bgrn}{human(t['tout']):>{cw}}{s.r}{s.wht}{human(t['think']):>{cw}}{s.r}"
+                f"{s.gry}{human(t['cache_read']):>{cw}}{human(t['tin']):>{cw}}{s.r}"
+                f"{s.b}{human(tot):>{lw}}{s.r}")
         bot("not comparable to vendor counters · different denominators")
 
     vol_table("TOKEN VOLUME", f"local transcripts · {args.since}",
@@ -1771,14 +1777,19 @@ def render(args):
         if rows:
             rows.sort(key=lambda r: -r[2]["total"])
             grand = sum(r[2]["total"] for r in rows) or 1
+            # ELASTIC: MODEL gets real room and the share bar absorbs the
+            # rest of the inner width - the fixed 90-column layout clipped
+            # at 80 and stranded a wide frame's right third.
+            mw = min(24, max(12, IN - 53 - 16))
+            sw = max(8, IN - 53 - mw)
             top("BY MODEL", "lifetime · every version you have run")
-            mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<22}{'MSGS':>9}{'OUTPUT':>11}"
+            mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<{mw}}{'MSGS':>9}{'OUTPUT':>11}"
                 f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
             for a_, mo, mv in rows:
                 share = mv["total"] / grand * 100
-                w = max(0, int(round(share / 100 * 16)))
-                spark = s.accent + "█" * w + s.faint + "·" * (16 - w) + s.r
-                mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:21]:<22}{s.r}"
+                w = max(0, int(round(share / 100 * sw)))
+                spark = s.accent + "█" * w + s.faint + "·" * (sw - w) + s.r
+                mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
             bot("codex rollups are attributed to the LAST model seen in the file")

@@ -143,6 +143,26 @@ class TestPanelWidths(unittest.TestCase):
             lines = render_lines(og.render, A)
             self.assert_frame(lines, W)
 
+    def test_volume_table_fills_its_box(self):
+        """Elastic columns: the volume header must reach the right border at
+        every width - fixed widths stranded a wide frame's right third and
+        clipped at a strict 80."""
+        class A:
+            since, brief, theme = "24h", True, "ink"
+        for W in (80, 100):
+            og.W, og.IN = W, W - 3
+            for l in render_lines(og.render, A):
+                p = strip_ansi(l)
+                if "CACHE-RD" in p:
+                    inner = p.strip()[1:-1]
+                    self.assertEqual(len(inner), og.IN)
+                    self.assertGreaterEqual(
+                        len(inner.rstrip()), og.IN - 1,
+                        f"header stops short of the border at W={W}: {inner!r}")
+                    break
+            else:
+                self.fail(f"no volume header rendered at W={W}")
+
     def test_no_fallback_risk_glyphs_in_panel_output(self):
         """Em dashes, curly quotes, arrows and non-CP437 partial blocks render at
         a different advance when a font lacks them — the defect that ragged three
