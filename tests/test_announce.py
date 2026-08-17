@@ -1,11 +1,16 @@
 """Prove the hand-rolled OAuth 1.0a signing against the published test vector.
 
-ops/announce.py has never successfully posted; its signing was unverified code.
 The percent-encoding and HMAC-SHA1 base string are exactly where a silent 401
 lives, so they are asserted here against the worked example X publishes in
 "Creating a signature" — known keys, known nonce, known timestamp, known
 signature. If these pass, the signing math is right and only server-side state
 (token permissions, app settings) can still 401.
+
+Verified end-to-end against the live API on 2026-08-16 as @OmniGauge: a post, a
+reply chained under it (confirmed server-side by `referenced_tweets` and a
+shared `conversation_id`), a media upload with alt text read back at
+1079x536 — then all of it deleted. Signing, threading and media are proven
+paths, not plausible ones.
 
 Run:  python3 -m unittest discover -s tests -v
 """
@@ -181,3 +186,104 @@ class TestComposeAndClamp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── threads: text, images and alt text all live in the draft file ───────────
+
+def _tmp(tmpdir, name, size=64):
+    p = os.path.join(tmpdir, name)
+    with open(p, "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n" + b"\0" * size)
+    return p
+
+
+class TestSplitThreadParsesImages(unittest.TestCase):
+    """An @image: line belongs to its post and must not survive into the text —
+    a path published as body copy is a wrong post, not a cosmetic slip."""
+
+    def test_image_line_is_extracted_not_posted(self):
+        posts, media = an.split_thread(
+            "first post\n@image: /tmp/a.png | a description\n---\nsecond post")
+        self.assertEqual(posts, ["first post", "second post"])
+        self.assertEqual(media, [[("/tmp/a.png", "a description")], []])
+
+    def test_alt_is_optional_at_parse_time_and_caught_at_check_time(self):
+        posts, media = an.split_thread("p\n@image: /tmp/a.png")
+        self.assertEqual(media, [[("/tmp/a.png", "")]])
+
+    def test_tilde_is_expanded(self):
+        _, media = an.split_thread("p\n@image: ~/x.png | alt")
+        self.assertTrue(media[0][0][0].startswith(os.path.expanduser("~")))
+
+    def test_media_list_is_parallel_to_posts(self):
+        posts, media = an.split_thread("a\n---\nb\n---\nc")
+        self.assertEqual(len(posts), len(media))
+
+
+class TestCheckThreadRefusesBadImagesBeforeSending(unittest.TestCase):
+    """post() refuses to send a post whose image failed to upload, so an
+    unreadable path would abort mid-thread leaving earlier posts published.
+    Every image problem therefore has to surface before the first send."""
+
+    def setUp(self):
+        import tempfile
+        self.d = tempfile.mkdtemp()
+
+    def test_missing_file_is_refused(self):
+        p = [["only post"]][0]
+        probs = an.check_thread(p, an.PREMIUM_LIMIT,
+                                [[(os.path.join(self.d, "nope.png"), "alt")]])
+        self.assertTrue(any("nope.png" in x for x in probs), probs)
+
+    def test_more_than_four_images_is_refused(self):
+        imgs = [(_tmp(self.d, f"{i}.png"), "alt") for i in range(5)]
+        probs = an.check_thread(["p"], an.PREMIUM_LIMIT, [imgs])
+        self.assertTrue(any("at most 4" in x for x in probs), probs)
+
+    def test_missing_alt_text_is_refused(self):
+        probs = an.check_thread(["p"], an.PREMIUM_LIMIT,
+                                [[(_tmp(self.d, "a.png"), "")]])
+        self.assertTrue(any("no alt text" in x for x in probs), probs)
+
+    def test_unsupported_type_is_refused(self):
+        probs = an.check_thread(["p"], an.PREMIUM_LIMIT,
+                                [[(_tmp(self.d, "a.bmp"), "alt")]])
+        self.assertTrue(any("unsupported type" in x for x in probs), probs)
+
+    def test_a_clean_thread_has_no_problems(self):
+        self.assertEqual(
+            an.check_thread(["p"], an.PREMIUM_LIMIT,
+                            [[(_tmp(self.d, "a.png"), "alt")]]), [])
+
+
+class TestPerImageAltText(unittest.TestCase):
+    """Four panels sharing one description is three panels with none. post()
+    must accept a list of alts positionally matched to the media paths."""
+
+    def _alts_seen(self, alt):
+        """Drive post() far enough to see what each upload was asked for, with
+        the real credentials swapped out — a test that leaves fake keys in the
+        environment breaks whichever test runs next, which is exactly the class
+        of silent failure this suite exists to catch."""
+        seen = []
+        real, sent = an.upload_media, an.post
+        an.upload_media = lambda p, c, alt="": (seen.append((p, alt)) or "1")
+        try:
+            with SwapEnv(dict(os.environ, **{k: "x" for k in an.ENV})):
+                an.post("t", media_paths=["/a.png", "/b.png"], alt=alt)
+        finally:
+            an.upload_media = real
+        return seen
+
+    def test_each_image_gets_its_own_alt(self):
+        self.assertEqual(self._alts_seen(["A", "B"]),
+                         [("/a.png", "A"), ("/b.png", "B")])
+
+    def test_a_single_string_still_applies_to_every_image(self):
+        self.assertEqual([a for _, a in self._alts_seen("same")], ["same", "same"])
+
+    def test_too_few_alts_does_not_shift_them_onto_the_wrong_images(self):
+        """Positional pairing must pad, never recycle: image 2 getting image 1's
+        description is a wrong caption, which is worse than no caption."""
+        self.assertEqual(self._alts_seen(["only-one"]),
+                         [("/a.png", "only-one"), ("/b.png", "")])

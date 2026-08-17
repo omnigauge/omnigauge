@@ -43,6 +43,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
@@ -191,16 +192,24 @@ def upload_media(path, creds, alt=""):
     return mid
 
 
-def post(text, media_paths=(), alt=""):
-    """Send it. Returns the tweet id, or None — never raises at the caller."""
+def post(text, media_paths=(), alt="", reply_to=None):
+    """Send it. Returns the tweet id, or None — never raises at the caller.
+
+    reply_to chains this post under another, which is all a thread is: each post
+    replies to the one before it.
+    """
     creds = tuple(os.getenv(k, "").strip() for k in ENV)
     missing = [k for k, v in zip(ENV, creds) if not v]
     if missing:
         print(f"  not sent — missing: {', '.join(missing)}", file=sys.stderr)
         return None
+    # alt may be one string for every image, or one per image. Four panels
+    # sharing a single description is the same as three of them having none.
+    alts = list(alt) if isinstance(alt, (list, tuple)) else [alt] * len(media_paths)
+    alts += [""] * (len(media_paths) - len(alts))
     media_ids = []
-    for p in media_paths:
-        mid = upload_media(p, creds, alt=alt)
+    for p, a_ in zip(media_paths, alts):
+        mid = upload_media(p, creds, alt=a_)
         if not mid:
             print("  not sent - a media upload failed and a post without its "
                   "image is a different post", file=sys.stderr)
@@ -209,6 +218,8 @@ def post(text, media_paths=(), alt=""):
     payload = {"text": text}
     if media_ids:
         payload["media"] = {"media_ids": media_ids}
+    if reply_to:
+        payload["reply"] = {"in_reply_to_tweet_id": str(reply_to)}
     body = json.dumps(payload).encode()
     req = urllib.request.Request(POST_URL, data=body, method="POST")
     req.add_header("Authorization", _auth_header("POST", POST_URL, creds))
@@ -228,6 +239,151 @@ def post(text, media_paths=(), alt=""):
     except Exception as e:
         print(f"  not sent — {e}", file=sys.stderr)
     return None
+
+
+# A Premium account may post up to 25,000 characters. Threads still read better
+# short, so anything over the free limit is flagged rather than silently allowed.
+FREE_LIMIT = 280
+PREMIUM_LIMIT = 25_000
+
+THREAD_SEP = "---"
+
+
+IMAGE_TAG = "@image:"
+
+
+def split_thread(raw):
+    """Posts are separated by a line containing only ---.
+
+    Returns (posts, media): parallel lists, one entry per post. media[i] is a
+    list of (path, alt) for that post.
+
+    A post may declare its own images with a line of the form
+
+        @image: path/to/panel.png | what a screen reader should hear
+
+    which keeps the text, the image and its alt text in ONE reviewable file.
+    The alternative — pairing images to posts on the command line — puts the
+    riskiest part of a launch (which picture goes with which claim) somewhere
+    nobody reviews, and gets it wrong silently.
+    """
+    posts, media = [], []
+    cur, imgs = [], []
+
+    def flush():
+        if "".join(cur).strip() or imgs:
+            posts.append("\n".join(cur).strip())
+            media.append(list(imgs))
+
+    for line in raw.splitlines():
+        s = line.strip()
+        if s == THREAD_SEP:
+            flush()
+            cur, imgs = [], []
+        elif s.startswith(IMAGE_TAG):
+            spec = s[len(IMAGE_TAG):].strip()
+            path, _, alt = spec.partition("|")
+            imgs.append((os.path.expanduser(path.strip()), alt.strip()))
+        else:
+            cur.append(line)
+    flush()
+    return posts, media
+
+
+def check_thread(posts, limit, media=None):
+    """Every reason this thread cannot be sent, found BEFORE anything is sent.
+
+    A thread that fails at post four leaves three published and no way to take
+    them back as a set. Validation therefore happens up front, all of it, and a
+    single problem stops the whole run.
+
+    Images are checked here for the same reason: a missing file discovered at
+    post four is exactly the failure this function exists to prevent, and
+    `post()` refuses to send a post whose image did not upload, so an unreadable
+    path aborts the thread mid-publish rather than at the door.
+    """
+    problems = []
+    if not posts:
+        problems.append("nothing to post")
+    for i, t in enumerate(posts, 1):
+        n = len(t)
+        if n == 0:
+            problems.append(f"post {i}: empty")
+        if n > limit:
+            problems.append(f"post {i}: {n} characters, over the {limit:,} limit")
+
+    for i, imgs in enumerate(media or [], 1):
+        if len(imgs) > 4:
+            problems.append(f"post {i}: {len(imgs)} images, X takes at most 4")
+        for path, alt in imgs:
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in _MIME:
+                problems.append(f"post {i}: {path} — unsupported type {ext!r}")
+                continue
+            try:
+                size = os.path.getsize(path)
+            except OSError as e:
+                problems.append(f"post {i}: {path} — {e.strerror}")
+                continue
+            if size > 5 * 1024 * 1024:
+                problems.append(f"post {i}: {path} — {size:,} bytes, over X's 5MB cap")
+            if not alt:
+                problems.append(
+                    f"post {i}: {os.path.basename(path)} has no alt text — add it "
+                    f"after a | on the {IMAGE_TAG} line")
+    return problems
+
+
+def post_thread(posts, limit, media_first=(), alt="", dry=True, media=None):
+    # media (per-post, from the draft file) wins; media_first is the --media
+    # flag, which can only ever describe post 1.
+    media = list(media or [])
+    media += [[] for _ in range(len(posts) - len(media))]
+    if media_first and not any(media):
+        media[0] = [(p, alt) for p in media_first]
+
+    problems = check_thread(posts, limit, media)
+    if problems:
+        for p in problems:
+            print(f"  REFUSED — {p}", file=sys.stderr)
+        return []
+
+    n_img = sum(len(m) for m in media)
+    print(f"\n  {len(posts)} posts, {sum(len(t) for t in posts):,} characters"
+          f"{f', {n_img} images' if n_img else ''}\n")
+    for i, t in enumerate(posts, 1):
+        flag = "" if len(t) <= FREE_LIMIT else f"  [{len(t)} chars — needs Premium]"
+        head = "post" if i == 1 else f"  reply {i - 1}"
+        print(f"  {'─' * 66}")
+        print(f"  {head} {i}/{len(posts)}{flag}")
+        print(f"  {'─' * 66}")
+        for line in t.splitlines():
+            print(f"  {line}")
+        for path, a_ in media[i - 1]:
+            print(f"  [img] {os.path.basename(path)} — {a_}")
+        print()
+    if dry:
+        print("  dry run. nothing was sent. add --post to publish.\n")
+        return []
+
+    sent = []
+    parent = None
+    for i, t in enumerate(posts, 1):
+        imgs = media[i - 1]
+        tid = post(t, media_paths=[p for p, _ in imgs],
+                   alt=[a_ for _, a_ in imgs] if imgs else alt, reply_to=parent)
+        if not tid:
+            print(f"\n  STOPPED at post {i}. {len(sent)} already published:",
+                  file=sys.stderr)
+            for j, s_ in enumerate(sent, 1):
+                print(f"    {j}: https://x.com/OmniGauge/status/{s_}", file=sys.stderr)
+            print("  Delete those or continue the thread by replying to the last "
+                  "one.", file=sys.stderr)
+            return sent
+        sent.append(tid)
+        parent = tid
+        print(f"  posted {i}/{len(posts)}: https://x.com/OmniGauge/status/{tid}")
+    return sent
 
 
 VOICE = (
@@ -331,8 +487,9 @@ def compose(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("kind", choices=["release", "provider", "text", "draft"])
-    ap.add_argument("name")
+    ap.add_argument("kind", choices=["release", "provider", "text", "draft", "thread"])
+    ap.add_argument("name", help="text/notes, or for `thread` a file of posts "
+                                 "separated by a line containing only ---")
     ap.add_argument("--notes", default="")
     ap.add_argument("--n", type=int, default=3, help="draft: how many candidates")
     ap.add_argument("--media", action="append", default=[], metavar="IMG",
@@ -340,10 +497,26 @@ def main():
     ap.add_argument("--alt", default="", help="alt text for the attached image(s)")
     ap.add_argument("--post", action="store_true",
                     help="actually send it; without this you get a dry run")
+    ap.add_argument("--premium", action="store_true",
+                    help="thread: allow posts up to 25,000 characters")
     a = ap.parse_args()
     if len(a.media) > 4:
         print("  X takes at most 4 images per post", file=sys.stderr)
         return 1
+
+    if a.kind == "thread":
+        try:
+            raw = io.open(a.name, encoding="utf-8").read()
+        except OSError as e:
+            print(f"  cannot read {a.name}: {e}", file=sys.stderr)
+            return 1
+        posts, media = split_thread(raw)
+        limit = PREMIUM_LIMIT if a.premium else FREE_LIMIT
+        sent = post_thread(posts, limit, media_first=a.media, alt=a.alt,
+                           dry=not a.post, media=media)
+        if not a.post:
+            return 0
+        return 0 if len(sent) == len(posts) else 1
 
     if a.kind == "draft":
         if a.post:
