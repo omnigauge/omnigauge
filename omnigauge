@@ -2230,21 +2230,50 @@ def drain():
 # ── content panels - the site mirrors these; the doctrine lives here ─────────
 
 def why_panel():
-    top("FOUR VENDORS. FOUR DIALECTS.")
+    """The dialect table is the USER'S OWN vendors in their own words - the
+    raw_value every parser keeps beside its converted figure, exactly so the
+    conversion can be checked. A static illustration was shipped here once and
+    three of its four rows contradicted the shipped parsers (codex "5h rolling"
+    when only the week is read; grok "raw tokens · month" when a week
+    percentage is read; a gemini row for a vendor that does not ship). Static
+    rows survive only for the empty state, and say what the parsers read."""
+    con = db()
+    seen, rows = set(), []
+    for r in con.execute(
+            "SELECT agent, window, model, raw_value, pct_used FROM snapshots "
+            "WHERE usage_type='plan_quota' AND raw_value IS NOT NULL "
+            "ORDER BY collected_at DESC"):
+        k = (r[0], r[1], r[2])
+        if k in seen: continue
+        seen.add(k); rows.append(r)
+    con.close()
+    top("EVERY VENDOR SPEAKS ITS OWN DIALECT",
+        "your readings, in their words" if rows else "what the parsers read")
     mid(f"  {s.gry}Ask each one how much you have left. Every answer is honest,{s.r}")
     mid(f"  {s.gry}and useless beside the others:{s.r}")
     mid()
-    for name, said, note in (("codex", "38% left", "counts down · 5h rolling"),
-                             ("claude", "87% used", "counts up · calendar week"),
-                             ("grok", "2.1M / 35M", "raw tokens · month"),
-                             ("gemini", '"limited"', "no number at all")):
-        mid(f"    {s.warn}{name:<9}{s.r}{s.wht}{said:<13}{s.r}{s.faint}{note}{s.r}")
+    if rows:
+        for agent, window, model, raw, pct in rows[:6]:
+            name = short_model(agent, model)
+            note = ("counts down · inverted" if "left" in (raw or "")
+                    else "counts up") + f" · {window}"
+            mid(f"    {s.warn}{name:<17.17}{s.r}{s.wht}{(raw or ''):<13.13}{s.r}"
+                f"{s.faint}{note:<32.32}{s.r}{s.gry}-> {pct:.0f}% used{s.r}")
+    else:
+        # Empty state: an illustration - and it matches what ships. Codex is
+        # read as a WEEK ("% left", inverted); grok as a week percentage;
+        # claude as week and session, "% used". No vendor is named that
+        # does not ship.
+        for name, said, note in (("codex", "38% left", "counts down · week · inverted"),
+                                 ("claude", "87% used", "counts up · week"),
+                                 ("grok", "41%", "counts up · week")):
+            mid(f"    {s.warn}{name:<9}{s.r}{s.wht}{said:<13}{s.r}{s.faint}{note}{s.r}")
+        mid()
+        mid(f"  {s.faint}(illustration - run  omnigauge --refresh  to see your own){s.r}")
     mid()
-    mid(f"  {s.gry}One counts down. One counts up. One hands you arithmetic{s.r}")
-    mid(f"  {s.gry}homework. One shrugs. Here, every window is percent consumed -{s.r}")
-    mid(f"  {s.gry}and the question that matters gets answered: do you run dry{s.r}")
-    mid(f"  {s.gry}BEFORE the reset does.{s.r}")
-    bot("it is usually not the plan you were worried about")
+    mid(f"  {s.gry}Some count down. Some count up. Here, every window is percent{s.r}")
+    mid(f"  {s.gry}consumed - and the question that matters gets answered: do you{s.r}")
+    mid(f"  {s.gry}run dry BEFORE the reset does.{s.r}")
 
 
 def privacy_panel():

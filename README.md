@@ -14,8 +14,8 @@
 </p>
 
 
-One dashboard for **Claude Code**, **OpenAI Codex** and **Grok CLI** usage — plan quota and
-token volume, side by side, in your terminal.
+One dashboard for every AI plan you pay for — **Claude Code**, **Codex**, **Grok**, **Aider**,
+**Goose**, and your API accounts — plan quota and token volume, side by side, in your terminal.
 
 No keys for the part that matters — plan quota and token volume come from files
 those tools already write to your disk, and from each CLI's own quota panel.
@@ -356,9 +356,9 @@ ask first. Fork it, change it, open a PR.
 The shape of this project is that **adding a source is one file**. If you use a
 tool this does not read yet, the whole job is a single file in `providers/` that
 answers four questions: are you installed, where are your files, how many tokens,
-and what does your quota panel say. All three built-ins ship as worked examples —
-`providers/claude.py`, `codex.py` and `grok.py` — each a different parsing shape;
-copy the closest one.
+and what does your quota panel say. Eight providers ship as worked examples in
+`providers/` — five agents (`claude.py`, `codex.py`, `grok.py`, `aider.py`, `goose.py`)
+and three spend sources — each a different parsing shape; copy the closest one.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the contract, the three rules that are not
 style preferences, and what gets rejected. Read the last one before you start —

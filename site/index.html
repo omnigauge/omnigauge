@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OmniGauge — every AI plan you pay for, on one screen</title>
-<meta name="description" content="One terminal dashboard for Claude Code, OpenAI Codex and Grok CLI. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
+<meta name="description" content="One terminal dashboard for every AI plan you pay for - Claude Code, Codex, Grok, Aider, Goose, and API accounts. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
 <link rel="canonical" href="https://omnigauge.dev/">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -251,7 +251,7 @@ noscript pre{color:var(--cyan);margin:.8em 0}
 <div id="scr">
 <noscript><div>
   <h1>OmniGauge</h1>
-  <p>Every AI plan you pay for, on one screen. Claude Code, OpenAI Codex and Grok CLI —
+  <p>Every AI plan you pay for, on one screen. Claude Code, Codex, Grok, Aider, Goose and your API accounts —
   plan quota, token volume, burn rate and time to reset, side by side in your terminal.</p>
   <p>Each vendor reports usage in a different unit, over a different window, in a different
   direction. Codex counts down, Claude counts up, Grok gives raw tokens against a cap, Gemini
@@ -529,7 +529,17 @@ function board(){
    fails whenever this block disagrees with the code. Edit providers/, run
    the generator; never edit the data by hand. */
 /*LEGEND-DATA*/var LEGEND={"negatives":[{"n":"cursor","why":"the IDE writes token fields and zeroes every value"},{"n":"antigravity","why":"records trajectories; no token accounting at all"},{"n":"copilot","why":"no token accounting in its logs"}],"sources":[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per session header, at session resolution","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost lines exist; the spend panel does not read them yet","tokens":"obtained: aider's own token lines; roots via OMNIGAUGE_AIDER_DIRS"},"k":"agent","n":"aider"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per ledger row, dated model ids","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost is recorded; the spend panel does not read it yet","tokens":"obtained: usage_ledger, the vendor's own accounting"},"k":"agent","n":"goose"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator; models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}]};/*END-LEGEND-DATA*/
+/*FACTS-DATA*/var FACTS={"agents":["claude","codex","grok","aider","goose"],"apis":["openai","x","deepseek","moonshot","openrouter"],"lines":2753,"lines_k":"2.8k","mirrors":["aider","claude","codex","deepseek","goose","grok","moonshot","openrouter"],"negatives":["cursor","antigravity","copilot"],"sources":10,"tests":127};/*END-FACTS-DATA*/
 var CAPORDER=['tokens','quota','reset','models','lifetime','spend','burn'];
+/* Numbers in prose come from FACTS, generated by ops/gen_legend.py from the
+   repo - the line count, the source counts, the test count. Hand-typed, five
+   copies of one line count survived the file nearly doubling. Derived, they
+   cannot drift; the drift test fails the build if this block is stale. */
+function factLines(){return (FACTS.lines||0).toLocaleString();}
+function factAgents(){return (FACTS.agents||[]).join(', ');}
+function factSources(){return FACTS.sources||0;}
+function factAgentsN(){return (FACTS.agents||[]).length;}
+function factApisN(){return (FACTS.apis||[]).length;}
 function LROWS(){return LEGEND.sources||LEGEND;}
 function legendPanel(){
   var short={lifetime:'LIFE',models:'MODEL'};
@@ -644,33 +654,30 @@ var C={
  board:function(){blank();board();blank();},
 
  why:function(){blank();
+  // The dialect rows say what the shipped parsers READ - codex as a week,
+  // "% left", inverted; claude week and session, "% used"; grok a week
+  // percentage. A static table once claimed a 5h codex window, raw grok
+  // tokens by the month, and a gemini row for a vendor that does not ship -
+  // three of four rows contradicted the code beside them.
+  var D=[['codex','38% left','counts down · week · inverted'],
+         ['claude','87% used','counts up · week and session'],
+         ['grok','41%','counts up · week']];
   if(MOBILE){
-    head('FOUR DIALECTS');row('');
+    head('THREE DIALECTS');row('');
     prose('d','Ask each vendor how much you have left. Every answer is honest, and useless beside the others:');row('');
-    [['codex','38% left','counts down · 5h rolling'],
-     ['claude','87% used','counts up · calendar week'],
-     ['grok','2.1M / 35M','raw tokens · month'],
-     ['gemini','"limited"','no number at all']].forEach(function(v){
-      row('  [[y]]'+pad(v[0],9)+'[[/]][[w]]'+v[1]+'[[/]]');
-      row('    [[f]]'+v[2]+'[[/]]');row('');});
-    prose('d','One counts down. One counts up. One hands you arithmetic homework. One shrugs. OmniGauge inverts what needs inverting and states every window the same way - so the comparison is finally worth making.');
+    D.forEach(function(v){row('  [[y]]'+pad(v[0],9)+'[[/]][[w]]'+v[1]+'[[/]]');row('    [[f]]'+v[2]+'[[/]]');row('');});
+    prose('d','Some count down. Some count up. OmniGauge inverts what needs inverting and states every window the same way - so the comparison is finally worth making.');
     row('');
     prose('d','It is usually not the plan you were worried about.');
     row('');foot('tap Board to see it live');blank();return;}
-  head('FOUR VENDORS. FOUR DIALECTS.');row('');
+  head('EVERY VENDOR SPEAKS ITS OWN DIALECT','what the parsers read');row('');
   row('  [[d]]Ask each one how much you have left. Every answer is honest,[[/]]');
   row('  [[d]]and useless beside the others:[[/]]');row('');
-  [['codex','38% left','counts down · 5h rolling'],
-   ['claude','87% used','counts up · calendar week'],
-   ['grok','2.1M / 35M','raw tokens · month'],
-   ['gemini','"limited"','no number at all']].forEach(function(v){
-    row('    '+pad('[[y]]'+v[0]+'[[/]]',11)+pad('[[w]]'+v[1]+'[[/]]',14)
-        +'[[f]]'+v[2]+'[[/]]');});
+  D.forEach(function(v){row('    '+pad('[[y]]'+v[0]+'[[/]]',11)+pad('[[w]]'+v[1]+'[[/]]',14)+'[[f]]'+v[2]+'[[/]]');});
   row('');
-  row('  [[d]]One counts down. One counts up. One hands you arithmetic[[/]]');
-  row('  [[d]]homework. One shrugs. So 38% left becomes[[/]] [[y]]62% used[[/]][[d]], raw[[/]]');
-  row('  [[d]]tokens become a percentage, every window is stated the same[[/]]');
-  row('  [[d]]way - and the comparison is finally worth making.[[/]]');
+  row('  [[d]]Some count down. Some count up. So 38% left becomes[[/]] [[y]]62% used[[/]][[d]],[[/]]');
+  row('  [[d]]every window is stated the same way - and the comparison is[[/]]');
+  row('  [[d]]finally worth making.[[/]]');
   row('');
   row('  [[d]]It is usually not the plan you were worried about.[[/]]');
   row('');foot('press F3 to see it normalized');blank();},
@@ -706,7 +713,7 @@ var C={
     head('ONE FILE EACH');row('');
     prose('d','Drop one file in providers/, run omnigauge --doctor, and it appears on the board.');row('');
     prose('d','It answers four questions: installed? where are the files? how many tokens? what does the quota panel say?');row('');
-    prose('d','claude, codex and grok ship as providers - copy the closest.');
+    prose('d',factAgentsN()+' agent providers ship - '+factAgents()+' - and '+factApisN()+' spend sources. Copy the closest.');
     row('');foot('MIT · fork it, send it back');blank();return;}
   head('A PROVIDER IS ONE FILE');row('');
   row('  [[d]]Drop it in[[/]] [[c]]providers/[[/]][[d]], run[[/]] [[c]]omnigauge --doctor[[/]][[d]], and it[[/]]');
@@ -714,8 +721,8 @@ var C={
   row('  [[d]]It answers four questions: are you installed, where are your[[/]]');
   row('  [[d]]files, how many tokens, and what does your quota panel say.[[/]]');
   row('');
-  row('  [[d]]All three built-ins ship as providers - claude, codex and[[/]]');
-  row('  [[d]]grok - each a different parsing shape. Copy the closest.[[/]]');
+  row('  [[d]]'+factAgentsN()+' agent providers ship - '+factAgents()+' -[[/]]');
+  row('  [[d]]each a different parsing shape. Copy the closest.[[/]]');
   row('');foot('MIT · fork it, ship it, send it back');blank();},
 
  privacy:function(){blank();
@@ -756,7 +763,8 @@ var C={
     [['claude','~/.claude/projects','342 transcripts',1],
      ['codex','~/.codex/sessions','211 threads',1],
      ['grok','~/.grok','3 sessions',1],
-     ['gemini','not installed','write a provider',0]].forEach(function(d){
+     ['aider','not installed','ships - not here',0],
+     ['goose','not installed','ships - not here',0]].forEach(function(d){
       row('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]')+' [[w]]'+pad(d[0],9)+'[[/]]'
           +(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]');
       row('    [[d]]'+d[1]+'[[/]]');row('');});
@@ -765,7 +773,8 @@ var C={
   [['claude','~/.claude/projects','342 transcripts',1],
    ['codex','~/.codex/sessions','211 threads',1],
    ['grok','~/.grok','3 sessions',1],
-   ['gemini','not installed','write a provider',0]].forEach(function(d){
+   ['aider','not installed','ships - not here',0],
+   ['goose','not installed','ships - not here',0]].forEach(function(d){
     row(pad('  '+(d[3]?'[[g]]■[[/]]':'[[f]]□[[/]]'),COL.mark)+pad('[[w]]'+d[0]+'[[/]]',12)
         +pad('[[d]]'+d[1]+'[[/]]',24)+(d[3]?'[[g]]':'[[f]]')+d[2]+'[[/]]');});
   row('');foot('');blank();},
@@ -775,7 +784,7 @@ var C={
     head('READ THE SOURCE');row('');
     prose('d','A tool that can see every token you spend should not be trusted on faith. So do not trust it.');row('');
     prose('w','The whole thing is one Python file.');
-    prose('d','About 1,600 lines. No dependency tree, nothing minified. Read it end to end and know exactly what it does with your data, which is nothing.');row('');
+    prose('d','About '+factLines()+' lines. No dependency tree, nothing minified. Read it end to end and know exactly what it does with your data, which is nothing.');row('');
     prose('y','Fork it. Ship it. Sell it. Rename it.');
     prose('d','MIT means all of that is yours. Teach it a tool I have never used, and send that part back.');row('');
     row('  [[c]]github.com/omnigauge/omnigauge[[/]]');
@@ -783,7 +792,7 @@ var C={
   head('DO NOT TAKE MY WORD FOR IT','MIT - one file - no dependencies');row('');
   row('  [[d]]A tool that can see every token you spend is exactly the kind[[/]]');
   row('  [[d]]you should not trust on faith. So do not.[[/]]');row('');
-  row('  [[w]]The whole thing is one Python file.[[/]] [[d]]About 1,600 lines. No[[/]]');
+  row('  [[w]]The whole thing is one Python file.[[/]] [[d]]About '+factLines()+' lines. No[[/]]');
   row('  [[d]]dependency tree hiding behind it, nothing minified, nothing[[/]]');
   row('  [[d]]compiled. You can read it end to end in an afternoon and know[[/]]');
   row('  [[d]]exactly what it does with your data, which is nothing.[[/]]');row('');
@@ -1063,14 +1072,14 @@ C.mem=function(){blank();
 C.dir=function(){blank();
   line('  [[d]] Volume in drive C is OMNIGAUGE[[/]]');blank();
   if(MOBILE){
-    [['OMNIGAUGE','','one file, ~1,600 lines'],
+    [['OMNIGAUGE','','one file, ~'+factLines()+' lines'],
      ['PROVIDERS','<DIR>','claude.py, the example'],
      ['INSTALL','SH','copies to ~/.local/bin'],['LICENSE','','MIT']]
     .forEach(function(f){
       line('  [[w]]'+pad(f[0],10)+'[[/]][[d]]'+f[1]+'[[/]]');
       line('    [[d]]'+f[2]+'[[/]]');});
     blank();return;}
-  [['OMNIGAUGE','','one file, ~1,600 lines'],['PROVIDERS','<DIR>','claude.py - the worked example'],
+  [['OMNIGAUGE','','one file, ~'+factLines()+' lines'],['PROVIDERS','<DIR>','claude.py - the worked example'],
    ['INSTALL','SH','copies one file to ~/.local/bin'],['LICENSE','','MIT']]
   .forEach(function(f){line('  [[w]]'+pad(f[0],12)+'[[/]][[d]]'+pad(f[1],8)+f[2]+'[[/]]');});
   blank();};
@@ -1238,7 +1247,7 @@ var POST_M=[
  '[[w]]OmniGauge BIOS v1.0[[/]]',
  '',
  '[[d]]Counting tokens ...[[/]] [[CNT]] [[g]]OK[[/]]',
- '[[d]]claude OK · codex OK · grok OK[[/]]',
+ '[[d]]'+(FACTS.agents||[]).map(function(a){return a+' OK';}).join(' · ')+'[[/]]',
  '',
  '[[f]]MIT · one file · read it first[[/]]',
  ''];
@@ -1251,12 +1260,13 @@ var POST=[
  '  claude   [[g]]OK[[/]]   [[f]]342 transcripts[[/]]',
  '  codex    [[g]]OK[[/]]   [[f]]211 threads[[/]]',
  '  grok     [[g]]OK[[/]]   [[f]]3 sessions[[/]]',
- '  gemini   [[f]]--[[/]]   [[f]]no provider installed[[/]]',
+ '  aider    [[f]]--[[/]]   [[f]]not on this machine[[/]]',
+ '  goose    [[f]]--[[/]]   [[f]]not on this machine[[/]]',
  '',
  '[[d]]Normalizing windows ...[[/]] [[g]]OK[[/]]',
  '[[d]]Inverting vendor counters ...[[/]] [[g]]OK[[/]]',
  '',
- '[[f]]MIT · one file · 1,600 lines · read it before you run it[[/]]',
+ '[[f]]MIT · one file · '+factLines()+' lines · read it before you run it[[/]]',
  ''];
 /* paint() escapes '<' - which is correct everywhere and means a POST line can
    never smuggle real markup through it. The counter's <i> is injected AFTER

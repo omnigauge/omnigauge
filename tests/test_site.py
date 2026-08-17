@@ -46,6 +46,37 @@ class TestLegendHonesty(unittest.TestCase):
                             "--verify"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, f"\n{r.stdout}\n{r.stderr}")
 
+    def test_no_hand_typed_facts_survive_in_prose(self):
+        """The undefended half of the page went wrong: five copies of '1,600
+        lines' outlived the file growing to 2,700+, a dialect table named a
+        vendor that does not ship, prose said three sources while the legend
+        beside it said ten. --verify (above) proves the FACTS block is fresh;
+        this proves the prose READS it instead of typing numbers again. Any
+        literal 'N lines' / 'N,NNN lines' in the page or README that is not
+        the derived value is a stale claim in waiting."""
+        import re, json
+        html = open(SITE, encoding="utf-8").read()
+        m = re.search(r"/\*FACTS-DATA\*/var FACTS=(.*?);/\*END-FACTS-DATA\*/", html)
+        self.assertIsNotNone(m, "FACTS block missing")
+        facts = json.loads(m.group(1))
+        # the JS must reference the derived value, never a typed line count
+        typed = re.findall(r"\b\d[\d,]{2,} lines\b", html)
+        self.assertEqual(typed, [], f"hand-typed line counts in site: {typed}")
+        self.assertIn("factLines()", html)
+        # no vendor named that does not ship
+        shipped = set(facts["agents"]) | set(facts["apis"]) | set(facts["negatives"])
+        for ghost in ("gemini",):
+            self.assertNotIn(ghost, shipped)
+            self.assertNotRegex(html, r"\['" + ghost + r"'", f"{ghost} named as a vendor in the site")
+        # README carries the same derived numbers (markdown cannot read JS, so
+        # the numbers are written by the generator and checked here)
+        readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+        for line in re.findall(r"\b(\d[\d,]*) lines\b", readme):
+            self.assertEqual(int(line.replace(",", "")), facts["lines"],
+                             f"README says {line} lines; the file has {facts['lines']}")
+        self.assertNotIn("Claude Code, OpenAI Codex and Grok CLI usage", readme,
+                         "README names three sources; the legend ships " + str(facts["sources"]))
+
 
 if __name__ == "__main__":
     unittest.main()
