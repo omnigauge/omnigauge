@@ -1,37 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="omnigauge">
-  <title>omnigauge</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="OmniGauge">
+  <title>OmniGauge</title>
 
   <!--
-    Two concentric gauge arcs: many providers, one instrument.
+    Three gauges, stacked. Many plans, one instrument.
 
-    Each spans 270 degrees with the gap at the bottom, which is what makes it
-    read as a GAUGE rather than a progress spinner — a full ring is a loading
-    indicator, an interrupted one is a dial.
+    Each row is a plan's quota bar as the board draws it: eight cells, the
+    used ones lit, the rest dark sockets. Top and bottom are healthy - green,
+    a couple of cells in. The middle is out: every cell red. That is the
+    thing this tool exists to show you, in one shape - the plan that is
+    already gone sitting between two that are fine.
 
-    The fills are real readings, not decoration: outer 94%, inner 38%. Drawn
-    with stroke-dasharray over the circumference so the angles are exact.
+    Rendered, not flat: each lit cell carries a three-stop gradient - light
+    at the top, deep at the base - and each empty cell is a recessed socket
+    with a shadow at its lip. No rims, no highlight caps: they read as fussy
+    little borders. The gradient alone carries the depth; flat rectangles
+    read as a chart, shaded tiles in sockets read as a meter.
 
-    Two rings rather than three on purpose. Three carried more meaning and lost
-    it below about 40px, which is the size this spends most of its life at.
+    Colours are the board's own: green and rose from the ink palette, the
+    dark field, the faint socket. Sits on the dark field only.
 
-    currentColor on the tracks means one file works on light and dark.
-
-      outer r=98  C=615.75  track=461.81 (270deg)  fill=434.10 (94%)
-      inner r=62  C=389.56  track=292.17 (270deg)  fill=111.02 (38%)
+    Geometry: 8 cells x 16 wide on a 21 pitch, rows 30 tall on a 48 pitch,
+    starting at (44,66). At 16px the three rows still read as three bars.
   -->
 
-  <g transform="rotate(135 128 128)" fill="none"
-     stroke-linecap="round" stroke-width="22">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a8d8bc"/><stop offset=".5" stop-color="#6ea888"/><stop offset="1" stop-color="#366850"/>
+    </linearGradient>
+    <linearGradient id="r" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eea8a8"/><stop offset=".5" stop-color="#c47070"/><stop offset="1" stop-color="#783838"/>
+    </linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
 
-    <!-- unfilled tracks -->
-    <g stroke="currentColor" opacity="0.22">
-      <circle cx="128" cy="128" r="98" stroke-dasharray="461.81 615.75"/>
-      <circle cx="128" cy="128" r="62" stroke-dasharray="292.17 389.56"/>
-    </g>
+  <!-- shadows under lit cells -->
+  <g fill="#01040e" opacity=".55">
+    <rect x="46" y="71" width="16" height="30" rx="3"/><rect x="67" y="71" width="16" height="30" rx="3"/>
+    <rect x="46" y="119" width="16" height="30" rx="3"/><rect x="67" y="119" width="16" height="30" rx="3"/><rect x="88" y="119" width="16" height="30" rx="3"/><rect x="109" y="119" width="16" height="30" rx="3"/><rect x="130" y="119" width="16" height="30" rx="3"/><rect x="151" y="119" width="16" height="30" rx="3"/><rect x="172" y="119" width="16" height="30" rx="3"/><rect x="193" y="119" width="16" height="30" rx="3"/>
+    <rect x="46" y="167" width="16" height="30" rx="3"/><rect x="67" y="167" width="16" height="30" rx="3"/><rect x="88" y="167" width="16" height="30" rx="3"/>
+  </g>
 
-    <!-- readings -->
-    <circle cx="128" cy="128" r="98" stroke="#38BDF8" stroke-dasharray="434.10 615.75"/>
-    <circle cx="128" cy="128" r="62" stroke="#38BDF8" opacity="0.75"
-            stroke-dasharray="111.02 389.56"/>
+  <!-- sockets: the empty cells -->
+  <g fill="#1e2a4a">
+    <rect x="86" y="66" width="16" height="30" rx="3"/><rect x="107" y="66" width="16" height="30" rx="3"/><rect x="128" y="66" width="16" height="30" rx="3"/><rect x="149" y="66" width="16" height="30" rx="3"/><rect x="170" y="66" width="16" height="30" rx="3"/><rect x="191" y="66" width="16" height="30" rx="3"/>
+    <rect x="107" y="162" width="16" height="30" rx="3"/><rect x="128" y="162" width="16" height="30" rx="3"/><rect x="149" y="162" width="16" height="30" rx="3"/><rect x="170" y="162" width="16" height="30" rx="3"/><rect x="191" y="162" width="16" height="30" rx="3"/>
+  </g>
+  <!-- socket lips -->
+  <g fill="#01040e" opacity=".28">
+    <rect x="86" y="66" width="16" height="8" rx="3"/><rect x="107" y="66" width="16" height="8" rx="3"/><rect x="128" y="66" width="16" height="8" rx="3"/><rect x="149" y="66" width="16" height="8" rx="3"/><rect x="170" y="66" width="16" height="8" rx="3"/><rect x="191" y="66" width="16" height="8" rx="3"/>
+    <rect x="107" y="162" width="16" height="8" rx="3"/><rect x="128" y="162" width="16" height="8" rx="3"/><rect x="149" y="162" width="16" height="8" rx="3"/><rect x="170" y="162" width="16" height="8" rx="3"/><rect x="191" y="162" width="16" height="8" rx="3"/>
+  </g>
+
+  <!-- lit cells -->
+  <g>
+    <rect x="44" y="66" width="16" height="30" rx="3" fill="url(#g)"/><rect x="65" y="66" width="16" height="30" rx="3" fill="url(#g)"/>
+    <rect x="44" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="65" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="86" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="107" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="128" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="149" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="170" y="114" width="16" height="30" rx="3" fill="url(#r)"/><rect x="191" y="114" width="16" height="30" rx="3" fill="url(#r)"/>
+    <rect x="44" y="162" width="16" height="30" rx="3" fill="url(#g)"/><rect x="65" y="162" width="16" height="30" rx="3" fill="url(#g)"/><rect x="86" y="162" width="16" height="30" rx="3" fill="url(#g)"/>
   </g>
 </svg>
