@@ -319,21 +319,38 @@ def countdown(text, _as_seconds=False):
         m = re.search(r"(\d{1,2})\s+([a-z]{3,9})", t)
         if m and m.group(2)[:3] in _MONTHS:
             day, mon = int(m.group(1)), _MONTHS[m.group(2)[:3]]
-    if not mon: return None if not _as_seconds else None
     hh = mm = 0
+    have_time = False
     m = re.search(r"(\d{1,2}):(\d{2})", t)
     if m:
-        hh, mm = int(m.group(1)), int(m.group(2))
-    else:
-        m = re.search(r"(\d{1,2})\s*(am|pm)", t)
-        if m:
-            hh = int(m.group(1)) % 12 + (12 if m.group(2) == "pm" else 0)
+        hh, mm, have_time = int(m.group(1)), int(m.group(2)), True
+    # A meridian applies whether or not minutes were given: '3:19pm' is
+    # 15:19, not 03:19 - reading the HH:MM and stopping put every afternoon
+    # session twelve hours off.
+    m = re.search(r"(\d{1,2})(?::\d{2})?\s*(am|pm)", t)
+    if m:
+        hh = int(m.group(1)) % 12 + (12 if m.group(2) == "pm" else 0)
+        have_time = True
     now = time.localtime()
-    year = now.tm_year + (1 if mon < now.tm_mon - 6 else 0)
-    try:
-        target = time.mktime((year, mon, day, hh, mm, 0, 0, 0, -1))
-    except (ValueError, OverflowError, OSError):
-        return None
+    if not mon:
+        # Time only ('3:19pm'): a session window resets at the next such
+        # clock time - today if still ahead, else tomorrow. Renders as a
+        # countdown like every other row instead of a wall clock.
+        if not have_time:
+            return None
+        try:
+            target = time.mktime((now.tm_year, now.tm_mon, now.tm_mday,
+                                  hh, mm, 0, 0, 0, -1))
+            if target < time.time():
+                target += 86400
+        except (ValueError, OverflowError, OSError):
+            return None
+    else:
+        year = now.tm_year + (1 if mon < now.tm_mon - 6 else 0)
+        try:
+            target = time.mktime((year, mon, day, hh, mm, 0, 0, 0, -1))
+        except (ValueError, OverflowError, OSError):
+            return None
     d = int(target - time.time())
     if _as_seconds:
         return max(0, d)
@@ -776,7 +793,23 @@ def scan_codex(path, since=0):
                 pre = [u for ep, u in ev if ep is not None and ep < since]
                 if pre:
                     base = pre[-1]
-                    seq = [(since - 1, base)] + stamped
+                    # The gap between the located edge and the tail was never
+                    # read - a counter restart hidden there was invisible to
+                    # the step-sum (Assay's documented boundary). Walk ONLY
+                    # that in-window stretch forward in 512KB steps: bounded
+                    # by what the window actually holds, never the whole file.
+                    # Blocks are line-aligned, so a walk can overlap the
+                    # tail by up to one block: stop the gap at the tail's
+                    # FIRST stamped event, or those events count twice.
+                    gap, first_tail = [], stamped[0][0]
+                    off, tail_off = lo, size - (1 << 20)
+                    while off < tail_off:
+                        blk = _codex_block(fh, size, off, (1 << 19))
+                        if not blk: break
+                        gap += [(ep, u) for ep, u in _codex_events(blk)
+                                if ep is not None and since <= ep < first_tail]
+                        off += (1 << 19)
+                    seq = [(since - 1, base)] + gap + stamped
     t["msgs"] = 1
     # Always step-sum. Falling back to `last - base` when no baseline was found
     # meant a rollout sitting entirely inside the window reported only its final

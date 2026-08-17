@@ -165,11 +165,23 @@ def scan(path, since=0):
                 pre = [u for ep, u in ev if ep is not None and ep < since]
                 if pre:
                     base = pre[-1]
-                    # The edge sits outside the tail, so the events between it
-                    # and the tail were never read. Step-summing what we DO have
-                    # still catches a restart visible in the tail; one hidden in
-                    # the unread gap is beyond what a bisect can see.
-                    seq = [(since - 1, base)] + stamped
+                    # The gap between the located edge and the tail was never
+                    # read - a counter restart hidden there was invisible to
+                    # the step-sum. Walk ONLY that in-window stretch forward
+                    # in 512KB steps: bounded by what the window holds, never
+                    # the whole file. Kept identical to the builtin.
+                    # Blocks are line-aligned, so a walk can overlap the
+                    # tail by up to one block: stop the gap at the tail's
+                    # FIRST stamped event, or those events count twice.
+                    gap, first_tail = [], stamped[0][0]
+                    off, tail_off = lo, size - (1 << 20)
+                    while off < tail_off:
+                        blk = _block(fh, size, off, (1 << 19))
+                        if not blk: break
+                        gap += [(ep, u) for ep, u in _events(blk)
+                                if ep is not None and since <= ep < first_tail]
+                        off += (1 << 19)
+                    seq = [(since - 1, base)] + gap + stamped
     t["msgs"] = 1
     # Always step-sum. Falling back to `last - base` when no baseline was found
     # meant a rollout sitting entirely inside the window reported only its final

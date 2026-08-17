@@ -199,6 +199,36 @@ class TestPanelWidths(unittest.TestCase):
                 self.assertFalse(hits, f"{flag}: glyph {hits} in line:\n{l!r}")
 
 
+class TestCountdown(unittest.TestCase):
+    """RESETS IN is a delta on every row. Session rows used to print a wall
+    clock because a time-only reset ('3:19pm') fell out of the parser - and
+    when it did parse, '3:19pm' read as 03:19 (HH:MM matched, meridian
+    ignored), twelve hours off. That also disabled the dry-before-reset
+    check for sessions, since no seconds meant no comparison."""
+
+    def test_time_only_reset_is_a_forward_delta(self):
+        s = og.countdown("3:19pm (America/Chicago)", _as_seconds=True)
+        self.assertIsNotNone(s)
+        self.assertGreater(s, 0)
+        self.assertLessEqual(s, 86400, "next occurrence is within a day")
+
+    def test_meridian_wins_over_hhmm(self):
+        pm = og.countdown("3:19pm (X)", _as_seconds=True)
+        am = og.countdown("3:19am (X)", _as_seconds=True)
+        self.assertNotEqual(pm, am)
+        # the two are exactly twelve hours apart on the clock face
+        self.assertEqual((pm - am) % 86400, 12 * 3600)
+
+    def test_every_vendor_format_yields_a_delta(self):
+        for txt in ("Aug 19, 6pm (America/Chicago)", "23:04 on 19 Aug",
+                    "August 17, 12:49", "12:19am (UTC)", "11:10pm (America/Chicago)"):
+            self.assertIsNotNone(og.countdown(txt), f"no delta for {txt!r}")
+
+    def test_garbage_still_refuses(self):
+        self.assertIsNone(og.countdown("soon-ish"))
+        self.assertIsNone(og.countdown(""))
+
+
 class TestApiCache(unittest.TestCase):
     """The spend panel must never rate-limit itself out of its own data: a
     TTL keeps fetches rare, and a failed fetch serves the last good answer
@@ -606,6 +636,37 @@ class TestProviderConformance(unittest.TestCase):
         for k in ("argv", "keys", "ready", "done", "expect"):
             self.assertEqual(self.plug_grok.QUOTA[k], og.AGENTS["grok"][k],
                              f"grok drift in QUOTA[{k!r}]")
+
+    def test_codex_restart_hidden_in_the_bisect_gap_is_counted(self):
+        """Assay's documented boundary: the edge lands outside the 1MB tail,
+        so the events between it and the tail were never read - a counter
+        restart in that gap was invisible. Build exactly that shape (>4MB of
+        in-window events with a restart deep in the middle) and require the
+        full spend through BOTH copies."""
+        def ev(ts, tot):
+            return json.dumps({"timestamp": ts, "pad": "x" * 200, "payload": {
+                "info": {"total_token_usage": {
+                    "input_tokens": tot, "cached_input_tokens": 0,
+                    "output_tokens": 0, "reasoning_output_tokens": 0,
+                    "total_tokens": tot}}}}) + "\n"
+        p = os.path.join(_TMP, "codex-gap-restart.jsonl")
+        with open(p, "w") as fh:
+            fh.write('{"model":"gpt-gap"}\n')
+            for i in range(6000):                       # before the cut: to 6000
+                fh.write(ev(f"2026-08-10T{i//3600:02d}:{(i//60)%60:02d}:{i%60:02d}Z", i + 1))
+            for i in range(9000):                       # in window: 6000 -> 15000
+                fh.write(ev(f"2026-08-15T{i//3600:02d}:{(i//60)%60:02d}:{i%60:02d}Z", 6000 + i + 1))
+            for i in range(9000):                       # RESTART deep in the gap: 1 -> 9000
+                fh.write(ev(f"2026-08-15T{3+i//3600:02d}:{(i//60)%60:02d}:{i%60:02d}Z", i + 1))
+        self.assertGreater(os.path.getsize(p), 4 << 20, "fixture must outgrow the tail")
+        cut = og._epoch("2026-08-14T00:00:00Z")
+        # spend inside the window = 9000 (first run's growth) + 9000 (the restart's run)
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            r = fn(p, cut)
+            self.assertEqual(r["total"], 18000,
+                             f"restart in the bisect gap dropped in {fn.__module__}: {r['total']}")
+        self.assertEqual(og.scan_codex(p, cut), self.plug_codex.scan(p, cut),
+                         "gap-walk drift: builtin vs mirror")
 
     def test_codex_scan_since_is_a_window_delta(self):
         """A rollout touched inside the window contributes its GROWTH across
