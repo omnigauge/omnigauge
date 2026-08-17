@@ -40,3 +40,15 @@ def stack(im,x0,y0,cw,ch,gap,rgap,rows,n=8):
             else: track(im,x,y,cw,ch)
         y+=ch+rgap
 ROWS=[(0.28,[GREEN_L,GREEN,GREEN_D]),(1.00,[RED_L,RED,RED_D]),(0.41,[GREEN_L,GREEN,GREEN_D])]
+
+
+def mark(size, pad=0.16):
+    """The square avatar/favicon: the stack centred with enough margin that a
+    circular crop (X, GitHub) keeps every cell - the first cut sat left and
+    lost its right column in the profile circle. Content width 68% of the box;
+    verified: zero mark pixels outside the inscribed circle at 512."""
+    C=size*SS; im=Image.new('RGBA',(C,C),FIELD+(255,))
+    design_w=163; design_h=126; s=(C*(1-2*pad))/design_w
+    x0=int((C-design_w*s)/2); y0=int((C-design_h*s)/2)
+    stack(im,x0,y0,max(1,int(16*s)),max(1,int(30*s)),max(1,int(5*s)),max(1,int(18*s)),ROWS)
+    return im.resize((size,size),Image.LANCZOS).convert('RGB')
