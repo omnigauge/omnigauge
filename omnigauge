@@ -1757,15 +1757,26 @@ def render(args):
     mid(hdr)
     if not flat:
         mid(f"  {s.gry}nothing collected - run{s.r} {s.bcya}omnigauge --refresh{s.r}")
+    # A blank line between gauges: six solid bars stacked line-on-line read
+    # as one color mass, red mashed straight onto green. Each row gets its
+    # own air; the vendor-said and dry-warning notes stay tucked under the
+    # row they belong to.
+    first_row = True
     for agent in agent_order():
         rows = q.get(agent)
         if not rows:
             if agent not in AGENTS:
                 continue        # no quota concept (key-based agents): no row to miss
             state = "not collected" if installed(agent) else "not installed"
+            if not first_row:
+                mid()
+            first_row = False
             mid(f"  {s.gry}○  {agent:<17}{state}{s.r}")
             continue
         for r in sorted(rows, key=lambda x: (x["window"] != "week", x["model"] != "all")):
+            if not first_row:
+                mid()
+            first_row = False
             mid(quota_row_text(agent=agent, model=r["model"], window=r["window"],
                                pct=r["pct"], rate=r.get("rate"), dry_in=r.get("dry_in"),
                                reset=r["reset"], at=r["at"]))
