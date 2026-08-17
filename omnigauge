@@ -1750,9 +1750,12 @@ def trend(con, agent, window, model, at_now, span=24 * 3600, cells=6):
     if len(rows) < 2:
         return None
     t0 = rows[0][1]
-    span = max(600, at_now - t0)
-    if at_now - t0 < 600:
+    # A strip over ten minutes of readings is flat because there is no
+    # history, and looks identical to flat because nothing changed. Under an
+    # hour of series the honest strip is no strip.
+    if at_now - t0 < 3600:
         return None
+    span = at_now - t0
     buckets = [None] * cells
     for pct, at in rows:
         i = min(cells - 1, int((at - t0) / span * cells))
@@ -2050,8 +2053,12 @@ def render(args):
             for a_, mo, mv in rows:
                 share = mv["total"] / grand * 100
                 w = 0
-                if share > 0:
-                    w = int(round((_m.log10(max(share, 0.01)) + 2) / 4 * sw))
+                # Below the axis floor the bar stays EMPTY. Lighting a cell
+                # for anything above zero gave a 3K-token model the same bar
+                # as a 0.01% one - a gauge asserting presence where the linear
+                # truth is rounding error. The number beside it says 0.0%.
+                if share >= 0.01:
+                    w = int(round((_m.log10(share) + 2) / 4 * sw))
                     w = max(1, min(sw, w))
                 cap = "▌" if 0 < w < sw else ""
                 spark = (s.accent + "█" * w + cap

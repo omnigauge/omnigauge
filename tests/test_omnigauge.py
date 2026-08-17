@@ -150,6 +150,26 @@ class TestPanelWidths(unittest.TestCase):
         con.commit()
         t = og.trend(con, "claude", "week", "all", now)
         self.assertIsNotNone(t)
+        # under an hour of series: no strip, not a flat one
+        con.execute("DELETE FROM snapshots"); con.commit()
+        for i, pct in enumerate((10.0, 20.0)):
+            con.execute(
+                "INSERT INTO snapshots(product,source,agent,window,model,usage_type,"
+                "pct_used,raw_value,reset_at,collected_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                ("claude_plan", "cli", "claude", "week", "all", "plan_quota",
+                 pct, "x", "Aug 30, 6pm", now - (1 - i) * 900))
+        con.commit()
+        self.assertIsNone(og.trend(con, "claude", "week", "all", now),
+                          "a 15-minute series must not render a strip")
+        con.execute("DELETE FROM snapshots"); con.commit()
+        for i, pct in enumerate((10.0, 20.0, 30.0, 60.0)):
+            con.execute(
+                "INSERT INTO snapshots(product,source,agent,window,model,usage_type,"
+                "pct_used,raw_value,reset_at,collected_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                ("claude_plan", "cli", "claude", "week", "all", "plan_quota",
+                 pct, f"{pct:.0f}% used", "Aug 30, 6pm", now - (3 - i) * 6 * 3600))
+        con.commit()
+        t = og.trend(con, "claude", "week", "all", now)
         self.assertEqual(len(t), 6)
         self.assertEqual(t.strip()[0], "░", "lowest reading is the light cell")
         self.assertEqual(t.strip()[-1], "█", "highest reading is the full cell")
