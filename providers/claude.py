@@ -77,6 +77,10 @@ def scan(path, since=0):
         t["cache_read"] += u.get("cache_read_input_tokens", 0)
         t["cache_write"] += u.get("cache_creation_input_tokens", 0)
         t["think"] += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
+        # total = in + out + cache_read, the same formula the board and the
+        # per-model rows use - and the builtin now caches. Mirror must match.
+        t["total"] += (u.get("input_tokens", 0) + u.get("output_tokens", 0)
+                       + u.get("cache_read_input_tokens", 0))
         og.add_model(
             t, msg.get("model"),
             out=u.get("output_tokens", 0),

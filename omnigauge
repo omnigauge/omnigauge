@@ -111,7 +111,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # codex step-sum fix every unchanged file kept answering with the old numbers and
 # the board sat 0.09% below an independent re-derivation, silently, until each
 # file happened to be written again. A cached number has to know what made it.
-SCAN_EPOCH = 2
+SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
 
 def db():
@@ -272,7 +272,13 @@ def bar(pct, w=22):
     full = max(0, min(w, int(round(pct / 100 * w))))
     if pct > 0:
         full = max(1, full)
-    return sev(pct) + "█" * full + s.faint + "·" * (w - full) + s.r
+    # ▌ caps the fill with a crisp half-cell edge and ░ gives the empty track
+    # real texture - the dot track read as absence, not as the rest of a
+    # gauge. Both glyphs are already load-bearing (▌ in every panel head, ░
+    # in the vendors' own panels), so no new fallback risk.
+    cap = "▌" if 0 < full < w else ""
+    return (sev(pct) + "█" * full + cap
+            + s.faint + "░" * (w - full - len(cap)) + s.r)
 
 
 def dur(sec):
@@ -626,6 +632,10 @@ def scan_claude(path, since=0):
         t["cache_read"] += u.get("cache_read_input_tokens", 0)
         t["cache_write"] += u.get("cache_creation_input_tokens", 0)
         t["think"] += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
+        # total = in + out + cache_read, the same formula the board and the
+        # per-model rows use. Leaving it 0 made --json contradict the render.
+        t["total"] += (u.get("input_tokens", 0) + u.get("output_tokens", 0)
+                       + u.get("cache_read_input_tokens", 0))
         add_model(t, msg.get("model"), out=u.get("output_tokens", 0),
                   total=u.get("output_tokens", 0) + u.get("cache_read_input_tokens", 0)
                         + u.get("input_tokens", 0), msgs=1)
@@ -1071,6 +1081,25 @@ def window_totals(agent, since):
             SCAN_ERRORS.append(f"{agent}: {type(e).__name__}: {e}")
     _MEMO[key] = t
     return t
+
+
+def prune_filecache(con):
+    """Drop cache rows no known home can reach - a deleted store, a renamed
+    directory. Rows under a configured root are kept even while the root is
+    unmounted: a pulled drive's history must survive its absence. Assay's
+    finding: unreachable rows were never pruned - no wrong number, but
+    unbounded growth."""
+    keeps = [os.path.expanduser("~") + os.sep]
+    keeps += [p if p.endswith(os.sep) else p + os.sep
+              for p in glob.glob("/mnt/*/Users/*/")]
+    keeps += [r.rstrip(os.sep) + os.sep for r in config_roots()]
+    rows = con.execute("SELECT path FROM filecache").fetchall()
+    dead = [p for (p,) in rows if not any(p.startswith(k) for k in keeps)]
+    if dead:
+        con.executemany("DELETE FROM filecache WHERE path=?",
+                        [(p,) for p in dead])
+        con.commit()
+    return len(dead)
 
 
 def lifetime_totals(agent, con, progress=False):
@@ -1720,6 +1749,7 @@ def render(args):
     print(f"\n{head}{' ' * max(1, W - vis(head) - vis(right) - 1)}{right}")
     print(f" {s.faint}{'━' * (W - 2)}{s.r}")
 
+    prune_filecache(con)
     q = quota_rows(con)
     flat = [(a_, r) for a_ in agent_order() for r in q.get(a_, [])]
     if not flat and not any(SCANNERS[a_][0]() for a_ in SCANNERS):
@@ -1844,7 +1874,9 @@ def render(args):
             for a_, mo, mv in rows:
                 share = mv["total"] / grand * 100
                 w = max(0, int(round(share / 100 * sw)))
-                spark = s.accent + "█" * w + s.faint + "·" * (sw - w) + s.r
+                cap = "▌" if 0 < w < sw else ""
+                spark = (s.accent + "█" * w + cap
+                         + s.faint + "░" * (sw - w - len(cap)) + s.r)
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
@@ -2327,7 +2359,8 @@ def main():
                    help="(now on by default; kept for compatibility)")
     p.add_argument("--brief", action="store_true",
                    help="quota + recent volume only, skip lifetime and per-model")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true",
+                   help="machine-readable; lifetime is null unless --lifetime is also given")
     p.add_argument("--no-color", action="store_true")
     p.add_argument("--theme", default=os.environ.get("OMNIGAUGE_THEME", "ink"),
                    choices=sorted(S.THEMES), help="ink (calm, default) · muted · mono · vivid")
