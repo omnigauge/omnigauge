@@ -2080,9 +2080,13 @@ def render(args):
                 # line-on-line fused into one slab; the dotted track leaves
                 # each bar reading as its own row without a blank line - the
                 # middle between clustered and padded.
-                cap = "▌" if 0 < w < sw else ""
-                spark = (s.accent + "█" * w + cap
-                         + s.faint + "·" * (sw - w - len(cap)) + s.r)
+                # ■ not █: a full block fills its cell to the line edges, so
+                # rows one line apart FUSE into a slab whatever the track is
+                # (John's terminal has zero line gap). The filled square sits
+                # inside its cell with air above and below by design, so each
+                # row's bar stands alone. Already load-bearing (the quota dot).
+                spark = (s.accent + "■" * w
+                         + s.faint + "·" * (sw - w) + s.r)
                 mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
                     f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
                     f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
