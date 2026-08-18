@@ -322,6 +322,10 @@ the terms above instead of pretending to be us — there is a good chance the
 contract address ends up on this page. A listing is not an endorsement. DYOR.
 
 
+## Changelog
+
+[CHANGELOG.md](https://github.com/omnigauge/omnigauge/blob/main/CHANGELOG.md) — one section per version on PyPI.
+
 ## Contributing
 
 Pull requests are open to anyone — you do not need permission, an invite, or to
