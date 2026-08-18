@@ -1,3 +1,4 @@
+<!-- generated from README.md by ops/gen_readme_pypi.py - do not edit; PyPI cannot draw the text board -->
 <p align="center">
   <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan and API account you pay for, on one screen">
 </p>
@@ -24,42 +25,11 @@ it from: stored 0600, never passed as an argument, refused outright if the file
 is group- or world-readable. Leave spend off and no credential — and no network
 call — is involved at all. No telemetry either way.
 
-```
- ▐▌ OMNIGAUGE  one gauge, every provider                         my-box · 20:31 UTC
- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▲  codex is at 97% — 5d 15h to reset · tightest window
+<p align="center">
+  <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/readme-board.png" width="100%" alt="the OmniGauge board: PLAN QUOTA, TOKEN VOLUME, WHAT IS DRIVING USAGE - sample data">
+</p>
 
- ╭─ PLAN QUOTA ────────────────────────────────────────── normalized to % consumed ╮
- │                                                                                 │
- │     AGENT            WINDOW                           USED RESETS IN  READ      │
- │  ●  claude           week    █████·················    24%    4d 13h   now      │
- │  ○  claude/fable     week    ······················     0%    4d 13h   now      │
- │  ●  claude           session █·····················     5%   12:19am   now      │
- │  ●  codex            week    █████████████████████·    97%    5d 15h    7m      │
- │                       vendor said "3% left" - inverted                          │
- │  ○  codex/spark      week    ······················     0%     7d 1h    7m      │
- │                       vendor said "100% left" - inverted                        │
- │  ●  grok/x premium+  week    ██████················    26%     2d 8h    7m      │
- │                                                                                 │
- ╰── subscription windows · no dollar balance exists for these plans ──────────────╯
-
- ╭─ TOKEN VOLUME ───────────────────────────────────────── local transcripts · 24h ╮
- │                                                                                 │
- │  AGENT       FILES    MSGS     OUTPUT     THINK   CACHE-RD      INPUT      TOTAL│
- │  claude          5   3,806      4.66M     1.32M      2.02B      7.16K      2.03B│
- │  codex         211     211    502.77M   229.01M    185.24B    193.51B    194.01B│
- │  grok            3       3          0         0          0          0      4.26M│
- │                                                                                 │
- ╰── not comparable to vendor counters · different denominators ───────────────────╯
-
- ╭─ WHAT IS DRIVING USAGE ───────────────────────────────── reported by the vendor ╮
- │                                                                                 │
- │  ▸ 100% of your usage came from sessions active for 8+ hours                    │
- │  ▸ 99% of your usage was at >150k context                                       │
- │  ▸ 19% of your usage was while 4+ sessions ran in parallel                      │
- │                                                                                 │
- ╰─────────────────────────────────────────────────────────────────────────────────╯
-```
+<sub>Sample data - a rendering of the board as the terminal draws it (assets/readme-board.png), not a screenshot of anyone's machine.</sub>
 
 ## What this does that the others don't
 

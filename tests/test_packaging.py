@@ -48,3 +48,15 @@ def test_entry_point_runs_the_file_as_main():
     spec.loader.exec_module(mod)
     assert callable(mod.main)
     assert os.path.basename(mod.SCRIPT) == "omnigauge"
+
+
+def test_the_pypi_readme_is_generated_from_the_readme():
+    """PyPI renders README.pypi.md (image instead of the text board); it must be exactly
+    what ops/gen_readme_pypi.py produces from README.md, and pyproject must point at it."""
+    import subprocess, sys
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "ops", "gen_readme_pypi.py"), "--verify"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _pyproject()["project"]["readme"] == "README.pypi.md"
+    with open(os.path.join(ROOT, "README.pypi.md"), encoding="utf-8") as fh:
+        pypi = fh.read()
+    assert "▐▌ OMNIGAUGE" not in pypi and "readme-board.png" in pypi

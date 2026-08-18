@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omnigauge"
-version = "1.0.2"
+version = "1.0.3"
 description = "Every AI plan and API account you pay for, on one screen - in your terminal. Plan quota, token volume, burn rate, time-to-reset, spend. Stdlib only."
-readme = "README.md"
+readme = "README.pypi.md"
 license = { text = "MIT" }
 requires-python = ">=3.8"
 authors = [{ name = "omnigauge" }]
@@ -54,6 +54,7 @@ include = [
   "omnigauge_cli/**",
   "tests/**",
   "README.md",
+  "README.pypi.md",
   "LICENSE",
   "TRADEMARK.md",
   "pyproject.toml",

@@ -33,9 +33,9 @@ FRAME = set("╭╮╰╯│─━┈")
 
 def block():
     s = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
-    m = re.search(r"<summary>the same board as text</summary>\n\n```\n(.*?)\n```", s, re.S)
+    m = re.search(r"```\n( *▐▌ OMNIGAUGE  one gauge, every provider.*?)\n```", s, re.S)
     if not m:
-        sys.exit("README: board block not found under <details>")
+        sys.exit("README: board block not found")
     return m.group(1).split("\n")
 
 
