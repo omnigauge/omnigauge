@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omnigauge"
+version = "1.0"
+description = "Every AI plan and API account you pay for, on one screen - in your terminal. Plan quota, token volume, burn rate, time-to-reset, spend. Stdlib only."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [{ name = "omnigauge" }]
+keywords = ["ai", "quota", "usage", "terminal", "claude", "codex", "grok", "aider", "goose", "openai", "openrouter"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://omnigauge.dev"
+Repository = "https://github.com/omnigauge/omnigauge"
+
+[project.scripts]
+omnigauge = "omnigauge_cli:main"
+
+# The single file and the provider mirrors travel INSIDE the wheel, next to each
+# other, so the installed command finds providers/ exactly where the file looks.
+# Every provider is listed by name on purpose: a mirror that is not shipped is a
+# mirror that silently falls back to the built-in - tests/test_packaging.py
+# refuses that.
+[tool.hatch.build.targets.wheel]
+packages = ["omnigauge_cli"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"omnigauge" = "omnigauge_cli/omnigauge"
+"providers/aider.py" = "omnigauge_cli/providers/aider.py"
+"providers/claude.py" = "omnigauge_cli/providers/claude.py"
+"providers/codex.py" = "omnigauge_cli/providers/codex.py"
+"providers/deepseek.py" = "omnigauge_cli/providers/deepseek.py"
+"providers/goose.py" = "omnigauge_cli/providers/goose.py"
+"providers/grok.py" = "omnigauge_cli/providers/grok.py"
+"providers/moonshot.py" = "omnigauge_cli/providers/moonshot.py"
+"providers/openrouter.py" = "omnigauge_cli/providers/openrouter.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "omnigauge",
+  "providers/*.py",
+  "providers/README.md",
+  "omnigauge_cli/**",
+  "tests/**",
+  "README.md",
+  "LICENSE",
+  "TRADEMARK.md",
+  "pyproject.toml",
+]

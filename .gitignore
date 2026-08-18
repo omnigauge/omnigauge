@@ -29,3 +29,8 @@ assets/logo-level-ring.svg
 
 # lane notes live outside the public repo
 ops/HANDOFF.md
+
+# packaging output
+dist/
+build/
+*.egg-info/
