@@ -262,8 +262,7 @@ noscript pre{color:var(--cyan);margin:.8em 0}
   never passed as arguments, refused outright if group- or world-readable. Leave it off and
   no credential or network call is involved. No telemetry. One Python file, no dependencies,
   MIT.</p>
-  <pre>git clone https://github.com/omnigauge/omnigauge.git
-install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
+  <pre>pipx install omnigauge
 omnigauge --refresh</pre>
   <p><a href="https://github.com/omnigauge/omnigauge">github.com/omnigauge/omnigauge</a></p>
 </div></noscript>
@@ -685,10 +684,9 @@ var C={
  install:function(){blank();
   if(MOBILE){
     head('INSTALL');row('');
-    prose('d','Python 3.8+ · no dependencies · one file. Three commands, shown whole so they wrap - each is one copyable line:');
+    prose('d','Python 3.8+ · no dependencies · one file. Two commands - each is one copyable line:');
     row('');foot('');
-    line('  [[y]]git clone https://github.com/omnigauge/omnigauge.git[[/]]','cmd');
-    line('  [[y]]install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge[[/]]','cmd');
+    line('  [[y]]pipx install omnigauge[[/]]','cmd');
     line('  [[y]]omnigauge --refresh[[/]]','cmd');
     blank();
     head('THEN');row('');
@@ -696,17 +694,16 @@ var C={
     row('  [[c]]'+pad('--watch',11)+'[[/]][[f]]refresh in place[[/]]');
     row('  [[c]]'+pad('--check',11)+'[[/]][[f]]exits 0/1/2 for cron[[/]]');
     row('  [[c]]'+pad('--since 7d',11)+'[[/]][[f]]any window[[/]]');
-    row('');foot('type  copy  for the three lines');blank();return;}
+    row('');foot('type  copy  for the two lines · from source: git clone + ./install.sh');blank();return;}
   head('INSTALL','Python 3.8+ · no dependencies · one file');row('');
-  row('  [[y]]C:\\>[[/]] git clone https://github.com/omnigauge/omnigauge.git');
-  row('  [[y]]C:\\>[[/]] install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge');
+  row('  [[y]]C:\\>[[/]] pipx install omnigauge          [[d]]or: pip install omnigauge[[/]]');
   row('  [[y]]C:\\>[[/]] omnigauge --refresh');
   row('');
   row('  [[d]]then[[/]]  [[c]]omnigauge[[/]]        [[f]]the board[[/]]');
   row('        [[c]]--watch[[/]]          [[f]]refresh in place while you work[[/]]');
   row('        [[c]]--check[[/]]          [[f]]headless · exits 0/1/2 for cron[[/]]');
   row('        [[c]]--since 7d[[/]]       [[f]]any window, including lifetime[[/]]');
-  row('');foot('type  copy  to copy the three lines');blank();},
+  row('');foot('type  copy  to copy the two lines · from source: git clone + ./install.sh');blank();},
 
  providers:function(){blank();
   if(MOBILE){
@@ -862,11 +859,10 @@ var C={
   foot('click the address, or type  wallet');blank();},
 
  copy:function(){navigator.clipboard.writeText(
-    'git clone https://github.com/omnigauge/omnigauge.git\n'+
-    'install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge\n'+
+    'pipx install omnigauge\n'+
     'omnigauge --refresh');
-  blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- three install lines[[/]]'
-    :'  [[g]]Copied[[/]] [[d]]- three install lines on your clipboard[[/]]');blank();},
+  blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- two install lines[[/]]'
+    :'  [[g]]Copied[[/]] [[d]]- two install lines on your clipboard[[/]]');blank();},
  wallet:function(){navigator.clipboard.writeText(
     DONATE_SOL);
   blank();line(MOBILE?'  [[g]]Copied[[/]] [[d]]- Solana address[[/]]'

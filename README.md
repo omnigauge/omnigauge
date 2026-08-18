@@ -147,12 +147,14 @@ different products; blending them into one "remaining" figure would be fiction.
 ## Quickstart
 
 ```bash
-git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge
-./install.sh
+pipx install omnigauge  # from PyPI (or: pip install omnigauge) — Python 3.8+, no dependencies
 omnigauge --doctor      # what is connected, what is missing, how to fix it
 omnigauge --refresh     # pull your plan quota (~30s per agent)
 omnigauge               # the board — press ? for keys
 ```
+
+From a clone instead: `git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge && ./install.sh`
+— the installer copies the file *and* its provider mirrors; a bare copy of the file leaves the mirrors behind.
 
 `--doctor` is the one to run first. It checks each agent CLI, tells you whether
 quota has ever been collected, shows which optional API credentials are set, and
@@ -176,10 +178,12 @@ quietly shrink — and `--doctor` shows every root as mounted or missing.
 Requires Python 3.8+ and `tmux` (only for quota scraping).
 
 ```bash
-git clone https://github.com/omnigauge/omnigauge.git
-install -m755 omnigauge/omnigauge ~/.local/bin/omnigauge
+pipx install omnigauge      # or: pip install omnigauge
 omnigauge --refresh
 ```
+
+From source: `git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge && ./install.sh`
+(the file plus its provider mirrors, into `~/.local/bin` and `~/.local/share/omnigauge/providers`).
 
 You stay logged in through your own CLIs — OmniGauge never sees or stores a credential.
 It only works for accounts *you* are already signed into on that machine.
