@@ -1,0 +1,24 @@
+# On a version tag: create the GitHub Release with that version's CHANGELOG section as the
+# notes. Runs beside publish.yml (which does the registry); no token beyond the job's own.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: notes = this version's section of CHANGELOG.md
+        id: notes
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          echo "title=omnigauge $ver" >> "$GITHUB_OUTPUT"
+          awk -v ver="$ver" 'BEGIN{p=0} /^## /{ if(p) exit; if($2==ver){p=1; next} } p' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for $ver"; exit 1; }
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.notes.outputs.title }}
+          body_path: notes.md
