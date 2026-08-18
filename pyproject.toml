@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omnigauge"
-version = "1.0.1"
+version = "1.0.2"
 description = "Every AI plan and API account you pay for, on one screen - in your terminal. Plan quota, token volume, burn rate, time-to-reset, spend. Stdlib only."
 readme = "README.md"
 license = { text = "MIT" }

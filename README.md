@@ -24,6 +24,15 @@ it from: stored 0600, never passed as an argument, refused outright if the file
 is group- or world-readable. Leave spend off and no credential — and no network
 call — is involved at all. No telemetry either way.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/readme-board.png" width="100%" alt="the OmniGauge board: PLAN QUOTA, TOKEN VOLUME, WHAT IS DRIVING USAGE - sample data">
+</p>
+
+<sub>Sample data, drawn from the same text as the terminal draws (assets/readme-board.png is a rendering of the block below, not a screenshot of anyone's machine).</sub>
+
+<details>
+<summary>the same board as text</summary>
+
 ```
  ▐▌ OMNIGAUGE  one gauge, every provider                         my-box · 20:31 UTC
  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -60,6 +69,8 @@ call — is involved at all. No telemetry either way.
  │                                                                                 │
  ╰─────────────────────────────────────────────────────────────────────────────────╯
 ```
+
+</details>
 
 ## What this does that the others don't
 
