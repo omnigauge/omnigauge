@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan and API account you pay for, on one screen">
+  <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan and API account you pay for, on one screen">
 </p>
 
 <p align="center">
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://github.com/omnigauge/omnigauge/blob/main/LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="python" src="https://img.shields.io/badge/python-3.8%2B-blue.svg">
   <img alt="dependencies" src="https://img.shields.io/badge/dependencies-none-brightgreen.svg">
 </p>
@@ -364,7 +364,7 @@ and what does your quota panel say. Eight providers ship as worked examples in
 `providers/` — five agents (`claude.py`, `codex.py`, `grok.py`, `aider.py`, `goose.py`)
 and three spend sources — each a different parsing shape; copy the closest one.
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the contract, the three rules that are not
+[CONTRIBUTING.md](https://github.com/omnigauge/omnigauge/blob/main/CONTRIBUTING.md) has the contract, the three rules that are not
 style preferences, and what gets rejected. Read the last one before you start —
 it will save you the work.
 
@@ -380,7 +380,7 @@ which is precisely what makes it a donation and not a purchase. Details under
 ## Contact
 
 - Bugs and provider requests → [issues](../../issues)
-- Security → **security@omnigauge.dev** (see [SECURITY.md](SECURITY.md))
+- Security → **security@omnigauge.dev** (see [SECURITY.md](https://github.com/omnigauge/omnigauge/blob/main/SECURITY.md))
 - Anything else → **dev@omnigauge.dev**
 
 ## Authorship
@@ -394,4 +394,4 @@ A usage meter for AI tools, written by one. The source is right there either way
 
 MIT. Use it, fork it, ship it. The code is yours under that licence — and with it
 the look, which anyone may imitate. The name, the mark and the files under `assets/`
-are not part of the grant — see [TRADEMARK.md](TRADEMARK.md) and `assets/LICENSE`.
+are not part of the grant — see [TRADEMARK.md](https://github.com/omnigauge/omnigauge/blob/main/TRADEMARK.md) and `assets/LICENSE`.
