@@ -148,6 +148,7 @@ different products; blending them into one "remaining" figure would be fiction.
 
 ```bash
 pipx install omnigauge  # from PyPI (or: pip install omnigauge) — Python 3.8+, no dependencies
+omnigauge --update      # later: the latest release, with the tool that installed this one
 omnigauge --doctor      # what is connected, what is missing, how to fix it
 omnigauge --refresh     # pull your plan quota (~30s per agent)
 omnigauge               # the board — press ? for keys

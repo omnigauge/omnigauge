@@ -263,7 +263,8 @@ noscript pre{color:var(--cyan);margin:.8em 0}
   no credential or network call is involved. No telemetry. One Python file, no dependencies,
   MIT.</p>
   <pre>pipx install omnigauge
-omnigauge --refresh</pre>
+omnigauge --refresh
+omnigauge --update</pre>
   <p><a href="https://github.com/omnigauge/omnigauge">github.com/omnigauge/omnigauge</a></p>
 </div></noscript>
 <div id="page"><div id="out"></div>
@@ -528,7 +529,7 @@ function board(){
    fails whenever this block disagrees with the code. Edit providers/, run
    the generator; never edit the data by hand. */
 /*LEGEND-DATA*/var LEGEND={"negatives":[{"n":"cursor","why":"the IDE writes token fields and zeroes every value"},{"n":"antigravity","why":"records trajectories; no token accounting at all"},{"n":"copilot","why":"no token accounting in its logs"}],"sources":[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per session header, at session resolution","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost lines exist; the spend panel does not read them yet","tokens":"obtained: aider's own token lines; roots via OMNIGAUGE_AIDER_DIRS"},"k":"agent","n":"aider"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per ledger row, dated model ids","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost is recorded; the spend panel does not read it yet","tokens":"obtained: usage_ledger, the vendor's own accounting"},"k":"agent","n":"goose"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator; models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}]};/*END-LEGEND-DATA*/
-/*FACTS-DATA*/var FACTS={"agents":["claude","codex","grok","aider","goose"],"apis":["openai","x","deepseek","moonshot","openrouter"],"lines":2754,"lines_k":"2.8k","mirrors":["aider","claude","codex","deepseek","goose","grok","moonshot","openrouter"],"negatives":["cursor","antigravity","copilot"],"sources":10,"tests":133};/*END-FACTS-DATA*/
+/*FACTS-DATA*/var FACTS={"agents":["claude","codex","grok","aider","goose"],"apis":["openai","x","deepseek","moonshot","openrouter"],"lines":2792,"lines_k":"2.8k","mirrors":["aider","claude","codex","deepseek","goose","grok","moonshot","openrouter"],"negatives":["cursor","antigravity","copilot"],"sources":10,"tests":133};/*END-FACTS-DATA*/
 var CAPORDER=['tokens','quota','reset','models','lifetime','spend','burn'];
 /* Numbers in prose come from FACTS, generated by ops/gen_legend.py from the
    repo - the line count, the source counts, the test count. Hand-typed, five
@@ -688,6 +689,7 @@ var C={
     row('');foot('');
     line('  [[y]]pipx install omnigauge[[/]]','cmd');
     line('  [[y]]omnigauge --refresh[[/]]','cmd');
+    line('  [[y]]omnigauge --update[[/]]','cmd');
     blank();
     head('THEN');row('');
     row('  [[c]]'+pad('omnigauge',11)+'[[/]][[f]]the board[[/]]');
@@ -698,6 +700,7 @@ var C={
   head('INSTALL','Python 3.8+ · no dependencies · one file');row('');
   row('  [[y]]C:\\>[[/]] pipx install omnigauge          [[d]]or: pip install omnigauge[[/]]');
   row('  [[y]]C:\\>[[/]] omnigauge --refresh');
+  row('  [[y]]C:\\>[[/]] omnigauge --update             [[d]]the latest release, then restart[[/]]');
   row('');
   row('  [[d]]then[[/]]  [[c]]omnigauge[[/]]        [[f]]the board[[/]]');
   row('        [[c]]--watch[[/]]          [[f]]refresh in place while you work[[/]]');

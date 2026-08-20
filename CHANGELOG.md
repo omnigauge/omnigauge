@@ -2,6 +2,14 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.4 — 2026-08-20
+
+- `omnigauge --update`: upgrade with the same tool that installed it (pipx upgrade /
+  pip install --upgrade / git pull + install.sh for a clone, detected from the
+  interpreter and the file's own directory), then clear and restart, so the first
+  thing on screen is the new board with the new version. Listed in --help; the
+  board's own update-on-disk restart already covered a running --watch.
+
 ## 1.0.3 — 2026-08-18
 
 - Two READMEs from one source: GitHub keeps the text board; PyPI renders
