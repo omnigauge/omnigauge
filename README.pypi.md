@@ -117,7 +117,7 @@ different products; blending them into one "remaining" figure would be fiction.
 ## Quickstart
 
 ```bash
-pipx install omnigauge  # from PyPI (or: pip install omnigauge) — Python 3.8+, no dependencies
+pipx install omnigauge  # from PyPI — Python 3.8+, no dependencies (Ubuntu/Debian: sudo apt install pipx first; bare pip is refused there by PEP 668)
 omnigauge --update      # later: the latest release, with the tool that installed this one
 omnigauge --doctor      # what is connected, what is missing, how to fix it
 omnigauge --refresh     # pull your plan quota (~30s per agent)
