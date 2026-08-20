@@ -16,6 +16,10 @@ if compgen -G "$SRC/providers/*.py" >/dev/null; then
   echo "providers: $(ls -1 "$DATA/providers"/*.py 2>/dev/null | wc -l) installed to $DATA/providers"
 fi
 
+# The installed copy is a plain file with no .git beside it. Stamp where it
+# came from, so `omnigauge --update` can find this clone and pull it.
+printf '%s\n' "$SRC" > "$DATA/source"
+
 echo "installed: $DEST/omnigauge"
 command -v tmux >/dev/null || echo "note: tmux not found — quota scraping needs it (token counts work without)"
 case ":$PATH:" in *":$DEST:"*) ;; *) echo "note: $DEST is not on PATH";; esac

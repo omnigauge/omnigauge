@@ -2,6 +2,18 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.5 — 2026-08-20
+
+- `--update` detects an install.sh install: the installed copy is a plain file in
+  `~/.local/bin` with no `.git` beside it, so 1.0.4 misread every clone install as
+  pip and ran `pip install --upgrade` at it — which Debian/Ubuntu refuse outright
+  (PEP 668). install.sh now stamps its source path into the data dir and
+  `--update` follows the stamp to `git pull` + reinstall. pip is used only when
+  the package's own dist metadata proves a pip install; with no evidence at all
+  `--update` lists the three routes and stops instead of guessing. A PEP 668
+  refusal is translated into the working instruction (pipx or clone) rather than
+  re-printed as a wall. Found by a clone user on 1.0.4's first day.
+
 ## 1.0.4 — 2026-08-20
 
 - `omnigauge --update`: upgrade with the same tool that installed it (pipx upgrade /

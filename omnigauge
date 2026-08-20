@@ -113,7 +113,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 
 def build_id():
@@ -149,31 +149,86 @@ def reexec():
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
+def _update_plan(exe=None, here=None, data=None, dist_ok=None):
+    """Decide HOW this install updates - from evidence only. pipx shows in the
+    interpreter's prefix; a clone shows as a .git beside the file, or through
+    the source path install.sh stamps into the data dir (the installed copy is
+    a plain file in ~/.local/bin with no .git beside it - v1.0.4 misread that
+    as a pip install and ran pip at a clone user); pip counts only when the
+    package's own dist metadata exists. No evidence -> no command: refusing
+    beats running a plausible installer against the wrong install.
+    Returns (cmd, shown, kind, srcdir). Arguments exist for the tests."""
+    exe = exe or sys.executable
+    here = here or os.path.dirname(os.path.realpath(__file__))
+    data = data or DATA
+    if "/pipx/venvs/omnigauge" in exe.replace("\\", "/"):
+        return ["pipx", "upgrade", "omnigauge"], "pipx upgrade omnigauge", "pipx", None
+    if shutil.which("git"):
+        for c in (here, os.path.join(here, "..")):
+            if os.path.isdir(os.path.join(c, ".git")):
+                return (["git", "-C", here, "pull", "--ff-only"],
+                        f"git -C {here} pull", "clone", here)
+        stamp = os.path.join(data, "source")
+        if os.path.isfile(stamp):
+            try:
+                src = open(stamp, encoding="utf-8").read().strip()
+            except OSError:
+                src = ""
+            if src and os.path.isdir(os.path.join(src, ".git")):
+                return (["git", "-C", src, "pull", "--ff-only"],
+                        f"git -C {src} pull", "clone", src)
+    if dist_ok is None:
+        try:
+            import importlib.metadata as _md
+            _md.distribution("omnigauge")
+            dist_ok = True
+        except Exception:
+            dist_ok = False
+    if dist_ok:
+        return ([exe, "-m", "pip", "install", "--upgrade", "omnigauge"],
+                "pip install --upgrade omnigauge", "pip", None)
+    return None, None, "unknown", None
+
+
+def _update_failed_hint(out):
+    """Translate a known failure into the instruction that works. Debian/Ubuntu
+    refuse bare pip into the system Python (PEP 668) - re-printing that wall
+    and exiting taught nothing; the answer is pipx or the clone route."""
+    if "externally-managed" in out:
+        return ("this Python refuses package installs (PEP 668 - Debian/Ubuntu policy).\n"
+                "  install through pipx instead:  sudo apt install pipx && pipx install omnigauge\n"
+                "  or from a clone:  git clone https://github.com/omnigauge/omnigauge && cd omnigauge && bash install.sh")
+    return ""
+
+
 def self_update():
-    """`omnigauge --update`: upgrade to the latest PyPI release with the same tool
-    that installed it, then clear and restart, so the first thing you see is the
-    new board with the new version on it. pipx and pip are detected from the
-    interpreter's own prefix; a clone updates with git and says so."""
-    exe = sys.executable
-    in_pipx = "/pipx/venvs/omnigauge" in exe.replace("\\", "/")
-    here = os.path.dirname(os.path.realpath(__file__))
-    in_clone = os.path.isdir(os.path.join(here, ".git")) or os.path.isdir(os.path.join(here, "..", ".git"))
-    if in_pipx:
-        cmd, shown = ["pipx", "upgrade", "omnigauge"], "pipx upgrade omnigauge"
-    elif in_clone and shutil.which("git"):
-        cmd, shown = ["git", "-C", here, "pull", "--ff-only"], f"git -C {here} pull"
-    else:
-        cmd, shown = [exe, "-m", "pip", "install", "--upgrade", "omnigauge"], "pip install --upgrade omnigauge"
+    """`omnigauge --update`: upgrade to the latest release with the same tool
+    that installed it, then clear and restart, so the first thing you see is
+    the new board with the new version on it. The route comes from
+    _update_plan's evidence; with none it says the three routes and stops."""
+    cmd, shown, kind, srcdir = _update_plan()
+    if not cmd:
+        print(f"\n  {s.b}omnigauge --update{s.r}  {s.gry}could not tell how this copy was installed{s.r}")
+        print(f"  {s.gry}update it the way it arrived:{s.r}")
+        print(f"    pipx:   pipx upgrade omnigauge")
+        print(f"    pip:    pip install --upgrade omnigauge")
+        print(f"    clone:  git pull && bash install.sh   (stamps itself for next time)")
+        sys.exit(1)
     print(f"\n  {s.b}omnigauge --update{s.r}  {s.gry}running:{s.r} {shown}", flush=True)
     print(f"  {s.gry}the tool's own output follows; 'already' anywhere in it means you have the latest{s.r}\n", flush=True)
     try:
-        rc = subprocess.run(cmd).returncode
+        r = subprocess.run(cmd, capture_output=True, text=True)
     except OSError as ex:
         print(f"  could not run {shown}: {ex}"); sys.exit(1)
-    if rc != 0:
-        print(f"\n  {shown} exited with {rc}"); sys.exit(rc)
-    if in_clone and not in_pipx and os.path.exists(os.path.join(here, "install.sh")):
-        subprocess.run(["bash", os.path.join(here, "install.sh")], cwd=here)
+    out = (r.stdout or "") + (r.stderr or "")
+    sys.stdout.write(out); sys.stdout.flush()
+    if r.returncode != 0:
+        hint = _update_failed_hint(out)
+        if hint:
+            print(f"\n  {s.warn}{hint}{s.r}")
+        print(f"\n  {shown} exited with {r.returncode}"); sys.exit(r.returncode)
+    if kind == "clone" and srcdir and os.path.exists(os.path.join(srcdir, "install.sh")):
+        subprocess.run(["bash", os.path.join(srcdir, "install.sh")], cwd=srcdir)
     if sys.stdout.isatty():
         sys.stdout.write("\033[2J\033[H"); sys.stdout.flush()
     prog = shutil.which("omnigauge")

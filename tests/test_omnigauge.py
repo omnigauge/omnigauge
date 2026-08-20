@@ -629,6 +629,75 @@ class TestCheckExitCodes(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
 
+class TestUpdatePlan(unittest.TestCase):
+    """--update decides from EVIDENCE. The 1.0.4 defect: install.sh copies the
+    file to ~/.local/bin with no .git beside it, detection looked only there,
+    and every clone install fell through to bare pip - which Debian refuses
+    (PEP 668). These pin the whole decision table."""
+
+    def test_pipx_prefix_wins(self):
+        cmd, shown, kind, src = og._update_plan(
+            exe="/home/u/.local/pipx/venvs/omnigauge/bin/python")
+        self.assertEqual(kind, "pipx")
+        self.assertEqual(cmd[0], "pipx")
+
+    def test_copied_install_follows_the_stamp_to_its_clone(self):
+        base = tempfile.mkdtemp(prefix="og-upd-")
+        clone = os.path.join(base, "clone"); os.makedirs(os.path.join(clone, ".git"))
+        data = os.path.join(base, "data"); os.makedirs(data)
+        with open(os.path.join(data, "source"), "w") as fh:
+            fh.write(clone + "\n")
+        bindir = os.path.join(base, "bin"); os.makedirs(bindir)   # no .git here
+        cmd, shown, kind, src = og._update_plan(
+            exe="/usr/bin/python3", here=bindir, data=data, dist_ok=False)
+        self.assertEqual(kind, "clone", "the stamped clone must be found")
+        self.assertEqual(src, clone)
+        self.assertIn(clone, " ".join(cmd))
+
+    def test_no_evidence_refuses_rather_than_guessing_pip(self):
+        base = tempfile.mkdtemp(prefix="og-upd-")
+        bindir = os.path.join(base, "bin"); os.makedirs(bindir)
+        data = os.path.join(base, "data"); os.makedirs(data)      # no stamp
+        cmd, shown, kind, src = og._update_plan(
+            exe="/usr/bin/python3", here=bindir, data=data, dist_ok=False)
+        self.assertIsNone(cmd, "no evidence must mean no command")
+        self.assertEqual(kind, "unknown")
+        # a stale stamp (clone deleted) is the same case
+        with open(os.path.join(data, "source"), "w") as fh:
+            fh.write(os.path.join(base, "gone") + "\n")
+        cmd, _, kind, _ = og._update_plan(
+            exe="/usr/bin/python3", here=bindir, data=data, dist_ok=False)
+        self.assertIsNone(cmd)
+
+    def test_pip_needs_dist_metadata(self):
+        base = tempfile.mkdtemp(prefix="og-upd-")
+        bindir = os.path.join(base, "bin"); os.makedirs(bindir)
+        data = os.path.join(base, "data"); os.makedirs(data)
+        cmd, shown, kind, src = og._update_plan(
+            exe="/usr/bin/python3", here=bindir, data=data, dist_ok=True)
+        self.assertEqual(kind, "pip")
+        self.assertIn("pip", " ".join(cmd))
+
+    def test_pep668_wall_gets_the_working_instruction(self):
+        hint = og._update_failed_hint("error: externally-managed-environment\n")
+        self.assertIn("pipx", hint)
+        self.assertIn("PEP 668", hint)
+        self.assertEqual(og._update_failed_hint("some other failure"), "")
+
+    def test_install_sh_stamps_its_source(self):
+        base = tempfile.mkdtemp(prefix="og-inst-")
+        dest = os.path.join(base, "bin")
+        env = dict(os.environ, XDG_DATA_HOME=os.path.join(base, "xdg"))
+        r = subprocess.run(["bash", os.path.join(ROOT, "install.sh"), dest],
+                           capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(os.path.join(dest, "omnigauge")))
+        stamp = os.path.join(base, "xdg", "omnigauge", "source")
+        self.assertTrue(os.path.exists(stamp), "install.sh must stamp its source")
+        with open(stamp) as fh:
+            self.assertEqual(fh.read().strip(), ROOT)
+
+
 class TestBurn(unittest.TestCase):
     def seed(self, series):
         con = og.db(); con.execute("DELETE FROM snapshots")
