@@ -113,7 +113,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 
 def build_id():
@@ -1609,6 +1609,12 @@ def _wait_for(session, pattern, timeout, poll=0.7):
 
 
 TRUST_RX = r"(Quick safety check|Is this a project you created|Yes, I trust this folder)"
+# codex 0.147+ boots into an interactive "Update available" menu (1 Update now / 2 Skip /
+# 3 Skip until next version) before its prompt exists, so no ready marker ever appears and the
+# boot wait expires. Answer 3: skip until the next version. Never 1 - a quota gauge does not
+# install software on the user's machine, and the user sees the same menu next time they open
+# codex themselves. 2026-08-20, found by John's --watch on codex-cli 0.147.0.
+UPDATE_RX = r"Skip until next version"
 
 
 def tmux_scrape(session, argv, keys, ready, done, boot=40, render=35, cwd=None):
@@ -1626,7 +1632,11 @@ def tmux_scrape(session, argv, keys, ready, done, boot=40, render=35, cwd=None):
     if r.returncode:
         return None, f"tmux: {r.stderr.strip()[:110]}"
     try:
-        ok, screen = _wait_for(session, f"{ready}|{TRUST_RX}", boot)
+        t0 = time.time()
+        ok, screen = _wait_for(session, f"{ready}|{TRUST_RX}|{UPDATE_RX}", boot)
+        if ok and re.search(UPDATE_RX, screen or "", re.I) and not re.search(ready, screen or "", re.I):
+            run("tmux", "send-keys", "-t", session, "3", "Enter")   # skip until next version; never install
+            ok, screen = _wait_for(session, f"{ready}|{TRUST_RX}", max(5, boot - int(time.time() - t0)))
         if re.search(TRUST_RX, screen or "", re.I):
             return screen, ("workspace-trust dialog is blocking input — run omnigauge "
                             "from a directory this CLI already trusts, or use --cwd")

@@ -629,6 +629,24 @@ class TestCheckExitCodes(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
 
+class TestCodexUpdateMenu(unittest.TestCase):
+    """codex 0.147.0 boots into an 'Update available' menu before its prompt; the scraper
+    must recognise that screen (and only that screen) so it can answer 3 = skip until next
+    version. Captured from a real tmux pane on 2026-08-20."""
+    SCREEN = ("  ✨ Update available! 0.147.0 -> 0.148.0\n"
+              "  Release notes: https://github.com/openai/codex/releases/latest\n"
+              "› 1. Update now (runs `sh -c 'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh'`)\n"
+              "  2. Skip\n  3. Skip until next version\n  Press enter to continue\n")
+
+    def test_update_menu_is_recognised(self):
+        self.assertTrue(re.search(og.UPDATE_RX, self.SCREEN, re.I))
+        ready = og.AGENTS["codex"]["ready"]
+        self.assertFalse(re.search(ready, self.SCREEN, re.I), "the menu must not look ready")
+
+    def test_ready_screen_is_not_an_update_menu(self):
+        self.assertFalse(re.search(og.UPDATE_RX, "› Explain this codebase\n", re.I))
+
+
 class TestUpdatePlan(unittest.TestCase):
     """--update decides from EVIDENCE. The 1.0.4 defect: install.sh copies the
     file to ~/.local/bin with no .git beside it, detection looked only there,

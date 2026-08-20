@@ -2,6 +2,16 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.6 — 2026-08-20
+
+- codex quota scraping works again on codex-cli 0.147+: codex now boots into an
+  interactive "Update available" menu (1 Update now / 2 Skip / 3 Skip until next
+  version) before its prompt exists, so no ready marker appeared and every refresh
+  expired at 40s, leaving a two-day-old inverted 100% on the board. The scraper now
+  recognises that screen and answers 3 (skip until next version; it never chooses
+  1 - a gauge does not install software on your machine), then waits for the
+  prompt as before. Pinned against the real captured screen; proven live.
+
 ## 1.0.5 — 2026-08-20
 
 - `--update` detects an install.sh install: the installed copy is a plain file in
