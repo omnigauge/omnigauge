@@ -116,9 +116,18 @@ class TestPanelWidths(unittest.TestCase):
         must frame just as exactly."""
         for W in (80, 100, 106, 114, 140):
             og.W, og.IN = W, W - 3
+            # The reset is GENERATED two hours out in the vendor's own wording.
+            # A hardcoded "Aug 19, 6pm" fell into the past on Aug 19 and flipped
+            # the margin sign this test pins. Minutes are included so hour
+            # truncation cannot drop the parsed reset below dry_in (5160s) and
+            # flip it again: parsed reset is now+7200 less at most 59s.
+            lt = time.localtime(time.time() + 7200)
+            reset = (f"{time.strftime('%b', lt)} {lt.tm_mday}, "
+                     f"{lt.tm_hour % 12 or 12}:{lt.tm_min:02d}"
+                     f"{'pm' if lt.tm_hour >= 12 else 'am'} (UTC)")
             row = og.quota_row_text(
                 agent="grok", model="x premium+", window="week", pct=97.4,
-                rate=1.44, dry_in=5160, reset="Aug 19, 6pm (UTC)",
+                rate=1.44, dry_in=5160, reset=reset,
                 at=int(time.time()) - 420, trend="░▒▓█▓█")
             lines = render_lines(self.panel, "PLAN QUOTA", "normalized to % consumed",
                                  [row], "note")
@@ -213,7 +222,18 @@ class TestPanelWidths(unittest.TestCase):
     def test_volume_table_fills_its_box(self):
         """Elastic columns: the volume header must reach the right border at
         every width - fixed widths stranded a wide frame's right third and
-        clipped at a strict 80."""
+        clipped at a strict 80. The DB is seeded HERE: on a machine with no
+        transcripts and no quota rows render() stops at "Nothing to show yet"
+        before any panel, and this test failed against a board that never drew
+        (CI, v1.0.4). A test owns its data or it tests the machine it runs on."""
+        con = og.db(); con.execute("DELETE FROM snapshots")
+        con.execute(
+            "INSERT INTO snapshots(product,source,agent,window,model,usage_type,"
+            "pct_used,raw_value,reset_at,collected_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            ("codex_plan", "cli_status", "codex", "week", "all", "plan_quota",
+             50.0, "50% left", "Aug 30, 6pm", int(time.time())))
+        con.commit(); con.close()
+        og.memo_clear()
         class A:
             since, brief, theme = "24h", True, "ink"
         for W in (80, 100):
