@@ -610,8 +610,16 @@ class TestCheckExitCodes(unittest.TestCase):
         self.assertIn("WARNING", r.stdout)
 
     def test_dry_before_reset_exits_two(self):
-        seed = [("codex", "week", 50.0, "50% left", "Aug 20, 6pm", -3600),
-                ("codex", "week", 90.0, "10% left", "Aug 20, 6pm", 0)]
+        # The reset is GENERATED two days out in the vendor's own wording. The
+        # third hardcoded date to go stale in this file: "Aug 20, 6pm" passed
+        # at 18:00 UTC on Aug 20 and the dry-before-reset condition went false
+        # (reset already due), turning this exit-2 into an exit-1 in CI only.
+        lt = time.localtime(time.time() + 2 * 86400)
+        reset = (f"{time.strftime('%b', lt)} {lt.tm_mday}, "
+                 f"{lt.tm_hour % 12 or 12}:{lt.tm_min:02d}"
+                 f"{'pm' if lt.tm_hour >= 12 else 'am'}")
+        seed = [("codex", "week", 50.0, "50% left", reset, -3600),
+                ("codex", "week", 90.0, "10% left", reset, 0)]
         r = self.run_check(seed)
         self.assertEqual(r.returncode, 2)
         self.assertIn("CRITICAL", r.stdout)
