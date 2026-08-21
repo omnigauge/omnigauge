@@ -34,10 +34,14 @@ fallback face with a different advance and silently ragged the layout.
 
 ## Deploy
 
-    ops/deploy_site.sh            # scp the four files to the origin, then verify through the domain
-    ops/deploy_site.sh --verify   # the receipt alone: byte-identical / and FACTS.version = pyproject
+A push to `main` is the deploy. Since 2026-08-21 the nginx document root for omnigauge.dev is a
+checkout of this repository on the origin box (`/var/www/omnigauge-src/site`) and a cron there
+pulls `main` every five minutes. The receipt, run from anywhere:
 
-(by hand: `scp site/index.html origin:/var/www/omnigauge/index.html`, plus robots.txt, sitemap.xml, llms.txt)
+    ops/deploy_site.sh            # verify through the domain: / byte-identical, FACTS.version = pyproject, 404s honest
+    ops/deploy_site.sh --pull     # ask the box to pull now instead of waiting for the cron, then verify
+
+`release.yml` runs the same version check after every release and fails loudly if the site lags.
 
 Served by nginx on the origin box behind Cloudflare (proxied A records).
 **One home** — the site briefly had two live copies (Pages and the origin)
