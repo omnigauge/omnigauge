@@ -1,0 +1,50 @@
+# Reproducible package: build the wheel and sdist again from the tag, on a clean runner, and
+# compare their sha256 with the digests PyPI recorded. hatchling builds are byte-for-byte
+# reproducible (checked: 1.0.6 rebuilt from its tag matched PyPI exactly), so this is the
+# strong form. Runs on every version tag (polling for publish.yml to land first) and by hand.
+name: reproducible
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'the version to reproduce, e.g. 1.0.6 (checks out tag v<version>)'
+        required: true
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', github.event.inputs.version) || github.ref }}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: build from the tag and compare with PyPI's digests
+        run: |
+          ver="${{ github.event.inputs.version }}"
+          test -n "$ver" || ver="${GITHUB_REF_NAME#v}"
+          python3 -m pip install -q build
+          python3 -m build
+          for i in $(seq 1 30); do
+            curl -sSf -A 'omnigauge reproducible workflow' -o pypi.json "https://pypi.org/pypi/omnigauge/$ver/json" && break
+            sleep 30
+          done
+          test -s pypi.json || { echo "PyPI has no omnigauge $ver after fifteen minutes"; exit 1; }
+          python3 - "$ver" <<'EOF'
+          import json, hashlib, sys, os
+          ver = sys.argv[1]
+          pypi = {u["filename"]: u["digests"]["sha256"] for u in json.load(open("pypi.json"))["urls"]}
+          ok = True
+          for f in sorted(os.listdir("dist")):
+              local = hashlib.sha256(open(os.path.join("dist", f), "rb").read()).hexdigest()
+              remote = pypi.get(f)
+              print(f"{f}\n  built here  {local}\n  PyPI        {remote}")
+              ok &= (local == remote)
+          print("REPRODUCIBLE: every file built from tag v%s is byte-identical to PyPI's" % ver if ok else "NOT REPRODUCIBLE: look above")
+          raise SystemExit(0 if ok else 1)
+          EOF

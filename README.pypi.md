@@ -323,6 +323,21 @@ the terms above instead of pretending to be us — there is a good chance the
 contract address ends up on this page. A listing is not an endorsement. DYOR.
 
 
+## Security, and how to check a release
+
+[![ci](https://github.com/omnigauge/omnigauge/actions/workflows/ci.yml/badge.svg)](https://github.com/omnigauge/omnigauge/actions/workflows/ci.yml)
+[![audit](https://github.com/omnigauge/omnigauge/actions/workflows/audit.yml/badge.svg)](https://github.com/omnigauge/omnigauge/actions/workflows/audit.yml)
+[![reproducible](https://github.com/omnigauge/omnigauge/actions/workflows/reproducible.yml/badge.svg)](https://github.com/omnigauge/omnigauge/actions/workflows/reproducible.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/omnigauge/omnigauge/badge)](https://scorecard.dev/viewer/?uri=github.com/omnigauge/omnigauge)
+
+The package is published by PyPI trusted publishing (no token anywhere) and every file on PyPI
+carries a PEP 740 provenance attestation; a fresh build from the tag is compared with PyPI's
+digests on every release and they are byte-identical (the reproducible badge); pip-audit checks
+what a user installs on every change and weekly (the audit badge), which is also the check that
+the package has no third-party dependencies; CodeQL runs on every push; every GitHub Release
+attaches a CycloneDX SBOM; OpenSSF Scorecard reads the repository's practice continuously. What
+to report and how (security@omnigauge.dev): [SECURITY.md](SECURITY.md).
+
 ## Changelog
 
 [CHANGELOG.md](https://github.com/omnigauge/omnigauge/blob/main/CHANGELOG.md) — one section per version on PyPI.

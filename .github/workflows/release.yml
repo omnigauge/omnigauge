@@ -1,24 +1,52 @@
-# On a version tag: create the GitHub Release with that version's CHANGELOG section as the
-# notes. Runs beside publish.yml (which does the registry); no token beyond the job's own.
+# On a version tag: the GitHub Release with that version's CHANGELOG section as the notes, and
+# as assets the wheel and sdist built from the tag (byte-identical to PyPI's: reproducible.yml
+# checks that) and a CycloneDX SBOM of the installed package. Runs beside publish.yml; can be run
+# by hand for a past version.
 name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'release to (re)create, e.g. 1.0.6 (checks out tag v<version>)'
+        required: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # creating the GitHub Release and attaching its assets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', github.event.inputs.version) || github.ref }}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
       - name: notes = this version's section of CHANGELOG.md
         id: notes
         run: |
-          ver="${GITHUB_REF_NAME#v}"
+          ver="${{ github.event.inputs.version }}"
+          test -n "$ver" || ver="${GITHUB_REF_NAME#v}"
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
           echo "title=omnigauge $ver" >> "$GITHUB_OUTPUT"
           awk -v ver="$ver" 'BEGIN{p=0} /^## /{ if(p) exit; if($2==ver){p=1; next} } p' CHANGELOG.md > notes.md
           test -s notes.md || { echo "CHANGELOG.md has no section for $ver"; exit 1; }
-      - uses: softprops/action-gh-release@v2
+      - name: build from the tag, and the SBOM of what a user installs
+        run: |
+          python3 -m pip install -q build cyclonedx-bom
+          python3 -m build
+          python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q dist/*.whl
+          cyclonedx-py environment --output-format JSON -o omnigauge.cdx.json /tmp/clean
+          ls -la dist omnigauge.cdx.json
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          tag_name: v${{ steps.notes.outputs.ver }}
           name: ${{ steps.notes.outputs.title }}
           body_path: notes.md
+          files: |
+            dist/*
+            omnigauge.cdx.json

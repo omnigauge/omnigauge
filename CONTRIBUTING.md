@@ -84,3 +84,17 @@ should keep it green.
   they are different products and blending them is fiction
 - Third-party runtime dependencies in the core
 - Silent fallbacks that produce a number when the real one could not be read
+
+## What a change has to bring
+
+- The tests green (`python3 -m pytest`, or `python3 -m unittest discover -s tests`); if the site
+  changed, `node tests/site_harness.js site/index.html` too. CI runs the same on every pull
+  request, on Python 3.8, 3.12 and 3.13.
+- New functionality comes with tests of that functionality in the same change, and the ones that
+  matter assert against rendered output, because measuring is the only thing that has ever caught
+  a wrong number here.
+- No third-party runtime dependency (the package has none; `audit.yml` checks that on every
+  change). No telemetry, no network call that is not to a vendor the user configured.
+- A CHANGELOG entry under the next version, in plain words, saying what a user would notice.
+- Pull requests are reviewed and merged by the maintainer; the reviewer reads the change, not only
+  the green check.

@@ -1,0 +1,32 @@
+# pip-audit over what a user actually installs: the wheel built here, in a clean environment,
+# against the PyPA advisory database. omnigauge has no third-party dependencies, and this is
+# the check that keeps that true rather than asserted. On every tree change and weekly.
+name: audit
+on:
+  push:
+    branches: [main]
+    paths: ['pyproject.toml', 'omnigauge', 'providers/**', '.github/workflows/audit.yml']
+  pull_request:
+    paths: ['pyproject.toml', 'omnigauge', 'providers/**']
+  schedule:
+    - cron: '19 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: |
+          python3 -m pip install -q build
+          python3 -m build --wheel
+          python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q --upgrade pip && /tmp/clean/bin/pip install -q dist/*.whl pip-audit
+          /tmp/clean/bin/pip-audit --local --strict --progress-spinner off
+          # and the claim the README makes, checked: no runtime dependencies
+          python3 -c 'import tomllib; d=tomllib.load(open("pyproject.toml","rb")); deps=d["project"].get("dependencies",[]); print("dependencies:", deps); raise SystemExit(1 if deps else 0)'

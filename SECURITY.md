@@ -47,3 +47,23 @@ you run. A malicious provider can read anything you can.
 The loader isolates *failures*, not *intent*: a provider that throws is caught
 and reported, but one that chooses to exfiltrate is limited only by your file
 permissions.
+
+## How a release is checked, and how you can check it
+
+- **Tests** (`python3 -m pytest`, 136 tests) and the generated-file checks run on every pull
+  request and push (`ci.yml`, Python 3.8, 3.12 and 3.13) and again before every publish.
+- **Trusted publishing**: the package is published by the `publish.yml` workflow through PyPI's
+  OIDC trust; no long-lived token exists anywhere.
+- **Attestations**: every file on PyPI carries a PEP 740 provenance attestation naming the commit
+  and the workflow that built it: `https://pypi.org/integrity/omnigauge/<version>/<file>/provenance`.
+- **Reproducible**: `reproducible.yml` rebuilds the wheel and sdist from the tag on a clean
+  runner and compares their sha256 with PyPI's digests; they are byte-identical. You can do the
+  same: `git checkout v<version> && python3 -m build && sha256sum dist/*` against the digests in
+  `https://pypi.org/pypi/omnigauge/<version>/json`.
+- **SBOM**: every GitHub Release attaches `omnigauge.cdx.json` (CycloneDX) for a clean install of
+  the wheel, which shows the one component there is: the package has no third-party dependencies,
+  and `audit.yml` (pip-audit against the PyPA advisory database, on every change and weekly) keeps
+  that a checked fact rather than a claim.
+- **Static analysis**: CodeQL over the Python on every push and pull request and weekly.
+- **OpenSSF Scorecard** and the **OpenSSF Best Practices** badge: live readings of the
+  repository's practice, linked from the README.

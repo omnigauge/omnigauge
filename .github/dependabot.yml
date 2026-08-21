@@ -1,0 +1,12 @@
+# Dependency updates as pull requests, weekly: the workflows' actions (the package itself has no
+# third-party dependencies; pip is listed so the build tooling pins would be followed if any appear).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
