@@ -72,3 +72,13 @@ jobs:
             omnigauge-*.sigstore.json
             omnigauge-*.intoto.jsonl
             omnigauge.cdx.json
+      # The site does not deploy itself (nginx on the origin box; ops/deploy_site.sh is the deploy).
+      # So the release says so, loudly, when omnigauge.dev is not serving the version just released:
+      # a red run here is "deploy the site", not a broken release. The BIOS line sat at v1.0.3 for
+      # three releases before this check existed.
+      - name: omnigauge.dev serves this version
+        run: |
+          ver="${{ steps.notes.outputs.ver }}"
+          got=$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' https://omnigauge.dev/ | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+          echo "live FACTS.version: '$got' · released: '$ver'"
+          test "$got" = "$ver" || { echo "the site is behind: run ops/deploy_site.sh"; exit 1; }

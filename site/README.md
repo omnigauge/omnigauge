@@ -34,7 +34,10 @@ fallback face with a different advance and silently ragged the layout.
 
 ## Deploy
 
-    scp site/index.html origin:/var/www/omnigauge/index.html
+    ops/deploy_site.sh            # scp the four files to the origin, then verify through the domain
+    ops/deploy_site.sh --verify   # the receipt alone: byte-identical / and FACTS.version = pyproject
+
+(by hand: `scp site/index.html origin:/var/www/omnigauge/index.html`, plus robots.txt, sitemap.xml, llms.txt)
 
 Served by nginx on the origin box behind Cloudflare (proxied A records).
 **One home** — the site briefly had two live copies (Pages and the origin)
