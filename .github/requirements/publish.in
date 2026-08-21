@@ -1,0 +1,3 @@
+# what publish.yml installs: the tests, then the build
+pytest
+build

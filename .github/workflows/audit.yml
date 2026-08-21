@@ -24,9 +24,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: |
-          python3 -m pip install -q build
+          python3 -m pip install -q --require-hashes -r .github/requirements/build.txt
           python3 -m build --wheel
-          python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q --upgrade pip && /tmp/clean/bin/pip install -q dist/*.whl pip-audit
+          python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q --require-hashes -r .github/requirements/audit.txt && /tmp/clean/bin/pip install -q dist/*.whl
           /tmp/clean/bin/pip-audit --local --strict --progress-spinner off
           # and the claim the README makes, checked: no runtime dependencies
           python3 -c 'import tomllib; d=tomllib.load(open("pyproject.toml","rb")); deps=d["project"].get("dependencies",[]); print("dependencies:", deps); raise SystemExit(1 if deps else 0)'

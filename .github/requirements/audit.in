@@ -1,0 +1,2 @@
+# what audit.yml installs into the clean environment beside the built wheel
+pip-audit

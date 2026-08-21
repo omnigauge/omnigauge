@@ -1,0 +1,3 @@
+# what release.yml installs: the build, and the SBOM generator
+build
+cyclonedx-bom

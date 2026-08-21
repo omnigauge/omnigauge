@@ -1,5 +1,6 @@
-# Dependency updates as pull requests, weekly: the workflows' actions (the package itself has no
-# third-party dependencies; pip is listed so the build tooling pins would be followed if any appear).
+# Dependency updates as pull requests, weekly: the workflows' actions, and the hash-pinned tooling
+# the workflows install (.github/requirements/*.txt: pytest, build, pip-audit, cyclonedx-bom). The
+# package itself has no third-party dependencies.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -7,6 +8,6 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: pip
-    directory: "/"
+    directory: "/.github/requirements"
     schedule:
       interval: weekly

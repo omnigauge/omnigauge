@@ -37,7 +37,7 @@ jobs:
           test -s notes.md || { echo "CHANGELOG.md has no section for $ver"; exit 1; }
       - name: build from the tag, and the SBOM of what a user installs
         run: |
-          python3 -m pip install -q build cyclonedx-bom
+          python3 -m pip install -q --require-hashes -r .github/requirements/release.txt
           python3 -m build
           python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q dist/*.whl
           cyclonedx-py environment --output-format JSON -o omnigauge.cdx.json /tmp/clean

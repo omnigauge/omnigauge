@@ -28,7 +28,7 @@ jobs:
         run: |
           ver="${{ github.event.inputs.version }}"
           test -n "$ver" || ver="${GITHUB_REF_NAME#v}"
-          python3 -m pip install -q build
+          python3 -m pip install -q --require-hashes -r .github/requirements/build.txt
           python3 -m build
           for i in $(seq 1 30); do
             curl -sSf -A 'omnigauge reproducible workflow' -o pypi.json "https://pypi.org/pypi/omnigauge/$ver/json" && break

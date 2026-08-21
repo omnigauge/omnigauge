@@ -1,0 +1,2 @@
+# what ci.yml installs before running the tests (Python 3.8, 3.12, 3.13)
+pytest
