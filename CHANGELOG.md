@@ -2,6 +2,16 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.9 — 2026-08-22
+
+- The board says when quota was last scraped and what scrapes it again. PLAN QUOTA's foot
+  now reads "quota scraped 3h ago · re-scrape: r, --refresh, or --watch (every 15m)". The
+  rule was true before and written nowhere: a bare board re-scrapes only on r / 1 2 3 / w,
+  `--watch` does it every `--quota-every`, and `--check` / `--json` read the last scrape.
+  It is now in `--help`, the keys help, the README (with a cron pairing that keeps
+  `--check` honest) and on the site. A board left open for hours looked frozen and was
+  simply waiting for a key. Nothing counted changes.
+
 ## 1.0.8 — 2026-08-21
 
 - Two columns of air on the right of every table at every width, the twin of the two

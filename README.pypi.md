@@ -171,7 +171,7 @@ Run it bare in a terminal and it is **interactive** — no flags to remember:
 |---|---|
 | `r` | refresh quota, all agents |
 | `1` `2` `3` | refresh claude / codex / grok only |
-| `w` | watch mode — auto redraw |
+| `w` | watch mode — auto redraw, and a quota re-scrape every 15m |
 | `t` | cycle theme |
 | `s` | cycle window (24h · 7d · 30d · today · all) |
 | `b` | brief — hide lifetime and by-model |
@@ -207,7 +207,17 @@ omnigauge --no-color
 Token volume is read from local files (~2s) and can update every few seconds. Plan quota
 requires launching the vendor's TUI and reading its panel — ~30s per agent, and it spawns a
 real session — so it is cached and refreshed on a slow clock. Every quota row shows its own
-age, so a stale number looks stale.
+age, so a stale number looks stale, and the panel's foot says when quota was last scraped.
+
+The rule, exactly: quota is re-scraped **only** by `--refresh`, the `r` / `1` `2` `3` / `w`
+keys, or `--watch` (every `--quota-every`, default 15m). A bare `omnigauge` board shows the
+last scrape and waits for a key; it does not re-scrape on its own. `--check` and `--json`
+read the last scrape too. If you want cron's verdicts fresh, scrape on the same schedule:
+
+```cron
+*/15 * * * * $HOME/.local/bin/omnigauge --refresh >/dev/null 2>&1
+*/15 * * * * sleep 120 && $HOME/.local/bin/omnigauge --check --quiet >/dev/null 2>&1
+```
 
 ## How it gets the numbers
 

@@ -113,7 +113,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 
 
 def build_id():
@@ -2155,7 +2155,15 @@ def render(args):
                 mid(f"  {s.crit}{'':<6}▲ runs dry {short} BEFORE the window resets{s.r}")
             if r["raw"] and "left" in (r["raw"] or ""):
                 mid(f'  {s.gry}{"":<21}vendor said "{r["raw"]}" - inverted{s.r}')
-    bot("subscription windows · no dollar balance exists for these plans")
+    # WHEN the numbers above were read, and what reads them again. A bare board never
+    # re-scrapes by itself (only r, 1-3, w, --refresh, or --watch every --quota-every), and
+    # John watched one sit for hours wondering why it "does not seem to be updating". The
+    # age already sat in the READ column; the rule did not sit anywhere.
+    newest = max((r["at"] for _, r in flat), default=None)
+    when = ("no quota scraped yet" if newest is None
+            else "quota scraped just now" if age(newest) == "now" else f"quota scraped {age(newest)} ago")
+    every = getattr(args, "quota_every", None) or 900   # tests and scripts hand render() bare args
+    bot(f"{when} · re-scrape: r, --refresh, or --watch (every {every // 60}m)")
 
     # ── volume panel
     def vol_table(title, note, getter):
@@ -2439,7 +2447,7 @@ def about_panel():
 
 KEYS = [("r", "refresh quota - all agents"),
         ("1 2 3", "refresh claude / codex / grok only"),
-        ("w", "watch mode - auto redraw"),
+        ("w", "watch mode - auto redraw, quota re-scraped every 15m"),
         ("t", "cycle theme (ink · steel · mono · muted · vivid)"),
         ("s", "cycle window (24h · 7d · 30d · today · all)"),
         ("b", "brief - hide lifetime and by-model"),
@@ -2719,7 +2727,10 @@ def main():
     load_providers()
     register_provider_quota()
     all_agents()
-    p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.")
+    p = argparse.ArgumentParser(prog=APP, description="Usage dashboard for Claude, Codex and Grok CLIs.",
+                                epilog="Quota is re-scraped only by --refresh, the r / 1 2 3 / w keys, or --watch "
+                                       "(every --quota-every, default 15m). A bare board, --check and --json read "
+                                       "the last scrape and show its age; token volume is read live from local files.")
     p.add_argument("--refresh", nargs="?", const="@all", metavar="AGENTS",
                    help="re-scrape quota; bare --refresh takes every installed agent, "
                         "providers included")
