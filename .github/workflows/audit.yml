@@ -27,6 +27,25 @@ jobs:
           python3 -m pip install -q --require-hashes -r .github/requirements/build.txt
           python3 -m build --wheel
           python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q --require-hashes -r .github/requirements/audit.txt && /tmp/clean/bin/pip install -q dist/*.whl
-          /tmp/clean/bin/pip-audit --local --strict --progress-spinner off
+          # the claim itself, read off the wheel rather than inferred from silence: the METADATA of
+          # exactly one wheel, named omnigauge, found and read, declares no Requires-Dist at all
+          python3 - <<'PY'
+          import glob, zipfile, sys
+          whl = glob.glob("dist/*.whl"); assert len(whl) == 1, whl
+          names = [n for n in zipfile.ZipFile(whl[0]).namelist() if n.endswith(".dist-info/METADATA")]
+          assert len(names) == 1, names
+          meta = zipfile.ZipFile(whl[0]).read(names[0]).decode()
+          assert "\nName: omnigauge\n" in meta or meta.startswith("Name: omnigauge"), meta[:200]
+          reqs = [l for l in meta.splitlines() if l.startswith("Requires-Dist:")]
+          print(f"{whl[0]}: {names[0]}: Requires-Dist lines: {len(reqs)}")
+          sys.exit(1 if reqs else 0)
+          PY
+          # Loud on any dependency pip-audit could not look up, with ONE exception: omnigauge itself, whose
+          # version is ahead of PyPI between the bump and the publish (pip-audit has no flag for "all but
+          # this one", and --strict would paint every pre-release commit red for that reason alone).
+          /tmp/clean/bin/pip-audit --local --progress-spinner off > audit.log 2>&1; rc=$?
+          cat audit.log
+          if grep -i "could not be audited" audit.log | grep -v "could not be audited: omnigauge ("; then echo "a dependency was skipped, not audited"; exit 1; fi
+          exit $rc
           # and the claim the README makes, checked: no runtime dependencies
           python3 -c 'import tomllib; d=tomllib.load(open("pyproject.toml","rb")); deps=d["project"].get("dependencies",[]); print("dependencies:", deps); raise SystemExit(1 if deps else 0)'
