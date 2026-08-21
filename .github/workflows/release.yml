@@ -62,7 +62,7 @@ jobs:
           jq -e '.payloadType == "application/vnd.in-toto+json" and (.signatures | length) >= 1' "omnigauge-$ver.intoto.jsonl" >/dev/null
           jq -r '.payload' "omnigauge-$ver.intoto.jsonl" | base64 -d | jq -e '(.predicateType | startswith("https://slsa.dev/provenance/")) and ([.subject[].name] | index("omnigauge-'"$ver"'-py3-none-any.whl") != null)' >/dev/null
           ls -la omnigauge-$ver.sigstore.json omnigauge-$ver.intoto.jsonl
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: v${{ steps.notes.outputs.ver }}
           name: ${{ steps.notes.outputs.title }}
