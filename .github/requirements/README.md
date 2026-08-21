@@ -7,7 +7,7 @@ around it (pytest, build, pip-audit, cyclonedx-bom).
 
 | file | used by | resolved for |
 |---|---|---|
-| `ci.txt` | ci.yml (the tests) | Python 3.8 and newer, with markers per version |
+| `ci-3.8.txt`, `ci-3.12.txt`, `ci-3.13.txt` | ci.yml (the tests), one file per matrix Python | exactly that Python, flat pins, so every Dependabot bump is exercised by exactly one CI leg |
 | `publish.txt` | publish.yml (tests, then the build) | Python 3.12 and newer |
 | `build.txt` | audit.yml, reproducible.yml (the build) | Python 3.12 and newer |
 | `audit.txt` | audit.yml (pip-audit in the clean environment) | Python 3.12 and newer |
@@ -15,7 +15,7 @@ around it (pytest, build, pip-audit, cyclonedx-bom).
 
 Regenerate after editing an `.in` (the command is also in each `.txt` header):
 
-    uv pip compile --universal --python-version 3.8 --generate-hashes --no-annotate ci.in -o ci.txt
+    uv pip compile --python-version 3.8 --python-platform x86_64-unknown-linux-gnu --generate-hashes --no-annotate ci.in -o ci-3.8.txt   # and 3.12, 3.13
     uv pip compile --universal --python-version 3.12 --generate-hashes --no-annotate <name>.in -o <name>.txt
 
 Dependabot follows these files weekly and bumps the pins and hashes together.
