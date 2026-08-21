@@ -2,7 +2,7 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
-## 1.0.9 — 2026-08-22
+## 1.0.9 — 2026-08-21
 
 - The board says when quota was last scraped and what scrapes it again. PLAN QUOTA's foot
   now reads "quota scraped 3h ago · re-scrape: r, --refresh, or --watch (every 15m)". The
