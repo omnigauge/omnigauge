@@ -138,6 +138,35 @@ class TestPanelWidths(unittest.TestCase):
             if W >= 114:
                 self.assertIn("░▒▓█", plain, "trend strip missing at widest tier")
 
+    def test_tables_keep_two_columns_of_air_on_the_right(self):
+        """Every elastic table (PLAN QUOTA, TOKEN VOLUME / LIFETIME, BY MODEL) fills
+        its box at any width and stops TWO columns short of the right border, the
+        twin of the two on the left. John's 120-column terminal drew TOTAL touching
+        the frame: the old clamp gave TOTAL at least a column even when the
+        remainder was one less, eating the breath exactly at that width; PLAN
+        QUOTA filled the frame exactly at 106 and 114, BY MODEL left one column."""
+        big = {"files": 2110, "msgs": 90778, "tout": 3_230_000_000, "think": 1_480_000_000,
+               "cache_read": 1_160_000_000_000, "tin": 1_220_000_000_000,
+               "total": 1_220_000_000_000, "models": {}}
+        for W in (80, 96, 100, 103, 106, 111, 114, 117, 120, 140):
+            og.W, og.IN = W, W - 3
+            want = og.IN - 2
+            self.assertEqual(og.vis(og.vol_header_text()), want, ("volume header", W))
+            self.assertEqual(og.vis(og.vol_row_text("codex", big)), want, ("volume row", W))
+            self.assertLessEqual(og.vis(og.vol_row_text("aider", None)), want, W)
+            mv = {"msgs": 2110, "out": 3_230_000_000, "total": 1_220_000_000_000}
+            self.assertEqual(og.vis(og.model_row_text("codex", "gpt-5-codex", mv, 95.0)),
+                             want, ("model row", W))
+            self.assertLessEqual(og.vis(og.model_header_text()), want, W)
+            lt = time.localtime(time.time() + 7200)
+            reset = (f"{time.strftime('%b', lt)} {lt.tm_mday}, "
+                     f"{lt.tm_hour % 12 or 12}:{lt.tm_min:02d}"
+                     f"{'pm' if lt.tm_hour >= 12 else 'am'} (UTC)")
+            qrow = og.quota_row_text(agent="grok", model="x premium+", window="week",
+                                     pct=97.4, rate=1.44, dry_in=5160, reset=reset,
+                                     at=int(time.time()) - 420, trend="░▒▓█▓█")
+            self.assertLessEqual(og.vis(qrow), want, ("quota row", W, strip_ansi(qrow)))
+
     def test_margin_is_a_signed_verdict(self):
         og.W, og.IN = 120, 117
         neg = strip_ansi(og.margin_text(3600, 7200))       # dry before reset
@@ -220,9 +249,11 @@ class TestPanelWidths(unittest.TestCase):
                 self.assertIn("THINK%", plain, f"THINK% missing at W={W}")
 
     def test_volume_table_fills_its_box(self):
-        """Elastic columns: the volume header must reach the right border at
-        every width - fixed widths stranded a wide frame's right third and
-        clipped at a strict 80. The DB is seeded HERE: on a machine with no
+        """Elastic columns: the volume header must reach TWO columns short of the
+        right border at every width (the air that matches the two on the left;
+        touching the frame read as a bug on a 120-column terminal) - fixed widths
+        stranded a wide frame's right third and clipped at a strict 80. The DB is
+        seeded HERE: on a machine with no
         transcripts and no quota rows render() stops at "Nothing to show yet"
         before any panel, and this test failed against a board that never drew
         (CI, v1.0.4). A test owns its data or it tests the machine it runs on."""
@@ -243,9 +274,9 @@ class TestPanelWidths(unittest.TestCase):
                 if "CACHE-RD" in p:
                     inner = p.strip()[1:-1]
                     self.assertEqual(len(inner), og.IN)
-                    self.assertGreaterEqual(
-                        len(inner.rstrip()), og.IN - 1,
-                        f"header stops short of the border at W={W}: {inner!r}")
+                    self.assertEqual(
+                        len(inner.rstrip()), og.IN - 2,
+                        f"header does not stop two columns short of the border at W={W}: {inner!r}")
                     break
             else:
                 self.fail(f"no volume header rendered at W={W}")

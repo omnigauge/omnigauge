@@ -113,7 +113,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 
 def build_id():
@@ -1944,6 +1944,79 @@ def since_epoch(name):
                                "30d": 2592000, "all": 10**10}.get(name, 86400)
 
 
+def _vol_layout():
+    """Column plan for TOKEN VOLUME / LIFETIME at the current width. ELASTIC: seven
+    numeric columns split the inner width and TOTAL absorbs the remainder, so the
+    table fills its box at any terminal (fixed widths left a third of a wide frame
+    empty and CLIPPED at a strict 80). THINK% = reasoning tokens as a share of
+    output ('4.45M / 140.86M' says nothing at a glance; '3.2%' says which agent
+    over-thinks) joins from 96 columns. TWO columns of air stay on the right, the
+    twin of the two on the left: the old 'TOTAL is at least a column wide' clamp
+    ate the remainder exactly on a 120-column terminal and the total touched the
+    frame - John: 'no air on right'."""
+    ratio = IN >= 96
+    room = IN - 2 - 10 - 2 - (7 if ratio else 0)   # left air, AGENT, right air, THINK%
+    cw = max(8, room // 7)
+    lw = max(7, room - cw * 6)
+    return ratio, cw, lw
+
+
+def vol_header_text():
+    ratio, cw, lw = _vol_layout()
+    return (f"  {s.gry}{'AGENT':<10}{'FILES':>{cw}}{'MSGS':>{cw}}{'OUTPUT':>{cw}}"
+            f"{'THINK':>{cw}}" + (f"{'THINK%':>7}" if ratio else "")
+            + f"{'CACHE-RD':>{cw}}{'INPUT':>{cw}}{'TOTAL':>{lw}}{s.r}")
+
+
+def vol_row_text(agent, t):
+    """One TOKEN VOLUME / LIFETIME row; `t` None is the no-transcripts row."""
+    ratio, cw, lw = _vol_layout()
+    if t is None:
+        return f"  {s.gry}{agent:<10}no local transcripts{s.r}"
+    tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
+    tr = (f"{t['think'] / t['tout'] * 100:>6.1f}%" if t["tout"] else f"{'-':>7}")
+    return (f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>{cw},}{t['msgs']:>{cw},}"
+            f"{s.bgrn}{human(t['tout']):>{cw}}{s.r}{s.wht}{human(t['think']):>{cw}}{s.r}"
+            + (f"{s.gry}{tr}{s.r}" if ratio else "")
+            + f"{s.gry}{human(t['cache_read']):>{cw}}{human(t['tin']):>{cw}}{s.r}"
+            f"{s.b}{human(tot):>{lw}}{s.r}")
+
+
+def _model_layout():
+    """BY MODEL at the current width. ELASTIC: MODEL gets real room and the share
+    bar absorbs the rest of the inner width (the fixed 90-column layout clipped at
+    80 and stranded a wide frame's right third); two columns of air on the right."""
+    mw = min(24, max(12, IN - 54 - 16))
+    sw = max(8, IN - 54 - mw)
+    return mw, sw
+
+
+def model_header_text():
+    mw, sw = _model_layout()
+    return (f"  {s.gry}{'AGENT':<9}{'MODEL':<{mw}}{'MSGS':>9}{'OUTPUT':>11}"
+            f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
+
+
+def model_row_text(agent, model, mv, share):
+    """One BY MODEL row. The bar is LOG scale, 0.01% to 100%: one 95% leader
+    flattened every other row to nothing on a linear scale, and the comparison
+    the panel exists for lives among the small ones. Below the axis floor the bar
+    stays EMPTY (a lit cell for 0.01% asserted presence where the linear truth is
+    rounding error; the number beside it says 0.0%). █ fill, ▌ cap, ░ track, the
+    quota design - each row's bar stands alone on a zero-line-gap terminal."""
+    import math as _m
+    mw, sw = _model_layout()
+    w = 0
+    if share >= 0.01:
+        w = int(round((_m.log10(share) + 2) / 4 * sw))
+        w = max(1, min(sw, w))
+    cap = "▌" if 0 < w < sw else ""
+    spark = (s.accent + "█" * w + cap + s.faint + "░" * (sw - w - len(cap)) + s.r)
+    return (f"  {s.b}{s.accent}{agent:<9}{s.r}{s.wht}{model[:mw - 1]:<{mw}}{s.r}"
+            f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
+            f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
+
+
 def _quota_layout():
     """Column plan for PLAN QUOTA at the current width. The full board needs
     94 columns of content; below that the forecast columns come out (the doom
@@ -1954,7 +2027,9 @@ def _quota_layout():
     full = IN >= 94
     margin = IN >= 103
     trend_col = IN >= 111
-    bar_w = min(22, max(8, IN - (89 if trend_col else 81 if margin else 72 if full else 53)))
+    # Two columns of air on the right at every tier (the bar gives them up in a
+    # tier's first widths); the old plan filled the frame exactly at 106 and 114.
+    bar_w = min(22, max(8, IN - (91 if trend_col else 83 if margin else 74 if full else 55)))
     return full, bar_w, margin, trend_col
 
 
@@ -2088,32 +2163,12 @@ def render(args):
         # between mid() calls tears the frame apart.
         data = {a_: (getter(a_) if SCANNERS[a_][0]() else None)
                 for a_ in agent_order()}
-        # ELASTIC: the seven numeric columns split the whole inner width, so
-        # the table fills its box at any terminal - fixed widths left a third
-        # of a wide frame empty and CLIPPED at a strict 80.
-        # THINK% = reasoning tokens as a share of output - '4.45M / 140.86M'
-        # says nothing at a glance; '3.2%' says which agent over-thinks.
-        # It joins from 96 columns; below that the seven columns keep the box.
-        ratio = IN >= 96
-        ncol = 8 if ratio else 7
-        cw = max(8, (IN - 12 - (7 if ratio else 0)) // 7)
-        lw = max(cw, (IN - 13 - (7 if ratio else 0)) - cw * 6)  # TOTAL absorbs
-                                              # the remainder, minus one breath
+        # Layout and rows live in _vol_layout / vol_header_text / vol_row_text,
+        # module-level so the width test can pin them at every tier.
         top(title, note)
-        mid(f"  {s.gry}{'AGENT':<10}{'FILES':>{cw}}{'MSGS':>{cw}}{'OUTPUT':>{cw}}"
-            f"{'THINK':>{cw}}" + (f"{'THINK%':>7}" if ratio else "")
-            + f"{'CACHE-RD':>{cw}}{'INPUT':>{cw}}{'TOTAL':>{lw}}{s.r}")
+        mid(vol_header_text())
         for agent in data:
-            t = data[agent]
-            if t is None:
-                mid(f"  {s.gry}{agent:<10}no local transcripts{s.r}"); continue
-            tot = t["total"] or (t["tin"] + t["tout"] + t["cache_read"])
-            tr = (f"{t['think'] / t['tout'] * 100:>6.1f}%" if t["tout"] else f"{'-':>7}")
-            mid(f"  {s.b}{s.bcya}{agent:<10}{s.r}{t['files']:>{cw},}{t['msgs']:>{cw},}"
-                f"{s.bgrn}{human(t['tout']):>{cw}}{s.r}{s.wht}{human(t['think']):>{cw}}{s.r}"
-                + (f"{s.gry}{tr}{s.r}" if ratio else "")
-                + f"{s.gry}{human(t['cache_read']):>{cw}}{human(t['tin']):>{cw}}{s.r}"
-                f"{s.b}{human(tot):>{lw}}{s.r}")
+            mid(vol_row_text(agent, data[agent]))
         bot("not comparable to vendor counters · different denominators")
 
     vol_table("TOKEN VOLUME", f"local transcripts · {args.since}",
@@ -2139,59 +2194,20 @@ def render(args):
             for a_, mo, mv in rows:
                 best[a_] = max(best.get(a_, 0), mv["total"])
             rows.sort(key=lambda r: (-best[r[0]], -r[2]["total"]))
-            # ELASTIC: MODEL gets real room and the share bar absorbs the
-            # rest of the inner width - the fixed 90-column layout clipped
-            # at 80 and stranded a wide frame's right third.
-            mw = min(24, max(12, IN - 53 - 16))
-            sw = max(8, IN - 53 - mw)
+            # Layout and rows live in _model_layout / model_header_text /
+            # model_row_text, module-level so the width test can pin them.
             top("BY MODEL", "lifetime · every version you have run")
-            mid(f"  {s.gry}{'AGENT':<9}{'MODEL':<{mw}}{'MSGS':>9}{'OUTPUT':>11}"
-                f"{'TOTAL':>11}{'SHARE':>8}{s.r}")
-            # A log axis for the bar: one 95% leader flattened every other
-            # row to nothing on a linear scale, and the comparison the panel
-            # exists for lives among the small ones. Four decades, so 0.01%
-            # is the first cell and 100% the last. The number beside it is
-            # still linear truth; the foot says which axis the bar is on.
-            import math as _m
+            mid(model_header_text())
             # Air between AGENT groups, not between every bar: four gaps in a
             # sixteen-row panel. Rows inside a group are one agent's models,
             # so their closeness means something; the gap marks the change.
             # (A dot track alone read the same as none at John's font size.)
             first = True
             for a_, mo, mv in rows:
-                # The quota design, bar and air alike: █ fill, ▌ cap, ░ track,
-                # and a line between rows so a zero-line-gap terminal cannot
-                # fuse them - the same treatment John chose for the gauges.
                 if not first:
                     mid()
                 first = False
-                share = mv["total"] / grand * 100
-                w = 0
-                # Below the axis floor the bar stays EMPTY. Lighting a cell
-                # for anything above zero gave a 3K-token model the same bar
-                # as a 0.01% one - a gauge asserting presence where the linear
-                # truth is rounding error. The number beside it says 0.0%.
-                if share >= 0.01:
-                    w = int(round((_m.log10(share) + 2) / 4 * sw))
-                    w = max(1, min(sw, w))
-                # Lower-half blocks: the bar owns the bottom of its cell, so
-                # consecutive rows carry their own air without a blank line
-                # between them - neither clustered nor padded.
-                # A ▌ cap and a DOT track, not ░: fifteen filled tracks stacked
-                # line-on-line fused into one slab; the dotted track leaves
-                # each bar reading as its own row without a blank line - the
-                # middle between clustered and padded.
-                # ■ not █: a full block fills its cell to the line edges, so
-                # rows one line apart FUSE into a slab whatever the track is
-                # (John's terminal has zero line gap). The filled square sits
-                # inside its cell with air above and below by design, so each
-                # row's bar stands alone. Already load-bearing (the quota dot).
-                cap = "▌" if 0 < w < sw else ""
-                spark = (s.accent + "█" * w + cap
-                         + s.faint + "░" * (sw - w - len(cap)) + s.r)
-                mid(f"  {s.b}{s.accent}{a_:<9}{s.r}{s.wht}{mo[:mw - 1]:<{mw}}{s.r}"
-                    f"{mv['msgs']:>9,}{s.ok}{human(mv['out']):>11}{s.r}"
-                    f"{s.b}{human(mv['total']):>11}{s.r}{share:>7.1f}%  {spark}")
+                mid(model_row_text(a_, mo, mv, mv["total"] / grand * 100))
             bot("share bar is LOG scale, 0.01% to 100% · codex rollups attributed to the LAST model in the file")
 
     api_rows, creds = collect_api(con)

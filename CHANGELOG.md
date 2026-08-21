@@ -2,6 +2,16 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.8 — 2026-08-21
+
+- Two columns of air on the right of every table at every width, the twin of the two
+  on the left. TOKEN VOLUME and LIFETIME let TOTAL absorb the remainder but clamped it
+  to a full column, which on a 120-column terminal ate the breath exactly and drew the
+  total touching the frame ("no air on right"); PLAN QUOTA filled the frame exactly at
+  106 and 114 columns; BY MODEL left one column. The three layouts are module-level now
+  and a test pins them at ten widths from 80 to 140, measured against the real board
+  as well. Nothing counted changes.
+
 ## 1.0.7 — 2026-08-21
 
 - omnigauge starts on Python 3.8 to 3.11 again. Since 1.0 (a6a8882) two lines of the

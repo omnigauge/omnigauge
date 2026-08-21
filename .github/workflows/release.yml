@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'release to (re)create, e.g. 1.0.7 (checks out tag v<version>)'
+        description: 'release to (re)create, e.g. 1.0.8 (checks out tag v<version>)'
         required: true
 permissions:
   contents: read
