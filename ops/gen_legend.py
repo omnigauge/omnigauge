@@ -16,6 +16,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,7 +62,13 @@ def facts():
                          capture_output=True, text=True, cwd=ROOT)
     m = re.search(r"(\d+) tests? collected", out.stdout + out.stderr)
     tests = int(m.group(1)) if m else 0
-    return {"lines": lines, "lines_k": f"{lines/1000:.1f}k", "agents": agents, "apis": apis,
+    # the version the site shows, from the one place it is set: a hardcoded "BIOS v1.0.3" in
+    # the page sat three releases behind until John noticed (2026-08-21); now it cannot drift,
+    # because --verify fails the build when the page's FACTS disagree with pyproject.toml
+    with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+        m = re.search(r'^version\s*=\s*"([^"]+)"', fh.read(), re.M)
+    version = m.group(1) if m else "?"
+    return {"version": version, "lines": lines, "lines_k": f"{lines/1000:.1f}k", "agents": agents, "apis": apis,
             "sources": len(agents) + len(apis), "negatives": [n["n"] for n in reg["negatives"]],
             "mirrors": mirrors, "tests": tests}
 

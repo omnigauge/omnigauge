@@ -80,3 +80,19 @@ class TestLegendHonesty(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSiteVersion(unittest.TestCase):
+    def test_the_site_version_is_generated_from_pyproject(self):
+        """The BIOS line showed v1.0.3 for three releases because it was a literal in the page.
+        It is FACTS.version now, written by ops/gen_legend.py from pyproject.toml; this pins
+        that the FACTS block carries the current version and that no literal remains."""
+        import json as _json, re as _re
+        src = open(os.path.join(ROOT, "site", "index.html"), encoding="utf-8").read()
+        py = open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8").read()
+        want = _re.search(r'^version\s*=\s*"([^"]+)"', py, _re.M).group(1)
+        facts = _json.loads(_re.search(r"/\*FACTS-DATA\*/var FACTS=(\{.*?\});/\*END-FACTS-DATA\*/", src).group(1))
+        self.assertEqual(facts.get("version"), want)
+        self.assertNotRegex(src, r"BIOS v\d+\.\d+\.\d+", "a literal version is back in the page")
+        self.assertIn("BIOS v'+FACTS.version+'", src)
+
