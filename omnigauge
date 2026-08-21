@@ -113,7 +113,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 
 
 def build_id():
@@ -1930,9 +1930,9 @@ def api_row_text(name, window, r):
                 f"{s.gry}  {r['used']:,.0f} / {human(r['cap'])} {r.get('unit', 'posts')}{s.r}"
                 + suff)
     spend = f"${r['spend_usd']:.2f}" if r.get("spend_usd") is not None else "-"
-    return (lead + f"{s.wht}{spend:>10}{s.r}{s.gry}"
-            f"{(f'  {r["requests"]:,} req' if r.get('requests') else ''):<14}"
-            f"{(f'  {human(r["tokens"])} tok' if r.get('tokens') else '')}{s.r}" + suff)
+    reqs = f"  {r['requests']:,} req" if r.get("requests") else ""
+    toks = f"  {human(r['tokens'])} tok" if r.get("tokens") else ""
+    return (lead + f"{s.wht}{spend:>10}{s.r}{s.gry}{reqs:<14}{toks}{s.r}" + suff)
 
 
 def since_epoch(name):

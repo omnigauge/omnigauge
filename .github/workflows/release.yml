@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'release to (re)create, e.g. 1.0.6 (checks out tag v<version>)'
+        description: 'release to (re)create, e.g. 1.0.7 (checks out tag v<version>)'
         required: true
 permissions:
   contents: read
@@ -17,7 +17,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # creating the GitHub Release and attaching its assets
+      contents: write        # creating the GitHub Release and attaching its assets
+      id-token: write        # Sigstore, for the attestation of the wheel and sdist
+      attestations: write    # the attestation record
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -42,6 +44,24 @@ jobs:
           python3 -m venv /tmp/clean && /tmp/clean/bin/pip install -q dist/*.whl
           cyclonedx-py environment --output-format JSON -o omnigauge.cdx.json /tmp/clean
           ls -la dist omnigauge.cdx.json
+      # A signed statement of where the two files came from (Sigstore, via GitHub): one bundle
+      # naming both the wheel and the sdist by digest, bound to this workflow and this commit.
+      # Check: `gh attestation verify dist/<file> --owner omnigauge`, or the Attestations tab.
+      # A tag push names the tag as the source; a hand run for a past tag names main's commit
+      # (the run's own context). PyPI carries its own PEP 740 attestation of the same files.
+      - name: attest the wheel and the sdist
+        id: attest
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: dist/*
+      - name: the bundle beside the files, and the statement as *.intoto.jsonl
+        run: |
+          ver="${{ steps.notes.outputs.ver }}"
+          cp "${{ steps.attest.outputs.bundle-path }}" "omnigauge-$ver.sigstore.json"
+          jq -c '.dsseEnvelope' "omnigauge-$ver.sigstore.json" > "omnigauge-$ver.intoto.jsonl"
+          jq -e '.payloadType == "application/vnd.in-toto+json" and (.signatures | length) >= 1' "omnigauge-$ver.intoto.jsonl" >/dev/null
+          jq -r '.payload' "omnigauge-$ver.intoto.jsonl" | base64 -d | jq -e '(.predicateType | startswith("https://slsa.dev/provenance/")) and ([.subject[].name] | index("omnigauge-'"$ver"'-py3-none-any.whl") != null)' >/dev/null
+          ls -la omnigauge-$ver.sigstore.json omnigauge-$ver.intoto.jsonl
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: v${{ steps.notes.outputs.ver }}
@@ -49,4 +69,6 @@ jobs:
           body_path: notes.md
           files: |
             dist/*
+            omnigauge-*.sigstore.json
+            omnigauge-*.intoto.jsonl
             omnigauge.cdx.json

@@ -8,7 +8,10 @@ the file's own VERSION.
 import glob
 import os
 import re
-import tomllib
+try:
+    import tomllib  # 3.11+
+except ModuleNotFoundError:  # 3.8 to 3.10: the same parser, from PyPI (pinned in .github/requirements/ci.txt)
+    import tomli as tomllib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

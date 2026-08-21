@@ -2,6 +2,20 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.7 — 2026-08-21
+
+- omnigauge starts on Python 3.8 to 3.11 again. Since 1.0 (a6a8882) two lines of the
+  provider row renderer nested an f-string inside an f-string with the same quote, which
+  only Python 3.12 accepts (PEP 701); on anything older the tool died at import with a
+  SyntaxError before printing a thing. Written out as two plain variables. Found by the
+  CI matrix once its 3.8 leg was read rather than assumed green; the packaging test also
+  now reads pyproject.toml with tomli on 3.8 to 3.10 (tomllib is 3.11+).
+- The workflows install their own tooling by hash (.github/requirements/*.txt, pinned by
+  uv, followed by Dependabot), and the GitHub Release now carries a Sigstore provenance
+  bundle for the wheel and sdist beside the files and the SBOM (`gh attestation verify
+  <file> --owner omnigauge`), plus the same statement as `*.intoto.jsonl`. PyPI's own
+  PEP 740 attestations are unchanged.
+
 ## 1.0.6 — 2026-08-20
 
 - codex quota scraping works again on codex-cli 0.147+: codex now boots into an
