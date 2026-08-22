@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # omnigauge.dev is nginx on John's origin box behind Cloudflare, and since 2026-08-21 its document
-# root IS a checkout of this repository (/var/www/omnigauge-src/site); a cron on the box pulls
+# root IS a checkout of this repository (/srv/omnigauge/src/site, owned by the omnigauge user); a cron on the box pulls
 # main every five minutes. So a push to main is the deploy, and this script is the RECEIPT:
 #
 #   ops/deploy_site.sh            # verify through the domain: / byte-identical to site/index.html,
@@ -11,10 +11,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ORIGIN="${ORIGIN:-gcda-root}"
-CHECKOUT="${CHECKOUT:-/var/www/omnigauge-src}"
+CHECKOUT="${CHECKOUT:-/srv/omnigauge/src}"
+OWNER="${OWNER:-omnigauge}"   # the checkout is that user's; git refuses a root pull in a tree it does not own
 
 if [ "${1:-}" = "--pull" ]; then
-  ssh "$ORIGIN" "git -C $CHECKOUT pull -q --ff-only && git -C $CHECKOUT log --oneline -1"
+  ssh "$ORIGIN" "sudo -u $OWNER git -C $CHECKOUT pull -q --ff-only && sudo -u $OWNER git -C $CHECKOUT log --oneline -1"
 fi
 
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT

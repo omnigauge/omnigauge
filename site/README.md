@@ -35,7 +35,7 @@ fallback face with a different advance and silently ragged the layout.
 ## Deploy
 
 A push to `main` is the deploy. Since 2026-08-21 the nginx document root for omnigauge.dev is a
-checkout of this repository on the origin box (`/var/www/omnigauge-src/site`) and a cron there
+checkout of this repository on the origin box (`/srv/omnigauge/src/site`, owned by its own `omnigauge` user) and a cron there
 pulls `main` every five minutes. The receipt, run from anywhere:
 
     ops/deploy_site.sh            # verify through the domain: / byte-identical, FACTS.version = pyproject, 404s honest
