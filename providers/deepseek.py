@@ -1,4 +1,4 @@
-"""DeepSeek — API spend provider.
+"""DeepSeek - API spend provider.
 
 GET /user/balance returns per-currency balances and whether the balance can
 still pay for calls. There is no official CLI, so this is spend-panel only.

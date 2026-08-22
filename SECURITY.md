@@ -1,7 +1,7 @@
 # Security Policy
 
 Report privately to **security@omnigauge.dev**. Please do not open a public issue
-for anything credential-related — a public report is a disclosure.
+for anything credential-related - a public report is a disclosure.
 
 Expect an acknowledgement within a few days. This is a solo-maintained project,
 so please allow reasonable time before disclosing publicly.
@@ -19,7 +19,7 @@ Being honest about the blast radius, because it is not zero:
 - **Launches vendor CLIs** under tmux and reads the rendered screen to get plan
   quota. It types only a slash command; it never enters a prompt or sends work.
 - **Makes outbound requests** only to vendor APIs you have explicitly configured
-  — OpenAI and X today. There is no telemetry, no analytics, no phone-home, and
+  - OpenAI and X today. There is no telemetry, no analytics, no phone-home, and
   no update check.
 
 ## In scope
@@ -33,7 +33,7 @@ Being honest about the blast radius, because it is not zero:
 
 ## Out of scope
 
-- Vulnerabilities in the vendor CLIs themselves — report those to the vendor
+- Vulnerabilities in the vendor CLIs themselves - report those to the vendor
 - A vendor changing its UI so a scrape fails. This is expected; OmniGauge is
   built to fail loudly and dump the raw screen rather than report a wrong number
 - Physical access to an already-unlocked machine

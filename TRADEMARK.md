@@ -1,7 +1,7 @@
 # Trademark
 
 The **code** in this repository is MIT licensed. Take it, change it, ship it,
-sell it — that licence means what it says and none of this narrows it.
+sell it - that licence means what it says and none of this narrows it.
 
 The **name** is not part of that grant. MIT covers copyright; it is silent on
 trademarks, and nothing here licenses one.
@@ -11,7 +11,7 @@ trademarks, and nothing here licenses one.
 - The name **OmniGauge**, in any capitalisation or spacing
 - The OmniGauge logo and any mark used to identify this project
 - The domain **omnigauge.dev** and the account **@OmniGauge**
-- The files under `assets/` — logo, wordmark, banner, favicons. They carry
+- The files under `assets/` - logo, wordmark, banner, favicons. They carry
   their own notice (`assets/LICENSE`) and are **not** part of the MIT grant.
   The code is free; the brand is not.
 
@@ -21,8 +21,8 @@ August 2026.
 ## If you fork this
 
 **Rebrand it.** Pick your own name, your own mark, your own domain. You may
-absolutely ship a competing product built on this code — that is the whole point
-of the licence — but ship it as yours, not as this.
+absolutely ship a competing product built on this code - that is the whole point
+of the licence - but ship it as yours, not as this.
 
 Please do not:
 
@@ -59,7 +59,7 @@ they are narrower than a registered mark, and enforcing them is expensive. This
 file is not a legal threat and there is no lawyer behind it.
 
 It is here because almost everyone who forks an open-source project is acting in
-good faith and will happily rename when asked — and because a request that was
+good faith and will happily rename when asked - and because a request that was
 made in writing beforehand is a great deal easier to honour than one made after
 the fact.
 

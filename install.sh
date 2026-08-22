@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# omnigauge installer — copies the script and its providers. No sudo, no daemon.
+# omnigauge installer - copies the script and its providers. No sudo, no daemon.
 set -euo pipefail
 SRC="$(cd "$(dirname "$0")" && pwd)"
 DEST="${1:-$HOME/.local/bin}"
@@ -21,6 +21,6 @@ fi
 printf '%s\n' "$SRC" > "$DATA/source"
 
 echo "installed: $DEST/omnigauge"
-command -v tmux >/dev/null || echo "note: tmux not found — quota scraping needs it (token counts work without)"
+command -v tmux >/dev/null || echo "note: tmux not found - quota scraping needs it (token counts work without)"
 case ":$PATH:" in *":$DEST:"*) ;; *) echo "note: $DEST is not on PATH";; esac
 echo "next:  omnigauge --doctor"

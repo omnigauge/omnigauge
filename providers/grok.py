@@ -1,4 +1,4 @@
-"""Grok CLI — reference provider.
+"""Grok CLI - reference provider.
 
 Mirrors the built-in and overrides it at load, exactly like claude.py. The
 part worth copying: Grok's usage panel wraps unpredictably, so the parser
@@ -76,7 +76,7 @@ QUOTA = dict(
     keys="/usage",
     ready=r"(❯|»|Enter:send|shortcuts)",
     done=r"Weekly limit",
-    # model=None: any model label satisfies the week window — Grok names the
+    # model=None: any model label satisfies the week window - Grok names the
     # plan tier, not a model, and the tier string is not stable enough to pin.
     expect=[("week", None)],
     source="cli_usage",

@@ -1,4 +1,4 @@
-"""Aider — agent provider.
+"""Aider - agent provider.
 
 Verified on a real install 2026-08-15. Aider writes .aider.chat.history.md
 into the PROJECT directory, not a home directory - which breaks the one-home

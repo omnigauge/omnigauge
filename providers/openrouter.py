@@ -1,4 +1,4 @@
-"""OpenRouter — API spend provider.
+"""OpenRouter - API spend provider.
 
 One aggregator key fronts dozens of models, which makes this the best value
 per unit of work in the spend panel. GET /api/v1/auth/key returns the current

@@ -1,11 +1,11 @@
 <!-- generated from README.md by ops/gen_readme_pypi.py - do not edit; PyPI cannot draw the text board -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/x-header-1500x500.png" width="100%" alt="OmniGauge — every AI plan and API account you pay for, on one screen">
+  <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/x-header-1500x500.png" width="100%" alt="OmniGauge - every AI plan and API account you pay for, on one screen">
 </p>
 
 <p align="center">
   <em>One gauge for every AI agent and API account you run.</em><br>
-  <sub>Plan quota · token volume · burn rate · exhaustion forecast · spend — in your terminal</sub>
+  <sub>Plan quota · token volume · burn rate · exhaustion forecast · spend - in your terminal</sub>
 </p>
 
 <p align="center">
@@ -15,15 +15,15 @@
 </p>
 
 
-One dashboard for every AI plan and API account you pay for — **Claude Code**, **Codex**,
-**Grok**, **Aider**, **Goose**, OpenAI, X, OpenRouter, Moonshot, DeepSeek — plan quota and token volume, side by side, in your terminal.
+One dashboard for every AI plan and API account you pay for - **Claude Code**, **Codex**,
+**Grok**, **Aider**, **Goose**, OpenAI, X, OpenRouter, Moonshot, DeepSeek - plan quota and token volume, side by side, in your terminal.
 
-No keys for the part that matters — plan quota and token volume come from files
+No keys for the part that matters - plan quota and token volume come from files
 those tools already write to your disk, and from each CLI's own quota panel.
 API dollar spend is optional and does need a key for whichever vendor you want
 it from: stored 0600, never passed as an argument, refused outright if the file
-is group- or world-readable. Leave spend off and no credential — and no network
-call — is involved at all. No telemetry either way.
+is group- or world-readable. Leave spend off and no credential - and no network
+call - is involved at all. No telemetry either way.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/omnigauge/omnigauge/main/assets/readme-board.png" width="100%" alt="the OmniGauge board: PLAN QUOTA, TOKEN VOLUME, WHAT IS DRIVING USAGE - sample data">
@@ -33,7 +33,7 @@ call — is involved at all. No telemetry either way.
 
 ## What this does that the others don't
 
-The local-tracker space is well served — [tokscale](https://github.com/junhoyeo/tokscale)
+The local-tracker space is well served - [tokscale](https://github.com/junhoyeo/tokscale)
 covers 50+ agents. Its own docs list what it does not do, and that list is this
 project's reason to exist:
 
@@ -48,7 +48,7 @@ project's reason to exist:
 | local-only, nothing transmitted | ✅ | ❌ | ✅ |
 
 The question every tracker answers is *"how much have I used"*. The one that
-matters is **"will I run out before it resets"** — and answering it needs the
+matters is **"will I run out before it resets"** - and answering it needs the
 quota series and the vendor's reset time together:
 
 ```
@@ -93,8 +93,8 @@ Configure in `~/.local/share/omnigauge/alerts.json`:
 }
 ```
 
-Desktop notifications use whatever exists — `notify-send`, `osascript`,
-`wsl-notify-send.exe` — and failure is never fatal. A monitor that crashes the
+Desktop notifications use whatever exists - `notify-send`, `osascript`,
+`wsl-notify-send.exe` - and failure is never fatal. A monitor that crashes the
 cron job it runs inside is worse than no monitor.
 
 ## Why the numbers are kept apart
@@ -102,13 +102,13 @@ cron job it runs inside is worse than no monitor.
 This is the whole design, and it is deliberate.
 
 **Codex reports percent *remaining*. Claude and Grok report percent *used*.** Shown raw side
-by side, a Codex at "6%" looks healthier than a Claude at "23%" — when in fact Codex is
+by side, a Codex at "6%" looks healthier than a Claude at "23%" - when in fact Codex is
 nearly exhausted and Claude has three quarters left. OmniGauge normalizes everything to
 **percent consumed** and prints what the vendor actually said underneath, so you can check it.
 
 **Token volume is not the vendors' token count.** Local transcripts record cache reads and
 per-turn context re-sends; vendors count something narrower. The figures differ by orders of
-magnitude and neither is wrong — they have different denominators. OmniGauge shows both
+magnitude and neither is wrong - they have different denominators. OmniGauge shows both
 kinds of number and never adds them together or reconciles them into one total.
 
 **Subscriptions have no dollar balance**, so none is shown. Plan usage and API spend are
@@ -117,15 +117,15 @@ different products; blending them into one "remaining" figure would be fiction.
 ## Quickstart
 
 ```bash
-pipx install omnigauge  # from PyPI — Python 3.8+, no dependencies (Ubuntu/Debian: sudo apt install pipx first; bare pip is refused there by PEP 668)
+pipx install omnigauge  # from PyPI - Python 3.8+, no dependencies (Ubuntu/Debian: sudo apt install pipx first; bare pip is refused there by PEP 668)
 omnigauge --update      # later: the latest release, with the tool that installed this one
 omnigauge --doctor      # what is connected, what is missing, how to fix it
 omnigauge --refresh     # pull your plan quota (~30s per agent)
-omnigauge               # the board — press ? for keys
+omnigauge               # the board - press ? for keys
 ```
 
 From a clone instead: `git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge && ./install.sh`
-— the installer copies the file *and* its provider mirrors; a bare copy of the file leaves the mirrors behind.
+- the installer copies the file *and* its provider mirrors; a bare copy of the file leaves the mirrors behind.
 
 `--doctor` is the one to run first. It checks each agent CLI, tells you whether
 quota has ever been collected, shows which optional API credentials are set, and
@@ -141,8 +141,8 @@ stores (`.claude`, `.codex`, …): one path per line in
 already reading and prints the exact line to add.
 
 Roots are scanned like a second home. When the drive is unplugged, the board
-and `--check` say its history is excluded this run — the numbers never just
-quietly shrink — and `--doctor` shows every root as mounted or missing.
+and `--check` say its history is excluded this run - the numbers never just
+quietly shrink - and `--doctor` shows every root as mounted or missing.
 
 ## Install
 
@@ -156,12 +156,12 @@ omnigauge --refresh
 From source: `git clone https://github.com/omnigauge/omnigauge.git && cd omnigauge && ./install.sh`
 (the file plus its provider mirrors, into `~/.local/bin` and `~/.local/share/omnigauge/providers`).
 
-You stay logged in through your own CLIs — OmniGauge never sees or stores a credential.
+You stay logged in through your own CLIs - OmniGauge never sees or stores a credential.
 It only works for accounts *you* are already signed into on that machine.
 
 ## Usage
 
-Run it bare in a terminal and it is **interactive** — no flags to remember:
+Run it bare in a terminal and it is **interactive** - no flags to remember:
 
 ```
  r refresh · w watch · t ink · s 24h · b full · ? help · q quit
@@ -171,14 +171,14 @@ Run it bare in a terminal and it is **interactive** — no flags to remember:
 |---|---|
 | `r` | refresh quota, all agents |
 | `1` `2` `3` | refresh claude / codex / grok only |
-| `w` | watch mode — auto redraw, and a quota re-scrape every 15m |
+| `w` | watch mode - auto redraw, and a quota re-scrape every 15m |
 | `t` | cycle theme |
 | `s` | cycle window (24h · 7d · 30d · today · all) |
-| `b` | brief — hide lifetime and by-model |
-| `l` | providers legend — what each source gets, and cannot |
+| `b` | brief - hide lifetime and by-model |
+| `l` | providers legend - what each source gets, and cannot |
 | `d` | doctor |
 | `y` | why this exists |
-| `p` | privacy — what it refuses to do |
+| `p` | privacy - what it refuses to do |
 | `a` | about |
 | `g` | donate |
 | `?` | key help |
@@ -205,8 +205,8 @@ omnigauge --no-color
 ### Two clocks
 
 Token volume is read from local files (~2s) and can update every few seconds. Plan quota
-requires launching the vendor's TUI and reading its panel — ~30s per agent, and it spawns a
-real session — so it is cached and refreshed on a slow clock. Every quota row shows its own
+requires launching the vendor's TUI and reading its panel - ~30s per agent, and it spawns a
+real session - so it is cached and refreshed on a slow clock. Every quota row shows its own
 age, so a stale number looks stale, and the panel's foot says when quota was last scraped.
 
 The rule, exactly: quota is re-scraped **only** by `--refresh`, the `r` / `1` `2` `3` / `w`
@@ -226,21 +226,21 @@ read the last scrape too. If you want cron's verdicts fresh, scrape on the same 
 | Claude Code | `/usage` panel | `~/.claude/projects/*/*.jsonl` → per-message `usage` |
 | OpenAI Codex | `/status` panel | rollout `info.total_token_usage` |
 | Grok CLI | `/usage` panel | session `updates.jsonl` → `totalTokens` |
-| Goose | — (key-based) | `sessions.db` → `usage_ledger`, the vendor's own accounting |
-| Aider | — (key-based) | `.aider.chat.history.md` token lines, in the project roots you name via `OMNIGAUGE_AIDER_DIRS` |
+| Goose | - (key-based) | `sessions.db` → `usage_ledger`, the vendor's own accounting |
+| Aider | - (key-based) | `.aider.chat.history.md` token lines, in the project roots you name via `OMNIGAUGE_AIDER_DIRS` |
 
 Quota panels are rendered under `tmux` and read back with `capture-pane`. These CLIs draw
 character-by-character with cursor moves; stripping ANSI from a raw pty gives you garbage.
 tmux is a real terminal emulator, so it does the rendering and OmniGauge reads the finished
 screen.
 
-On WSL, Codex keeps **two separate stores** — `~/.codex` and `/mnt/c/Users/<you>/.codex`.
+On WSL, Codex keeps **two separate stores** - `~/.codex` and `/mnt/c/Users/<you>/.codex`.
 Both are discovered. Searching only one and concluding "nothing here" is a real trap.
 
 ## Workspace trust
 
 Launching Claude in a directory it has not seen raises a blocking trust prompt, which
-swallows the keystrokes. OmniGauge **will not auto-accept it** — trusting a folder is a
+swallows the keystrokes. OmniGauge **will not auto-accept it** - trusting a folder is a
 real security decision and it persists. It instead reuses a directory the CLI has
 demonstrably run in before, read from Claude's own session registry, and detects the dialog
 explicitly if one still appears. Override with `--cwd DIR`.
@@ -251,7 +251,7 @@ Vendor TUIs change. OmniGauge treats a partial parse as a failure, because a pla
 number with the headline missing is worse than no number:
 
 ```
-  claude   scraping… PARTIAL — 2 row(s), missing [('week', 'all')]
+  claude   scraping… PARTIAL - 2 row(s), missing [('week', 'all')]
            raw screen → ~/.local/share/omnigauge/last-scrape-claude.txt
 ```
 
@@ -263,7 +263,7 @@ raw screen dumped for inspection. Stale rows are never silently reused as fresh.
 Everything lives in `${XDG_DATA_HOME:-~/.local/share}/omnigauge/` (override with
 `OMNIGAUGE_HOME`):
 
-- `usage.db` — SQLite. `snapshots` keeps normalized quota with the vendor's raw string and a
+- `usage.db` - SQLite. `snapshots` keeps normalized quota with the vendor's raw string and a
   `collected_at`; `filecache` makes lifetime totals incremental so a 140 GB rollout corpus is
   never rescanned; `insights` keeps the vendor's own "what is driving usage" notes.
 
@@ -271,7 +271,7 @@ Nothing leaves the machine.
 
 ## API spend and credits (optional)
 
-Separate panel, separate product — never merged into plan quota. A subscription
+Separate panel, separate product - never merged into plan quota. A subscription
 window is a time-based percentage; these are real money.
 
 | Source | What you get | Credential |
@@ -289,7 +289,7 @@ omnigauge --setup      # hidden input, written 0600, refuses to read looser mode
 Two things worth knowing:
 
 **Checking X usage does not consume your post cap.** Verified empirically rather
-than from documentation — two consecutive calls to `/2/usage/tweets` left
+than from documentation - two consecutive calls to `/2/usage/tweets` left
 `project_usage` unchanged. It has its own limit of 50 per window, so it is polled
 on the slow clock, never per redraw.
 
@@ -300,14 +300,14 @@ and leaves the money figure to the console rather than inventing one.
 ## Not implemented, on purpose
 
 **API dollar spend.** OpenAI (`/v1/organization/costs`) and Anthropic (`/v1/organization/cost_report`)
-both expose real spend, but they need an org **admin** key — a credential worth more than this
+both expose real spend, but they need an org **admin** key - a credential worth more than this
 tool. The schema already carries `cost_usd` and a `source` column, so it is a clean addition if
 you want it. It would be a separate panel, never merged into plan quota.
 
 
 ## Donations
 
-Optional, and it changes nothing about the tool — OmniGauge is MIT and always
+Optional, and it changes nothing about the tool - OmniGauge is MIT and always
 will be, with no paid tier and no telemetry.
 
 **Solana:** `HDDEfcYnLh4w8yG5Rn8chcm15xo1LavkvtRGeTRGAUGE`
@@ -316,9 +316,9 @@ If you get more use out of this than it cost you to read the source, that is
 already the trade working.
 
 **There will be no OmniGauge token from the developer of OmniGauge.** No presale, no airdrop, no community
-round, no Phase 3. You can launch one — someone always does. The ask is
+round, no Phase 3. You can launch one - someone always does. The ask is
 **creator fees plus 3% of supply** to the address above, and the token socials
-pointed at [@OmniGauge](https://x.com/OmniGauge) and omnigauge.dev — the only two
+pointed at [@OmniGauge](https://x.com/OmniGauge) and omnigauge.dev - the only two
 places this project exists. What you may not do is LARP as this project
 while you do it: no "official", no borrowed name, no invented team. Launch your
 own thing and be honest that it is yours.
@@ -328,8 +328,8 @@ group chat, no "community". If something calls itself OmniGauge anywhere other
 than [@OmniGauge](https://x.com/OmniGauge) or omnigauge.dev, it is not us.
 
 **If you do launch one, come and say so.** The email on the GitHub profile is the
-channel that counts. If it checks out — you are not a known scammer, and you met
-the terms above instead of pretending to be us — there is a good chance the
+channel that counts. If it checks out - you are not a known scammer, and you met
+the terms above instead of pretending to be us - there is a good chance the
 contract address ends up on this page. A listing is not an endorsement. DYOR.
 
 
@@ -352,29 +352,29 @@ or workflow that makes it true). What to report and how (security@omnigauge.dev)
 
 ## Changelog
 
-[CHANGELOG.md](https://github.com/omnigauge/omnigauge/blob/main/CHANGELOG.md) — one section per version on PyPI.
+[CHANGELOG.md](https://github.com/omnigauge/omnigauge/blob/main/CHANGELOG.md) - one section per version on PyPI.
 
 ## Contributing
 
-Pull requests are open to anyone — you do not need permission, an invite, or to
+Pull requests are open to anyone - you do not need permission, an invite, or to
 ask first. Fork it, change it, open a PR.
 
 The shape of this project is that **adding a source is one file**. If you use a
 tool this does not read yet, the whole job is a single file in `providers/` that
 answers four questions: are you installed, where are your files, how many tokens,
 and what does your quota panel say. Eight providers ship as worked examples in
-`providers/` — five agents (`claude.py`, `codex.py`, `grok.py`, `aider.py`, `goose.py`)
-and three spend sources — each a different parsing shape; copy the closest one.
+`providers/` - five agents (`claude.py`, `codex.py`, `grok.py`, `aider.py`, `goose.py`)
+and three spend sources - each a different parsing shape; copy the closest one.
 
 [CONTRIBUTING.md](https://github.com/omnigauge/omnigauge/blob/main/CONTRIBUTING.md) has the contract, the three rules that are not
-style preferences, and what gets rejected. Read the last one before you start —
+style preferences, and what gets rejected. Read the last one before you start -
 it will save you the work.
 
 Everything here is MIT. Your contribution comes in under the same licence, and
 you keep the copyright to what you wrote.
 
-**Not a Python person?** Chip in a Sol or two instead. It buys you nothing — no
-tier, no badge, no priority support, no role in a Discord that does not exist —
+**Not a Python person?** Chip in a Sol or two instead. It buys you nothing - no
+tier, no badge, no priority support, no role in a Discord that does not exist -
 which is precisely what makes it a donation and not a purchase. Details under
 [Donations](#donations), and the address is right there in the terminal too:
 `omnigauge` → press `F7`.
@@ -387,13 +387,13 @@ which is precisely what makes it a donation and not a purchase. Details under
 
 ## Authorship
 
-Written end to end by **Claude Opus 5.0** — every line of the CLI, the provider
+Written end to end by **Claude Opus 5.0** - every line of the CLI, the provider
 contract, the site, and this document. Maintained since by **Claude Fable 5**.
 
 A usage meter for AI tools, written by one. The source is right there either way.
 
 ## Licence
 
-MIT. Use it, fork it, ship it. The code is yours under that licence — and with it
+MIT. Use it, fork it, ship it. The code is yours under that licence - and with it
 the look, which anyone may imitate. The name, the mark and the files under `assets/`
-are not part of the grant — see [TRADEMARK.md](https://github.com/omnigauge/omnigauge/blob/main/TRADEMARK.md) and `assets/LICENSE`.
+are not part of the grant - see [TRADEMARK.md](https://github.com/omnigauge/omnigauge/blob/main/TRADEMARK.md) and `assets/LICENSE`.

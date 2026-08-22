@@ -1,4 +1,4 @@
-"""Claude Code — reference provider.
+"""Claude Code - reference provider.
 
 This is the implementation to copy. It exercises every part of the contract:
 token counting from transcripts, per-model attribution, quota scraped from the
@@ -32,13 +32,13 @@ def detect():
 def files():
     """Claude encodes the project path with BOTH '/' and '_' collapsed to '-',
     so ~/work/my_app becomes -home-you-work-my-app. Getting that wrong yields an
-    empty directory rather than an error, which reads as "no usage" — a silent
+    empty directory rather than an error, which reads as "no usage" - a silent
     wrong answer, the worst kind.
 
     Recursive, because transcripts do not all sit one level down: subagent runs
     write project/<session>/subagents/agent-*.jsonl, and the one-level glob this
     mirror used to carry silently dropped 39 files, ~1,500 messages and every
-    haiku token while the built-in had already been fixed — the mirror OVERRIDES
+    haiku token while the built-in had already been fixed - the mirror OVERRIDES
     the built-in at load, so the two must change together. Windows homes for the
     same reason codex scans them."""
     out = []
@@ -63,7 +63,7 @@ def scan(path, since=0):
         if not isinstance(u, dict):
             continue
         # Record the newest timestamp regardless of the window. The core uses it
-        # to decide whether skipping this file on mtime is provably safe — mtime
+        # to decide whether skipping this file on mtime is provably safe - mtime
         # is a claim about when the file was written, this is a fact about what
         # is in it, and a restore or a skewed clock makes them disagree.
         ep = og._epoch(d.get("timestamp", ""))
@@ -101,7 +101,7 @@ QUOTA = dict(
     # was live and the scrape returned a welcome screen.
     ready=r"(Try \"|❯|>\s*$|for shortcuts)",
     done=r"Current (week|session)",
-    # Windows that MUST parse. Missing one is a PARTIAL, treated as failure —
+    # Windows that MUST parse. Missing one is a PARTIAL, treated as failure -
     # plausible rows with the headline absent are worse than no rows at all.
     expect=[("week", "all"), ("session", "all")],
 )
@@ -112,7 +112,7 @@ def parse_quota(screen):
     reports percent REMAINING and inverts in its own provider.
 
     Line-based on purpose. A single collapsed-whitespace regex silently dropped
-    the weekly row — the headline number — because Claude injects a promo line
+    the weekly row - the headline number - because Claude injects a promo line
     between the reset line and the next heading, and the pattern's lookahead
     expected a heading there.
     """
@@ -156,7 +156,7 @@ def insights(screen):
 def scrape_cwd():
     """Launching Claude somewhere it has not seen raises a blocking
     workspace-trust dialog which swallows the keystrokes. omnigauge will NOT
-    auto-accept that — trusting a folder is a real security decision and it
+    auto-accept that - trusting a folder is a real security decision and it
     persists. Reuse a directory the CLI has demonstrably run in, taken from its
     own session registry."""
     best, newest = None, 0

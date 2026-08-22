@@ -1,4 +1,4 @@
-"""Goose (aaif-goose, formerly Block) — agent provider.
+"""Goose (aaif-goose, formerly Block) - agent provider.
 
 Verified on a real install 2026-08-15: Goose keeps a SQLite database, not
 transcripts - ~/.local/share/goose/sessions/sessions.db - and its

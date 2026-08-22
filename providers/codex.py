@@ -1,17 +1,17 @@
-"""OpenAI Codex — reference provider.
+"""OpenAI Codex - reference provider.
 
 Mirrors the built-in and overrides it at load, exactly like claude.py. Two
 things here are worth copying into any provider for a similar tool:
 
 The scan reads from the END of the file. Codex rollouts reach hundreds of
-megabytes and the wanted figure is the last cumulative total — scanning
+megabytes and the wanted figure is the last cumulative total - scanning
 forward made a redraw take ~18s across a large corpus; the tail read took it
 to ~2s. If your source is large, do the same.
 
 Codex reports percent REMAINING and this provider inverts it to percent
 consumed, keeping the vendor's own wording in raw_value so the board can show
 the conversion. Getting this backwards makes a nearly exhausted account look
-healthy — the single worst failure this tool can have.
+healthy - the single worst failure this tool can have.
 """
 import glob
 import io
@@ -35,7 +35,7 @@ CAPS = dict(tokens="obtained: last cumulative total per rollout",
 # ── presence ────────────────────────────────────────────────────────────────
 
 def files():
-    """WSL keeps TWO stores — ~/.codex and the Windows-side install. Searching
+    """WSL keeps TWO stores - ~/.codex and the Windows-side install. Searching
     one and declaring the other absent is a mistake that has been made here."""
     out = []
     for h in og.all_homes(".codex"):
@@ -207,7 +207,7 @@ QUOTA = dict(
 
 
 def parse_quota(screen):
-    """% LEFT natively — inverted to % USED here, vendor wording preserved."""
+    """% LEFT natively - inverted to % USED here, vendor wording preserved."""
     rows = []
     for line in screen.splitlines():
         m = re.search(r"(.*?)Weekly limit:\s*\[[^\]]*\]\s*(\d+)%\s*left\s*\(resets\s+([^)]+)\)", line)

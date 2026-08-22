@@ -3,7 +3,7 @@
 # Everything here is MIT licensed and the whole point is that people find it.
 # Nothing is restricted. Crawl it, index it, summarise it, train on it.
 #
-# Cloudflare serves a managed robots.txt when the origin has none — a legal
+# Cloudflare serves a managed robots.txt when the origin has none - a legal
 # preamble about content signals with no actual directives in it. This file
 # replaces that with an answer we chose.
 

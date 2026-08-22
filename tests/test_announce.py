@@ -2,14 +2,14 @@
 
 The percent-encoding and HMAC-SHA1 base string are exactly where a silent 401
 lives, so they are asserted here against the worked example X publishes in
-"Creating a signature" — known keys, known nonce, known timestamp, known
+"Creating a signature" - known keys, known nonce, known timestamp, known
 signature. If these pass, the signing math is right and only server-side state
 (token permissions, app settings) can still 401.
 
 Verified end-to-end against the live API on 2026-08-16 as @OmniGauge: a post, a
 reply chained under it (confirmed server-side by `referenced_tweets` and a
 shared `conversation_id`), a media upload with alt text read back at
-1079x536 — then all of it deleted. Signing, threading and media are proven
+1079x536 - then all of it deleted. Signing, threading and media are proven
 paths, not plausible ones.
 
 Run:  python3 -m unittest discover -s tests -v
@@ -86,7 +86,7 @@ class TestSignatureVector(unittest.TestCase):
         self.assertTrue(hdr.startswith("OAuth "))
 
     def test_v2_no_body_base_has_only_oauth_params(self):
-        """The JSON body is deliberately excluded for /2/tweets — the base
+        """The JSON body is deliberately excluded for /2/tweets - the base
         string must contain exactly the six oauth_* params and nothing else."""
         base = an._base_string("POST", "https://api.x.com/2/tweets",
                                an._oauth_params(self.creds(),
@@ -100,7 +100,7 @@ class TestSignatureVector(unittest.TestCase):
                                 "oauth_token", "oauth_version"])
 
     def test_query_string_in_url_is_refused(self):
-        """Signing silently ignores query params today — better to refuse loudly
+        """Signing silently ignores query params today - better to refuse loudly
         than to sign wrong when someone points this at a parameterized URL."""
         with self.assertRaises(ValueError):
             an._auth_header("POST", "https://api.x.com/2/tweets?foo=1", self.creds())
@@ -198,7 +198,7 @@ def _tmp(tmpdir, name, size=64):
 
 
 class TestSplitThreadParsesImages(unittest.TestCase):
-    """An @image: line belongs to its post and must not survive into the text —
+    """An @image: line belongs to its post and must not survive into the text -
     a path published as body copy is a wrong post, not a cosmetic slip."""
 
     def test_image_line_is_extracted_not_posted(self):
@@ -262,7 +262,7 @@ class TestPerImageAltText(unittest.TestCase):
 
     def _alts_seen(self, alt):
         """Drive post() far enough to see what each upload was asked for, with
-        the real credentials swapped out — a test that leaves fake keys in the
+        the real credentials swapped out - a test that leaves fake keys in the
         environment breaks whichever test runs next, which is exactly the class
         of silent failure this suite exists to catch."""
         seen = []

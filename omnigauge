@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omnigauge — one gauge for every AI agent and API account you run.
+"""omnigauge - one gauge for every AI agent and API account you run.
 
 Reads plan quota straight from each CLI and token volume straight from the
 transcripts those tools already write to disk. Keyless and offline for quota
@@ -25,7 +25,7 @@ STORES ON ANOTHER DRIVE
   instead of quietly shrinking.
 
 REFRESH RATES ARE NOT THE SAME FOR BOTH HALVES
-  token volume  read from local files — cheap, so it can update every few seconds.
+  token volume  read from local files - cheap, so it can update every few seconds.
   plan quota    requires launching the vendor's TUI and reading its panel, which
                 costs ~30s per agent and spawns a real session. It is cached and
                 refreshed on a slow clock; anything faster would be pure waste.
@@ -34,11 +34,11 @@ TWO KINDS OF NUMBER, DELIBERATELY NEVER MERGED
 
   plan quota   how much of a subscription window is consumed. No vendor caches
                this to disk, so it is scraped from each CLI's own usage panel.
-               Normalized to PERCENT CONSUMED — Codex reports percent REMAINING
+               Normalized to PERCENT CONSUMED - Codex reports percent REMAINING
                natively and is inverted here on purpose. Shown side by side raw,
                a 6%-left Codex looks healthier than a 23%-used Claude.
 
-  token volume counted from local transcripts. Free, exact, never stale — and
+  token volume counted from local transcripts. Free, exact, never stale - and
                NOT comparable to the vendors' own figures. Different
                denominators: cache reads, per-turn context re-sends, total vs
                billed. Two honest numbers rather than one reconciled fiction.
@@ -57,7 +57,7 @@ APP = "omnigauge"
 # in the README; when the vanity address finishes grinding, a wrong edit here
 # sends money to a dead wallet quietly. One constant per file is the most that
 # can be single-sourced across a Python script, a static page and a markdown
-# document — so there are three edit points, not six, and each file has one.
+# document - so there are three edit points, not six, and each file has one.
 DONATE_SOL = "HDDEfcYnLh4w8yG5Rn8chcm15xo1LavkvtRGeTRGAUGE"
 DATA = os.environ.get("OMNIGAUGE_HOME") or os.path.join(
     os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), APP)
@@ -107,13 +107,13 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
               ("filecache", "scan_epoch", "INTEGER")]
 
 # Bump whenever the ARITHMETIC of any scanner changes. The cache is keyed on
-# mtime and size, which describe the file — nothing described the code. After the
+# mtime and size, which describe the file - nothing described the code. After the
 # codex step-sum fix every unchanged file kept answering with the old numbers and
 # the board sat 0.09% below an independent re-derivation, silently, until each
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 3   # 3: claude rows now cache a real total (in+out+cache_read)
 
-VERSION = "1.0.9"
+VERSION = "1.0.10"
 
 
 def build_id():
@@ -255,7 +255,7 @@ class S:
     """Themes.
 
     The first cut put bright green beside bright red; the second desaturated
-    both but kept the pairing. Green-vs-red is the problem, not its saturation —
+    both but kept the pairing. Green-vs-red is the problem, not its saturation -
     complements at similar lightness vibrate whatever their chroma.
 
     `ink` (default) drops green altogether. Healthy reads as neutral blue-grey
@@ -268,7 +268,7 @@ class S:
 
     THEMES = dict(
         # ok is HUELESS on purpose. 66 (#5f8787) was meant to read as slate but
-        # it is teal, and teal reads as green — which put the red/green pair
+        # it is teal, and teal reads as green - which put the red/green pair
         # straight back. A healthy bar now carries no hue at all, so the only
         # coloured thing on screen is whatever is actually in trouble.
         ink=dict(ok="\033[38;5;245m",    # neutral grey
@@ -276,7 +276,7 @@ class S:
                  crit="\033[38;5;167m",  # rose
                  accent="\033[38;5;110m",# soft blue, headings only
                  gry="\033[38;5;243m", faint="\033[38;5;237m", wht="\033[38;5;251m"),
-        steel=dict(ok="\033[38;5;67m",   # steel blue — a hue, but never green
+        steel=dict(ok="\033[38;5;67m",   # steel blue - a hue, but never green
                    warn="\033[38;5;179m", crit="\033[38;5;167m",
                    accent="\033[38;5;110m",
                    gry="\033[38;5;243m", faint="\033[38;5;237m", wht="\033[38;5;251m"),
@@ -334,7 +334,7 @@ def rule(ch="─"):
     return s.gry + ch * W + s.r
 
 
-# Inner width of a framed panel. A frame line is ' │' + IN + '│' — one leading
+# Inner width of a framed panel. A frame line is ' │' + IN + '│' - one leading
 # space and TWO borders, so IN must give back three columns, not two. W - 2 put
 # every panel at W+1 and wrapped the right border on an exactly-W terminal.
 IN = W - 3
@@ -376,7 +376,7 @@ def bot(note=""):
         print(f" {s.accent}╚{'═' * IN}╝{s.r}")
 
 
-# Eighth blocks gave sub-character resolution — and cost seven rare glyphs.
+# Eighth blocks gave sub-character resolution - and cost seven rare glyphs.
 # A font missing any one of them substitutes from a fallback face with a
 # different advance, so that row alone renders wider. The count is identical, so
 # no amount of measuring the string reveals it; it only shows on screen.
@@ -391,8 +391,8 @@ def sev(pct):
 def bar(pct, w=22):
     """Whole cells only, rounded rather than truncated.
 
-    Rounding keeps small readings visible — 1% still lights a cell instead of
-    vanishing — and 24% vs 26% still differ because they round to different
+    Rounding keeps small readings visible - 1% still lights a cell instead of
+    vanishing - and 24% vs 26% still differ because they round to different
     cells. Resolution drops from 1/8 of a cell to 1/2, which is the price of
     every row rendering at the same width in every font.
     """
@@ -434,7 +434,7 @@ def countdown(text, _as_seconds=False):
 
     Formats differ per vendor ('Aug 19, 6pm', '23:04 on 19 Aug', 'August 17,
     12:49'). Anything unparseable falls back to the raw string rather than
-    guessing — a wrong countdown is worse than none.
+    guessing - a wrong countdown is worse than none.
     """
     if not text: return None
     t = text.lower()
@@ -499,7 +499,7 @@ def human(n):
 
     Choosing on the raw value meant 999,999 was below 1e6, took K, and rounded
     999.999 into "1000.00K". The board could then print OUTPUT 1000.00M one
-    column from TOTAL 1.00B — the same magnitude in two notations. A thousand of
+    column from TOTAL 1.00B - the same magnitude in two notations. A thousand of
     a unit is the next unit.
 
     (The old body ended `.rstrip("0").rstrip(".")`, which never fired once: the
@@ -526,14 +526,14 @@ def short_model(agent, model):
 
 
 def short_reset(t):
-    """Drop the timezone parenthetical — it is the same for every row."""
+    """Drop the timezone parenthetical - it is the same for every row."""
     if not t: return "-"
     return re.sub(r"\s*\([^)]*\)\s*$", "", t).strip()
 
 
 def age(ts):
     """Column-sized age of a reading: 'now', '7m', '3h', '2d'. The READ column
-    exists so a stale number looks stale — a PARTIAL refresh leaves the missing
+    exists so a stale number looks stale - a PARTIAL refresh leaves the missing
     window's previous reading on the board, and this is what says so."""
     d = max(0, NOW - ts)
     if d < 90: return "now"
@@ -545,13 +545,13 @@ def age(ts):
 # ──────────────────────────────── providers ──────────────────────────────────
 #
 # A provider teaches omnigauge about one source. It is a single file in providers/
-# with no registration step — dropping it in is the whole install. See
+# with no registration step - dropping it in is the whole install. See
 # providers/README.md for the contract.
 
 # Later directories WIN a name collision. The user-local data dir survives
-# upgrades but must LOSE to a checkout sitting next to the script — editing
+# upgrades but must LOSE to a checkout sitting next to the script - editing
 # providers/ in the repo has to beat the stale copy a previous install left in
-# the data dir — and an explicit OMNIGAUGE_PROVIDERS path beats both.
+# the data dir - and an explicit OMNIGAUGE_PROVIDERS path beats both.
 PROVIDER_DIRS = [
     os.path.join(DATA, "providers"),
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "providers"),
@@ -675,7 +675,7 @@ def scrape_cwd(agent):
 
     Launching Claude in an unfamiliar directory raises a blocking workspace-trust
     dialog which swallows the keystrokes. omnigauge will NOT auto-accept that on
-    the user's behalf — trusting a folder is a real security decision and it
+    the user's behalf - trusting a folder is a real security decision and it
     persists. Instead it reuses a cwd the tool has demonstrably run in before,
     taken from Claude's own session registry.
     """
@@ -763,7 +763,7 @@ def scan_claude(path, since=0):
         msg = d.get("message") or {}
         u = msg.get("usage")
         if not isinstance(u, dict): continue
-        # Newest timestamp regardless of window — the core needs a fact about the
+        # Newest timestamp regardless of window - the core needs a fact about the
         # contents before it may skip this file on mtime alone. Kept identical to
         # providers/claude.py; the conformance tests lock the two together.
         ep = _epoch(d.get("timestamp", ""))
@@ -803,7 +803,7 @@ _CODEX_FIELDS = (("tin", "input_tokens"), ("tout", "output_tokens"),
 
 def _codex_spend(seq, since, fields):
     """What was actually spent from `since` onward. Identical in intent to
-    providers/codex.py::_spend — the conformance tests lock the two together.
+    providers/codex.py::_spend - the conformance tests lock the two together.
 
     The cumulative counter is differenced STEP BY STEP, because it does not only
     climb. A rollout reused by a new session sends it backwards; the new value is
@@ -992,7 +992,7 @@ SCANNERS = dict(claude=(claude_files, scan_claude), codex=(codex_files, scan_cod
 
 
 def register_provider_quota():
-    """A provider may bring its own QUOTA spec, parser, insights and cwd —
+    """A provider may bring its own QUOTA spec, parser, insights and cwd -
     overriding a built-in of the same name. That is how a contributor fixes a
     vendor UI change without touching the core."""
     for name, mod in PROVIDERS.items():
@@ -1009,7 +1009,7 @@ def register_provider_quota():
 
 
 def all_agents():
-    """Built-ins first, then providers — a provider may also override a built-in."""
+    """Built-ins first, then providers - a provider may also override a built-in."""
     out = list(SCANNERS)
     for name, mod in PROVIDERS.items():
         if getattr(mod, "KIND", "agent") != "agent":
@@ -1166,7 +1166,7 @@ def _wrap_note(text, width):
 
 def agent_order():
     """Every agent the board renders: built-ins in their canonical order, then
-    provider agents alphabetically. The render loops iterate THIS — a provider
+    provider agents alphabetically. The render loops iterate THIS - a provider
     whose data is collected but never drawn is a plugin system in name only."""
     rest = sorted(a for a in SCANNERS if a not in ("claude", "codex", "grok"))
     return [a for a in ("claude", "codex", "grok") if a in SCANNERS] + rest
@@ -1174,7 +1174,7 @@ def agent_order():
 
 def api_providers():
     """KIND="api" provider modules. Their detect() answers --doctor's
-    "configured?" and their api_usage(creds) feeds the spend panel — the two
+    "configured?" and their api_usage(creds) feeds the spend panel - the two
     halves of the contract providers/README promises them."""
     return {n: m for n, m in PROVIDERS.items()
             if getattr(m, "KIND", "") == "api"}
@@ -1191,7 +1191,7 @@ def memo_clear():
 
 def window_totals(agent, since):
     # Quantize: `since` is derived from now() on every render, so an exact key
-    # changed every second and the memo never hit — every theme press rescanned
+    # changed every second and the memo never hit - every theme press rescanned
     # the whole corpus.
     key = ("w", agent, int(since // 300))
     if key in _MEMO:
@@ -1287,7 +1287,7 @@ def lifetime_totals(agent, con, progress=False):
         # to hide a whole rewrite: same byte count, new contents, written within
         # a second of the last scan, and the cache kept answering with the old
         # numbers. Append-only transcripts grow, so size usually catches a
-        # change — a file rewritten in place, restored, or rotated to a
+        # change - a file rewritten in place, restored, or rotated to a
         # coincidentally equal length does not grow, and nothing else was
         # checked. A float second survives the round trip through SQLite REAL
         # intact; the epsilon is for the representation, not for the clock.
@@ -1328,7 +1328,7 @@ def lifetime_totals(agent, con, progress=False):
 
 # ─────────────────────────────────  alerts  ──────────────────────────────────
 #
-# The incumbents track and report. None of them tell you BEFORE it hurts —
+# The incumbents track and report. None of them tell you BEFORE it hurts -
 # tokscale's own docs say it "cannot set usage budgets or trigger alerts". This
 # is that. It is also the only part designed to run headless, from cron.
 
@@ -1338,7 +1338,7 @@ DEFAULT_ALERTS = {
     "dry_before_reset": True,  # warn when the forecast says it empties early
     "notify": True,            # desktop notification if a notifier exists
     "webhook": "",             # optional POST target
-    "quiet_hours": [],         # e.g. [23, 7] — no desktop popups overnight
+    "quiet_hours": [],         # e.g. [23, 7] - no desktop popups overnight
 }
 
 
@@ -1377,7 +1377,7 @@ def notify(cfg, messages, sev):
     is worse than no monitor."""
     if not messages:
         return
-    title = "OmniGauge — quota critical" if sev >= 2 else "OmniGauge — quota warning"
+    title = "OmniGauge - quota critical" if sev >= 2 else "OmniGauge - quota warning"
     body = "\n".join(messages[:6])
     hours = cfg.get("quiet_hours") or []
     quiet = False
@@ -1419,7 +1419,7 @@ CREDS = os.path.join(DATA, "credentials.json")
 
 
 def load_creds():
-    """Keys come from a 0600 file or the environment — never from argv, which
+    """Keys come from a 0600 file or the environment - never from argv, which
     would put them in shell history and in the process table."""
     c = {}
     if os.path.exists(CREDS):
@@ -1453,7 +1453,7 @@ def _get(url, token, timeout=20):
         body = e.read().decode()[:200]
         hint = ""
         if "api.usage.read" in body:
-            hint = " — needs an ADMIN key with the api.usage.read scope"
+            hint = " - needs an ADMIN key with the api.usage.read scope"
         return None, f"HTTP {e.code}{hint}"
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
@@ -1490,7 +1490,7 @@ def openai_spend(key, days=30):
 def x_usage(token, label):
     """X post-cap consumption.
 
-    VERIFIED 2026-08-14: calling this does NOT draw against the post cap — two
+    VERIFIED 2026-08-14: calling this does NOT draw against the post cap - two
     consecutive calls left project_usage unchanged. It has its own limit of 50
     per window, so it must not be polled aggressively.
 
@@ -1638,7 +1638,7 @@ def tmux_scrape(session, argv, keys, ready, done, boot=40, render=35, cwd=None):
             run("tmux", "send-keys", "-t", session, "3", "Enter")   # skip until next version; never install
             ok, screen = _wait_for(session, f"{ready}|{TRUST_RX}", max(5, boot - int(time.time() - t0)))
         if re.search(TRUST_RX, screen or "", re.I):
-            return screen, ("workspace-trust dialog is blocking input — run omnigauge "
+            return screen, ("workspace-trust dialog is blocking input - run omnigauge "
                             "from a directory this CLI already trusts, or use --cwd")
         if not ok:
             return screen, f"CLI never became ready within {boot}s"
@@ -1647,7 +1647,7 @@ def tmux_scrape(session, argv, keys, ready, done, boot=40, render=35, cwd=None):
         typed, screen = _wait_for(session, re.escape(keys), 8)
         if not typed:
             if re.search(TRUST_RX, screen or "", re.I):
-                return screen, ("workspace-trust dialog is blocking input — run omnigauge "
+                return screen, ("workspace-trust dialog is blocking input - run omnigauge "
                                 "from a directory this CLI already trusts, or use --cwd")
             return screen, "command did not reach the input box"
         run("tmux", "send-keys", "-t", session, "Enter")
@@ -1686,7 +1686,7 @@ def parse_claude(screen):
 
 
 def parse_codex(screen):
-    """% LEFT natively — inverted to % USED here."""
+    """% LEFT natively - inverted to % USED here."""
     rows = []
     for line in screen.splitlines():
         m = re.search(r"(.*?)Weekly limit:\s*\[[^\]]*\]\s*(\d+)%\s*left\s*\(resets\s+([^)]+)\)", line)
@@ -1879,7 +1879,7 @@ def burn(con, agent, window, model, pct_now, at_now, lookback=6 * 3600):
 
     Deliberately conservative:
       · needs two readings at least 10 minutes apart, else no claim is made
-      · a reset (percentage went DOWN) truncates the series — burning through a
+      · a reset (percentage went DOWN) truncates the series - burning through a
         reset boundary would otherwise read as negative usage
       · returns None rather than a guess when the rate is flat or falling
     """
@@ -2047,7 +2047,7 @@ def margin_text(dry_in, reset_s):
 
 def quota_row_text(agent, model, window, pct, rate, dry_in, reset, at, trend=None):
     """One PLAN QUOTA row, laid out for the current width. The READ column is
-    the reading's age — a PARTIAL refresh leaves the missing window's previous
+    the reading's age - a PARTIAL refresh leaves the missing window's previous
     reading on the board, and READ is what keeps that visible."""
     full, bar_w, margin, trend_col = _quota_layout()
     nm = short_model(agent, model)
@@ -2230,7 +2230,7 @@ def render(args):
         bot("X dollar balances are console-only · post-cap checks do not consume quota")
 
     cfg = load_alerts()
-    # NOT `sev` — assigning that name anywhere in render() makes it local for the
+    # NOT `sev` - assigning that name anywhere in render() makes it local for the
     # whole function and shadows the sev() severity helper used above.
     alert_sev, msgs = evaluate_alerts(con, cfg)
     if msgs:

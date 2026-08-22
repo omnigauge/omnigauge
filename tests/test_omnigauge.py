@@ -1,7 +1,7 @@
 """Rendered-output assertions for the omnigauge CLI.
 
-The panel-width invariant has broken three times — twice as arithmetic, once as
-font fallback — and every catch came from MEASURING rendered lines, never from
+The panel-width invariant has broken three times - twice as arithmetic, once as
+font fallback - and every catch came from MEASURING rendered lines, never from
 reading the code. These tests render and measure. stdlib only, like the tool.
 
 Run:  python3 -m unittest discover -s tests -v
@@ -111,7 +111,7 @@ class TestPanelWidths(unittest.TestCase):
         self.assert_frame(lines, 100)
 
     def test_quota_row_fits_default_80_column_terminal(self):
-        """The board's widest row must fit IN=78 — a default terminal — and
+        """The board's widest row must fit IN=78 - a default terminal - and
         every wider tier (forecast at 97, MARGIN at 106, 24H trend at 114)
         must frame just as exactly."""
         for W in (80, 100, 106, 114, 140):
@@ -283,7 +283,7 @@ class TestPanelWidths(unittest.TestCase):
 
     def test_no_fallback_risk_glyphs_in_panel_output(self):
         """Em dashes, curly quotes, arrows and non-CP437 partial blocks render at
-        a different advance when a font lacks them — the defect that ragged three
+        a different advance when a font lacks them - the defect that ragged three
         panels. None may appear in any frame line."""
         con = og.db(); con.execute("DELETE FROM snapshots")
         now = int(time.time())
@@ -447,7 +447,7 @@ class TestParsers(unittest.TestCase):
         self.assertIn(("week", "Opus"), got)
         self.assertEqual(got[("week", "all")]["pct_used"], 24.0)
         self.assertEqual(got[("week", "all")]["reset_at"], "Aug 19, 6pm (UTC)")
-        # the 0% row must survive — 0 is a reading, not an absence
+        # the 0% row must survive - 0 is a reading, not an absence
         self.assertEqual(got[("week", "Opus")]["pct_used"], 0.0)
 
     def test_claude_insights(self):
@@ -495,7 +495,7 @@ class TestParsers(unittest.TestCase):
 
 class TestScrapeContract(unittest.TestCase):
     """PARTIAL-parse-is-failure, exercised at the refresh() level with a fake
-    tmux — the real screen pipeline minus the terminal."""
+    tmux - the real screen pipeline minus the terminal."""
 
     def setUp(self):
         con = og.db(); con.execute("DELETE FROM snapshots"); con.commit(); con.close()
@@ -573,7 +573,7 @@ class TestSinceAndEpoch(unittest.TestCase):
 
     def test_scan_claude_includes_lines_with_broken_timestamps(self):
         """A message with an unreadable timestamp still happened. Excluding it
-        silently undercounts — the zeros-in-a-costume class."""
+        silently undercounts - the zeros-in-a-costume class."""
         p = os.path.join(_TMP, "t.jsonl")
         lines = [
             {"timestamp": "2026-08-15T10:00:00Z",
@@ -1512,7 +1512,7 @@ class TestWindowGateTrustsTheWrongClock(unittest.TestCase):
 
     mtime is a proxy for "when was this last written", and the scanner reads the
     timestamp INSIDE the file. Those come from two different clocks and they can
-    disagree — a restored backup, an rsync -a, a tar -x, a container with a
+    disagree - a restored backup, an rsync -a, a tar -x, a container with a
     skewed clock. When they disagree the file is skipped and its tokens vanish
     from the window with no error beside them.
 
@@ -1562,7 +1562,7 @@ class TestWindowGateTrustsTheWrongClock(unittest.TestCase):
         old = time.time() - 2 * 86400
         os.utime(f, (old, old))
         # Drop every cache so the second run cannot be answered from the first.
-        # (The db is usage.db, not omnigauge.db — guessing the name made this a
+        # (The db is usage.db, not omnigauge.db - guessing the name made this a
         # no-op the first time and the test still passed, which is its own
         # lesson: a cleanup step that silently does nothing looks like one that
         # worked.)
@@ -1585,7 +1585,7 @@ class TestHumanPromotesAtTheRoundingBoundary(unittest.TestCase):
     """human() chose its unit from the raw value, then rounded to two decimals.
 
     999,999 is below 1e6, so it picked K and rounded 999.999 into "1000.00K".
-    The board could show OUTPUT 1000.00M beside TOTAL 1.00B — the same magnitude
+    The board could show OUTPUT 1000.00M beside TOTAL 1.00B - the same magnitude
     in two notations, one row apart. The frame absorbed the extra characters, so
     this never broke a panel; it only ever made a reader look twice.
     """
@@ -1612,7 +1612,7 @@ class TestHumanPromotesAtTheRoundingBoundary(unittest.TestCase):
                     s = og.human(probe)
                     self.assertFalse(
                         s.startswith("1000."),
-                        f"human({probe:,}) = {s} — a thousand of a unit is the "
+                        f"human({probe:,}) = {s} - a thousand of a unit is the "
                         f"next unit")
 
 
@@ -1620,8 +1620,8 @@ class TestCodexCumulativeIsNotMonotonic(unittest.TestCase):
     """The window value is `last - base` across the window edge.
 
     That is only the truth while the vendor's cumulative counter never goes
-    backwards. When a rollout's counter resets — a new session reusing the file,
-    a vendor-side restart — the arithmetic breaks in both directions, and the
+    backwards. When a rollout's counter resets - a new session reusing the file,
+    a vendor-side restart - the arithmetic breaks in both directions, and the
     max(0, …) clamp turns the negative case into a confident zero.
 
     A file with no parseable timestamps at all cannot be placed in time. It must
@@ -1683,15 +1683,15 @@ class TestCodexCumulativeIsNotMonotonic(unittest.TestCase):
         self.assertEqual(
             r["tin"], 0,
             "no event in this file carries a timestamp, and the file has not "
-            "been written for 30 days — the only evidence available says it "
+            "been written for 30 days - the only evidence available says it "
             "contributed nothing to the last 24 hours")
 
 
 class TestCacheToleranceHidesARewrite(unittest.TestCase):
     """The incremental cache revalidates on `abs(cached_mtime - mtime) < 1`.
 
-    A whole second of tolerance means a file rewritten in place — same byte
-    count, different contents, within a second of the last scan — is served from
+    A whole second of tolerance means a file rewritten in place - same byte
+    count, different contents, within a second of the last scan - is served from
     cache and the new numbers never appear. Append-only transcripts grow, so
     size usually saves us; a file rewritten atomically, restored, or rotated to a
     coincidentally equal length does not grow, and nothing else is checked.
@@ -1746,7 +1746,7 @@ class TestCodexResetUndercountsBothWindowAndLifetime(unittest.TestCase):
     """Step-summing only happened when a baseline existed.
 
     A rollout that sits entirely inside the window has no pre-window event, so
-    there is no baseline and the value fell back to `last - 0` — the final
+    there is no baseline and the value fell back to `last - 0` - the final
     cumulative. When the counter restarts, that final value is only the spend
     since the LAST restart, and everything before it is dropped.
 
@@ -1797,7 +1797,7 @@ class TestCodexResetUndercountsBothWindowAndLifetime(unittest.TestCase):
 
 
 class TestCacheSurvivesAScannerChange(unittest.TestCase):
-    """The cache is keyed on (mtime, size) — properties of the FILE.
+    """The cache is keyed on (mtime, size) - properties of the FILE.
 
     Nothing records which version of the scanner produced a cached row, so
     changing how a file is counted leaves every unchanged file answering with

@@ -1,4 +1,4 @@
-"""Moonshot / Kimi — API spend provider.
+"""Moonshot / Kimi - API spend provider.
 
 The lab behind Kimi. GET /v1/users/me/balance returns available, voucher and
 cash balances; available <= 0 blocks inference, so that is the number shown.

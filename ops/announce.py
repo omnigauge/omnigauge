@@ -10,13 +10,13 @@ It deliberately does NOT live inside the installed tool. `install.sh` copies
 only `omnigauge` and `providers/*.py`, so nothing here reaches a user's machine.
 Somebody installing a usage meter did not ask for a tweet bot in it.
 
-  ANNOUNCEMENTS ONLY — never post a reading.
+  ANNOUNCEMENTS ONLY - never post a reading.
 
 Quota percentages are the operator's private consumption. A bot that tweets
 "87% of weekly limit" is publishing personal data about whoever is running it.
 This script has no access to the usage database on purpose.
 
-Auth is OAuth 1.0a user context. A bearer token CANNOT post — bearer is
+Auth is OAuth 1.0a user context. A bearer token CANNOT post - bearer is
 app-only and read-only for this endpoint. Four values are required, and the app
 must be set to Read and Write in the developer portal BEFORE the access token
 is generated; a token minted under Read-only stays read-only and 403s.
@@ -97,7 +97,7 @@ def _base_string(method, url, params):
 
 
 def _auth_header(method, url, creds, extra_params=None, nonce=None, stamp=None):
-    # The JSON body is NOT part of the signature base for v2 — only oauth
+    # The JSON body is NOT part of the signature base for v2 - only oauth
     # params and any query/form params. Including the body is the other
     # common 401. extra_params exists for form-encoded endpoints and for the
     # documented test vector; the v2 JSON path passes none.
@@ -193,7 +193,7 @@ def upload_media(path, creds, alt=""):
 
 
 def post(text, media_paths=(), alt="", reply_to=None):
-    """Send it. Returns the tweet id, or None — never raises at the caller.
+    """Send it. Returns the tweet id, or None - never raises at the caller.
 
     reply_to chains this post under another, which is all a thread is: each post
     replies to the one before it.
@@ -201,7 +201,7 @@ def post(text, media_paths=(), alt="", reply_to=None):
     creds = tuple(os.getenv(k, "").strip() for k in ENV)
     missing = [k for k, v in zip(ENV, creds) if not v]
     if missing:
-        print(f"  not sent — missing: {', '.join(missing)}", file=sys.stderr)
+        print(f"  not sent - missing: {', '.join(missing)}", file=sys.stderr)
         return None
     # alt may be one string for every image, or one per image. Four panels
     # sharing a single description is the same as three of them having none.
@@ -233,11 +233,11 @@ def post(text, media_paths=(), alt="", reply_to=None):
         if e.code == 403:
             hint = ("\n  403 usually means the access token was generated while "
                     "the app was Read-only. Set the app to Read and Write, then "
-                    "REGENERATE the token — changing the permission alone does "
+                    "REGENERATE the token - changing the permission alone does "
                     "not upgrade an existing one.")
-        print(f"  not sent — HTTP {e.code}: {detail}{hint}", file=sys.stderr)
+        print(f"  not sent - HTTP {e.code}: {detail}{hint}", file=sys.stderr)
     except Exception as e:
-        print(f"  not sent — {e}", file=sys.stderr)
+        print(f"  not sent - {e}", file=sys.stderr)
     return None
 
 
@@ -263,7 +263,7 @@ def split_thread(raw):
         @image: path/to/panel.png | what a screen reader should hear
 
     which keeps the text, the image and its alt text in ONE reviewable file.
-    The alternative — pairing images to posts on the command line — puts the
+    The alternative - pairing images to posts on the command line - puts the
     riskiest part of a launch (which picture goes with which claim) somewhere
     nobody reviews, and gets it wrong silently.
     """
@@ -318,18 +318,18 @@ def check_thread(posts, limit, media=None):
         for path, alt in imgs:
             ext = os.path.splitext(path)[1].lower()
             if ext not in _MIME:
-                problems.append(f"post {i}: {path} — unsupported type {ext!r}")
+                problems.append(f"post {i}: {path} - unsupported type {ext!r}")
                 continue
             try:
                 size = os.path.getsize(path)
             except OSError as e:
-                problems.append(f"post {i}: {path} — {e.strerror}")
+                problems.append(f"post {i}: {path} - {e.strerror}")
                 continue
             if size > 5 * 1024 * 1024:
-                problems.append(f"post {i}: {path} — {size:,} bytes, over X's 5MB cap")
+                problems.append(f"post {i}: {path} - {size:,} bytes, over X's 5MB cap")
             if not alt:
                 problems.append(
-                    f"post {i}: {os.path.basename(path)} has no alt text — add it "
+                    f"post {i}: {os.path.basename(path)} has no alt text - add it "
                     f"after a | on the {IMAGE_TAG} line")
     return problems
 
@@ -345,14 +345,14 @@ def post_thread(posts, limit, media_first=(), alt="", dry=True, media=None):
     problems = check_thread(posts, limit, media)
     if problems:
         for p in problems:
-            print(f"  REFUSED — {p}", file=sys.stderr)
+            print(f"  REFUSED - {p}", file=sys.stderr)
         return []
 
     n_img = sum(len(m) for m in media)
     print(f"\n  {len(posts)} posts, {sum(len(t) for t in posts):,} characters"
           f"{f', {n_img} images' if n_img else ''}\n")
     for i, t in enumerate(posts, 1):
-        flag = "" if len(t) <= FREE_LIMIT else f"  [{len(t)} chars — needs Premium]"
+        flag = "" if len(t) <= FREE_LIMIT else f"  [{len(t)} chars - needs Premium]"
         head = "post" if i == 1 else f"  reply {i - 1}"
         print(f"  {'─' * 66}")
         print(f"  {head} {i}/{len(posts)}{flag}")
@@ -360,7 +360,7 @@ def post_thread(posts, limit, media_first=(), alt="", dry=True, media=None):
         for line in t.splitlines():
             print(f"  {line}")
         for path, a_ in media[i - 1]:
-            print(f"  [img] {os.path.basename(path)} — {a_}")
+            print(f"  [img] {os.path.basename(path)} - {a_}")
         print()
     if dry:
         print("  dry run. nothing was sent. add --post to publish.\n")
@@ -480,7 +480,7 @@ def compose(a):
         return f"{head}{notes}\n\n{REPO}/releases"
     if a.kind == "provider":
         return (f"OmniGauge now reads {a.name}.\n\n"
-                f"One command for every AI plan you are burning through — "
+                f"One command for every AI plan you are burning through - "
                 f"quota, tokens, and when it resets.\n\n{REPO}")
     return a.name
 
@@ -533,7 +533,7 @@ def main():
     n = x_len(text)
     print(f"\n{'─'*60}\n{text}\n{'─'*60}\n  {n}/{LIMIT} characters as X counts them")
     if n > LIMIT:
-        print("  too long — not sent", file=sys.stderr)
+        print("  too long - not sent", file=sys.stderr)
         return 1
     if a.media:
         for p in a.media:
@@ -542,7 +542,7 @@ def main():
         print("  dry run. add --post to send.\n")
         return 0
     tid = post(text, media_paths=a.media, alt=a.alt)
-    print(f"  posted — https://x.com/OmniGauge/status/{tid}\n" if tid else "")
+    print(f"  posted - https://x.com/OmniGauge/status/{tid}\n" if tid else "")
     return 0 if tid else 1
 
 

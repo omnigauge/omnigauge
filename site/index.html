@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniGauge — every AI plan and API account you pay for, on one screen</title>
+<title>OmniGauge - every AI plan and API account you pay for, on one screen</title>
 <meta name="description" content="One terminal dashboard for every AI plan and API account you pay for - Claude Code, Codex, Grok, Aider, Goose, and OpenAI, X, OpenRouter, Moonshot, DeepSeek spend. Plan quota, token volume, burn rate, time to reset. Keyless for quota and tokens; the optional spend panel takes your vendor keys. No telemetry.">
 <link rel="canonical" href="https://omnigauge.dev/">
 <link rel="icon" href="/favicon.ico?v=3" sizes="any">
@@ -29,7 +29,7 @@
 
    1985 chose that blue because CGA had sixteen colours and blue was the one
    that did not hurt after eight hours. The palette here keeps the relationships
-   — blue field, cyan structure, yellow for the thing that needs you — and drops
+   - blue field, cyan structure, yellow for the thing that needs you - and drops
    the parts that were hardware limits: #0000AA is corrected to a blue with some
    depth, the drop shadows are real alpha instead of a dithered character, and
    the type is hinted rather than a 9x16 ROM bitmap.
@@ -62,7 +62,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
 body{color:var(--white);font-family:var(--mono);
-     /* the famous desktop was never a flat fill — it was a ▒ dither, because a
+     /* the famous desktop was never a flat fill - it was a ▒ dither, because a
         flat expanse of CGA blue banded horribly. Rendered here as a 4px dot
         lattice at 3% instead of a character, which is what it always wanted
         to be. */
@@ -76,7 +76,7 @@ body{color:var(--white);font-family:var(--mono);
 html{--fs:13px}
 body{font-size:var(--fs)}
 
-/* the faintest nod to a phosphor mask — present, never a costume */
+/* the faintest nod to a phosphor mask - present, never a costume */
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
   background:repeating-linear-gradient(180deg,rgba(255,255,255,.010) 0 1px,transparent 1px 3px);
   mix-blend-mode:overlay}
@@ -103,7 +103,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
 #scr{height:100%;overflow-y:auto;overflow-x:hidden;padding:2.7em .9em 3.2em;
   scrollbar-width:none}
 #scr::-webkit-scrollbar{display:none}
-/* The block is 78 columns and margin:auto centres it exactly — but the ink does
+/* The block is 78 columns and margin:auto centres it exactly - but the ink does
    not fill it. Loose lines run a median of 43 columns, so their weight sits left
    of the box's centre and the page reads as left-aligned even though it is not.
    Optical centring: shift right by roughly half the shortfall. --nudge is the
@@ -124,8 +124,8 @@ a{color:var(--cyan)}
 
 /* Turbo Vision drew its shadow with ░ characters. This is that idea with alpha. */
 /* No horizontal padding. The box-drawing characters ARE the border, so any
-   inset pushes a panel's left edge right of every line that is not in a panel —
-   boot text, the prompt, loose lines — and the page gets a zigzag left margin
+   inset pushes a panel's left edge right of every line that is not in a panel -
+   boot text, the prompt, loose lines - and the page gets a zigzag left margin
    instead of one edge running top to bottom. */
 .pan{display:block;width:max-content;background:var(--panel);background-image:none;
   padding:.2em 0;box-shadow:.5em .32em 0 var(--shadow);border:0;margin:.15em 0 .5em}
@@ -133,7 +133,7 @@ a{color:var(--cyan)}
 .ln{display:flex;align-items:baseline;gap:0;margin-top:.9em;flex-wrap:wrap;
   border-top:1px solid rgba(120,150,220,.10);padding-top:.75em}
 .ps{color:var(--yellow);flex:none;margin-right:.6ch}
-/* sized to its own content in ch units — a monospace ch IS the advance width,
+/* sized to its own content in ch units - a monospace ch IS the advance width,
    so the block cursor lands exactly where the next character will. flex:1 put
    the input across the whole row and pushed the cursor to the far margin. */
 #in{background:transparent;border:0;outline:0;color:var(--white);font:inherit;
@@ -190,7 +190,7 @@ a{color:var(--cyan)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;
     clip-path:inset(50%);white-space:nowrap}
 /* the Turbo Vision dialog: centred, double border, hard shadow, one button
-   that already has focus — because in 1985 you could not assume a mouse */
+   that already has focus - because in 1985 you could not assume a mouse */
 #modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;
   justify-content:center;background:rgba(4,10,34,.35)}
 #modal.on{display:flex}
@@ -251,13 +251,13 @@ noscript pre{color:var(--cyan);margin:.8em 0}
 <div id="scr">
 <noscript><div>
   <h1>OmniGauge</h1>
-  <p>Every AI plan you pay for, on one screen. Claude Code, Codex, Grok, Aider, Goose and your API accounts —
+  <p>Every AI plan you pay for, on one screen. Claude Code, Codex, Grok, Aider, Goose and your API accounts -
   plan quota, token volume, burn rate and time to reset, side by side in your terminal.</p>
   <p>Each vendor reports usage in a different unit, over a different window, in a different
   direction. Codex counts down, Claude counts up, Grok gives raw tokens against a cap, Gemini
   says "limited". OmniGauge normalizes all of it to percent consumed against a common window,
   so you can see which plan runs out first.</p>
-  <p>No keys for the part that matters — quota and tokens are read from what your agents
+  <p>No keys for the part that matters - quota and tokens are read from what your agents
   already write to disk. The optional dollar-spend panel does take vendor keys: stored 0600,
   never passed as arguments, refused outright if group- or world-readable. Leave it off and
   no credential or network call is involved. No telemetry. One Python file, no dependencies,
@@ -300,7 +300,7 @@ omnigauge --update</pre>
 <script>
 (function(){
 /* One place for the donation address. It is rendered, matched on double-click
-   and copied to the clipboard — four uses that must never disagree, because a
+   and copied to the clipboard - four uses that must never disagree, because a
    panel showing one wallet while the clipboard holds another is worse than
    either alone. */
 var DONATE_SOL='HDDEfcYnLh4w8yG5Rn8chcm15xo1LavkvtRGeTRGAUGE';
@@ -447,7 +447,7 @@ function dryRow(){return MOBILE?'  [[f]]'+pad('dry in',8)+'[[/]][[y]]'+fmt(S.dry
 function todayRow(){return MOBILE?'  [[f]]'+pad('today',8)+'[[/]][[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens[[/]]'
   :'  [[f]]today[[/]]          [[c]]'+S.tok.toFixed(3)+'B[[/]] [[d]]tokens across three agents[[/]]';}
 /* Height was the obvious way to draw a week, and it cost seven partial-block
-   glyphs — the same family that rendered the CLI panels ragged, because a font
+   glyphs - the same family that rendered the CLI panels ragged, because a font
    without them substitutes a face with a different advance. Intensity carries
    the shape instead: one glyph the terminals all have, four colour steps. */
 function spark(v){var mx=Math.max.apply(null,v);
@@ -494,7 +494,7 @@ function board(){
   row('');
   row('[[f]]'+pad('',COL.mark)+pad('AGENT',COL.agent)+pad('WINDOW',COL.window)+pad('',COL.bar)+rpad('USED',COL.used)+rpad('RESETS IN',COL.reset)+'[[/]]');
   /* Real readings off the author's machine, 15 Aug 2026. Not invented, not
-     rounded to look tidy — codex really was at 100% with four days to run. */
+     rounded to look tidy - codex really was at 100% with four days to run. */
   [['claude','week',28,'4d 09h'],['claude','session',16,'5:19am'],
    ['claude/fable','week',5,'4d 09h'],['codex','week',100,'4d 14h'],
    ['codex/spark','week',0,'6d 17h'],
@@ -529,7 +529,7 @@ function board(){
    fails whenever this block disagrees with the code. Edit providers/, run
    the generator; never edit the data by hand. */
 /*LEGEND-DATA*/var LEGEND={"negatives":[{"n":"cursor","why":"the IDE writes token fields and zeroes every value"},{"n":"antigravity","why":"records trajectories; no token accounting at all"},{"n":"copilot","why":"no token accounting in its logs"}],"sources":[{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained"},"k":"agent","n":"claude"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: attributed to the last model in the file","quota":"obtained: percent remaining, inverted","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: last cumulative total per rollout"},"k":"agent","n":"codex"},{"c":{"burn":"obtained: derived from the quota series","lifetime":"obtained","models":"obtained: from the session summary","quota":"obtained","reset":"obtained","spend":"unavailable: subscription plans have no dollar balance","tokens":"obtained: session totals only"},"k":"agent","n":"grok"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per session header, at session resolution","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost lines exist; the spend panel does not read them yet","tokens":"obtained: aider's own token lines; roots via OMNIGAUGE_AIDER_DIRS"},"k":"agent","n":"aider"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"obtained","models":"obtained: per ledger row, dated model ids","quota":"unavailable: key-based; there is no plan window to read","reset":"unavailable: no plan window, nothing resets","spend":"available: cost is recorded; the spend panel does not read it yet","tokens":"obtained: usage_ledger, the vendor's own accounting"},"k":"agent","n":"goose"},{"c":{"burn":"unavailable: no quota series to derive from","lifetime":"available: the API takes wider date ranges","models":"unavailable: not broken out by the usage API","quota":"unavailable: admin keys expose spend, not plan windows","reset":"unavailable: no window to reset","spend":"obtained: organization costs, 30 days","tokens":"obtained: 30-day organization totals"},"k":"api","n":"openai"},{"c":{"burn":"unavailable: no series is kept for post caps","lifetime":"unavailable: an API account, not a local agent","models":"unavailable: an API account, not a local agent","quota":"obtained: posts against the project cap","reset":"unavailable: the usage endpoint does not state the window end","spend":"unavailable: dollar balances are console-only, verified","tokens":"unavailable: an API account, not a local agent"},"k":"api","n":"x"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: total balance in the account's currency","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"deepseek"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"unavailable: only the current balance is exposed","models":"unavailable: not broken out by the balance endpoint","quota":"unavailable: a prepaid balance, not a subscription window","reset":"unavailable: balances deplete; there is no window to reset","spend":"obtained: available balance (voucher + cash)","tokens":"unavailable: the balance endpoint reports money, not tokens"},"k":"api","n":"moonshot"},{"c":{"burn":"unavailable: no series is kept for spend sources","lifetime":"obtained: usage is the key's lifetime credit spend","models":"unavailable: an aggregator; models are chosen per request","quota":"obtained: usage against the key's credit limit, when one is set","reset":"unavailable: credits deplete; there is no window to reset","spend":"obtained: credit dollars used, from the key's own endpoint","tokens":"unavailable: the key endpoint reports credit dollars, not tokens"},"k":"api","n":"openrouter"}]};/*END-LEGEND-DATA*/
-/*FACTS-DATA*/var FACTS={"agents":["claude","codex","grok","aider","goose"],"apis":["openai","x","deepseek","moonshot","openrouter"],"lines":2884,"lines_k":"2.9k","mirrors":["aider","claude","codex","deepseek","goose","grok","moonshot","openrouter"],"negatives":["cursor","antigravity","copilot"],"sources":10,"tests":143,"version":"1.0.9"};/*END-FACTS-DATA*/
+/*FACTS-DATA*/var FACTS={"agents":["claude","codex","grok","aider","goose"],"apis":["openai","x","deepseek","moonshot","openrouter"],"lines":2884,"lines_k":"2.9k","mirrors":["aider","claude","codex","deepseek","goose","grok","moonshot","openrouter"],"negatives":["cursor","antigravity","copilot"],"sources":10,"tests":144,"version":"1.0.10"};/*END-FACTS-DATA*/
 var CAPORDER=['tokens','quota','reset','models','lifetime','spend','burn'];
 /* Numbers in prose come from FACTS, generated by ops/gen_legend.py from the
    repo - the line count, the source counts, the test count. Hand-typed, five
@@ -964,7 +964,7 @@ addEventListener('keydown',function(e){
     if(m){e.preventDefault();openMenu(document.querySelector('[data-m='+m+']'));return;}}
   if(FK[e.key]){e.preventDefault();inp.value='';resize();runNav(FK[e.key]);bottom();return;}
 });
-/* pull-downs — clicking a title opens it, moving along the bar switches it,
+/* pull-downs - clicking a title opens it, moving along the bar switches it,
    the way every DOS application behaved */
 var MENUS={
  gauge:[['board','<u>B</u>oard','board'],['doctor','<u>D</u>octor','doctor'],['-'],
@@ -1090,12 +1090,12 @@ C.time=function(){blank();line('  [[w]]Current time is '+new Date().toLocaleTime
 var saver=document.getElementById('saver'),sv=document.getElementById('sv'),
     idle=0,sx=60,sy=60,dx=1.3,dy=.9,sTimer=null;
 /* The DVD-logo problem. Everyone who has ever watched one of these has waited
-   for the corner, and almost nobody has seen it — so it is worth counting. */
+   for the corner, and almost nobody has seen it - so it is worth counting. */
 var PAL=['#5aa6c9','#c9974f','#6ea888','#c47070','#8d9cbe','#a98fc4','#c9c07a'],
     pi=0, corners=0, bounced=0;
 /* The wake-on-any-input listener is registered after the key handler, so a
    keystroke that starts the saver also reaches the waker and kills it inside
-   the same event — it turned on and off before a frame was ever drawn. The
+   the same event - it turned on and off before a frame was ever drawn. The
    command worked only because it happened to defer with a timeout.
 
    Two guards, because relying on listener order is how this broke: start on a
@@ -1166,7 +1166,7 @@ function wake(){
 if(!RM) setInterval(function(){ if(++idle>110 && !saver.classList.contains('on')) marquee(); },1000);
 
 /* ── one grid, every screen ────────────────────────────────────────────────
-   The advance width of a monospace glyph is not a constant across platforms —
+   The advance width of a monospace glyph is not a constant across platforms -
    it is roughly .6em, but "roughly" puts the right-hand │ off the screen on a
    phone. So measure the real ratio in the real font, then solve for the size
    that makes 78 columns exactly fill the viewport. */

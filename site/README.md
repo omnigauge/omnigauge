@@ -1,12 +1,12 @@
 # omnigauge.dev
 
 One self-contained file. No build step, no framework, no external requests at
-render time — a tool whose claim is that it makes no network calls should not
+render time - a tool whose claim is that it makes no network calls should not
 have a homepage that phones out.
 
 ## What it is
 
-A working DOS/Turbo Vision terminal. Pull-down menus, F1–F10, a command line
+A working DOS/Turbo Vision terminal. Pull-down menus, F1-F10, a command line
 with history and tab completion, a modal dialog, a CRT power-on, meters that
 fill, a sparkline, and a screensaver that counts its own bounces.
 
@@ -15,12 +15,12 @@ fill, a sparkline, and a screensaver that counts its own bounces.
 The grid is **78 columns on desktop and 42 on a phone**, and every rendered
 line obeys its mode's grid. `fit()` measures the real glyph advance in the
 real font and solves for the font size, because the advance of a monospace
-glyph is not a constant across platforms — assuming `.6em` puts the
+glyph is not a constant across platforms - assuming `.6em` puts the
 right-hand border off the edge of a phone. Below the legibility floor the
 page re-solves for the 42-column mobile grid instead of shrinking further;
 every panel carries a hand-set mobile variant behind `if(MOBILE)`, and the
 desktop strings are never edited to make room. The one width exemption is
-the `cmd` class — a copyable string (an install command, the donation
+the `cmd` class - a copyable string (an install command, the donation
 address) that CSS soft-wraps while the text stays one selectable line.
 
 Anything that draws a panel goes through `head()` / `row()` / `foot()`, which
@@ -44,7 +44,7 @@ pulls `main` every five minutes. The receipt, run from anywhere:
 `release.yml` runs the same version check after every release and fails loudly if the site lags.
 
 Served by nginx on the origin box behind Cloudflare (proxied A records).
-**One home** — the site briefly had two live copies (Pages and the origin)
+**One home** - the site briefly had two live copies (Pages and the origin)
 with no way to tell which was served, and the split cost a build nobody
 could locate. The Pages project is deleted so it cannot silently re-take
 the hostname. Whatever changes in `site/` gets scp'd to the origin and then
@@ -53,7 +53,7 @@ verified **through the domain**: `/` byte-identical to the repo file,
 404, direct-IP TLS refused.
 
 The nginx vhost carries the security headers and the www → apex 301, and
-`try_files … =404` keeps crawler paths honest — under Pages, every unknown
+`try_files … =404` keeps crawler paths honest - under Pages, every unknown
 path (robots.txt included) answered 200 with the page. The vhost also
 enforces a Cloudflare-only origin gate, and its certificate is deliberately
 separate from every other domain on the box.

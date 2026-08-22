@@ -4,7 +4,7 @@ __pycache__/
 last-scrape-*.txt
 .venv/
 
-# Design exploration — concept sheets, generator output, rejected marks, size
+# Design exploration - concept sheets, generator output, rejected marks, size
 # tests. These are the trail, not the deliverable. The shipped art is the small
 # set of logo-*.png / logo.svg / x-header-*.png files that are tracked.
 assets/concept-*.png

@@ -1,11 +1,11 @@
 /* Minimal DOM, real renderer. Loads the site script from site/index.html,
    boots it, drives every text command IN BOTH MODES, and MEASURES the
-   rendered rows — the page's width invariant broke once as arithmetic and
+   rendered rows - the page's width invariant broke once as arithmetic and
    once as a glyph, and both were only ever caught by measuring.
 
    Desktop is a 78-column grid; mobile is 42. Panel rows must measure the
    grid exactly; loose lines must fit inside it. The one exemption is the
-   `cmd` class — a copyable string longer than the mobile grid (an install
+   `cmd` class - a copyable string longer than the mobile grid (an install
    command, the donation address) that CSS soft-wraps while the text stays
    one selectable line. Those are exempt from width, never from glyphs.
 

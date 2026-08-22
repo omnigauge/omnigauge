@@ -14,7 +14,7 @@ A slash command in its TUI, a documented API, or not at all.
 
 **Does reading quota consume any allowance?**
 If you do not know, say so. For X this was settled by calling the endpoint twice
-and confirming the reported usage did not move — that kind of check belongs in
+and confirming the reported usage did not move - that kind of check belongs in
 the code, not in someone's memory.
 
 **Does it report percent USED or percent REMAINING?**

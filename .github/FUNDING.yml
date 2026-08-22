@@ -1,4 +1,4 @@
 # GitHub has no Solana field. `custom` takes URLs, not addresses, so the wallet
-# lives in the README and this points at it — which also means rotating the
+# lives in the README and this points at it - which also means rotating the
 # address is a one-line README edit rather than a config change.
 custom: ["https://github.com/omnigauge/omnigauge#donations"]
