@@ -51,7 +51,7 @@ jobs:
       # (the run's own context). PyPI carries its own PEP 740 attestation of the same files.
       - name: attest the wheel and the sdist
         id: attest
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
       - name: the bundle beside the files, and the statement as *.intoto.jsonl
