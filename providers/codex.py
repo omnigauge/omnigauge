@@ -50,6 +50,20 @@ _FIELDS = (("tin", "input_tokens"), ("tout", "output_tokens"),
            ("think", "reasoning_output_tokens"), ("total", "total_tokens"))
 
 
+def _once(seq):
+    """Each event once: the gap walk's blocks overlap where a long line holds a
+    block's offset, and a repeated, earlier cumulative read as a counter restart
+    counted the whole cumulative again (Oct 12: 26.18B credited to a window, against
+    a lifetime of 1.15B). Kept identical to the builtin's _codex_once."""
+    seen, out = set(), []
+    for ep, u in seq:
+        key = (ep, json.dumps(u, sort_keys=True))
+        if key in seen: continue
+        seen.add(key)
+        out.append((ep, u))
+    return out
+
+
 def _spend(seq, since, fields):
     """What was actually spent from `since` onward, given (epoch, totals) events.
 
@@ -188,7 +202,7 @@ def scan(path, since=0):
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
-    for key, val in _spend(seq if seq else events, since, _FIELDS).items():
+    for key, val in _spend(_once(seq if seq else events), since, _FIELDS).items():
         t[key] = val
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t

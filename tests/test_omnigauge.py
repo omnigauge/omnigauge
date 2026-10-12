@@ -908,6 +908,38 @@ class TestProviderConformance(unittest.TestCase):
         self.assertEqual(og.scan_codex(p, cut), self.plug_codex.scan(p, cut),
                          "gap-walk drift: builtin vs mirror")
 
+    def test_codex_gap_walk_counts_each_event_once(self):
+        """Real rollouts mix long lines (a tool's output) with small token_count
+        lines, so the gap walk's 512KB blocks overlap by whole events where a long
+        line holds a block's offset. A repeated, earlier cumulative was read as a
+        counter restart and counted the whole cumulative again (Oct 12: one
+        rollout's window credited 26.18B against a lifetime of 1.15B). Each event
+        counts once, through BOTH copies."""
+        def ev(ts, tot, pad):
+            return json.dumps({"timestamp": ts, "pad": "x" * pad, "payload": {
+                "info": {"total_token_usage": {
+                    "input_tokens": tot, "cached_input_tokens": 0,
+                    "output_tokens": 0, "reasoning_output_tokens": 0,
+                    "total_tokens": tot}}}}) + "\n"
+        p = os.path.join(_TMP, "codex-gap-overlap.jsonl")
+        n, base, inside = 0, 0, 0
+        with open(p, "w") as fh:
+            fh.write('{"model":"gpt-overlap"}\n')
+            for day, count in (("2026-08-10", 1500), ("2026-08-15", 2500)):
+                if day == "2026-08-15": base = n
+                for i in range(count):
+                    n += 1000
+                    # one long line in every fifty: a tool's output, 100KB
+                    fh.write(ev(f"{day}T{i//3600:02d}:{(i//60)%60:02d}:{i%60:02d}Z", n, 100000 if i % 50 == 7 else 40))
+                    if day == "2026-08-15": inside += 1
+        self.assertGreater(os.path.getsize(p), 4 << 20, "fixture must outgrow the tail")
+        cut = og._epoch("2026-08-14T00:00:00Z")
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            self.assertEqual(fn(p, cut)["total"], n - base,
+                             f"an event counted twice in {fn.__module__}: {fn(p, cut)['total']} for {n - base}")
+        self.assertEqual(n - base, 1000 * inside)
+        self.assertEqual(og.scan_codex(p, cut), self.plug_codex.scan(p, cut), "gap-walk drift: builtin vs mirror")
+
     def test_codex_scan_since_is_a_window_delta(self):
         """A rollout touched inside the window contributes its GROWTH across
         the window edge, not its whole history - the old behaviour put 1.13B

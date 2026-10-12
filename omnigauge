@@ -801,6 +801,24 @@ _CODEX_FIELDS = (("tin", "input_tokens"), ("tout", "output_tokens"),
                  ("think", "reasoning_output_tokens"), ("total", "total_tokens"))
 
 
+def _codex_once(seq):
+    """Each event once. The gap walk's 512KB blocks each begin at the line after
+    their offset and read a fixed length past it, so where a long line (a tool's
+    output) holds one block's offset, that block runs on into the next and its
+    events come twice. In the step-sum a repeated, earlier cumulative looked like a
+    counter restart, and a restart counts the whole cumulative again: on Oct 12 one
+    rollout's 24h window was credited 26.18B against a lifetime of 1.15B. An event
+    repeated exactly (time and totals) adds nothing, so dropping it is always safe.
+    Kept identical to providers/codex.py::_once."""
+    seen, out = set(), []
+    for ep, u in seq:
+        key = (ep, json.dumps(u, sort_keys=True))
+        if key in seen: continue
+        seen.add(key)
+        out.append((ep, u))
+    return out
+
+
 def _codex_spend(seq, since, fields):
     """What was actually spent from `since` onward. Identical in intent to
     providers/codex.py::_spend - the conformance tests lock the two together.
@@ -943,7 +961,7 @@ def scan_codex(path, since=0):
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
-    for key, val in _codex_spend(seq if seq else events, since, _CODEX_FIELDS).items():
+    for key, val in _codex_spend(_codex_once(seq if seq else events), since, _CODEX_FIELDS).items():
         t[key] = val
     add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t
