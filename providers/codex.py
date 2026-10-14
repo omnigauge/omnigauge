@@ -123,7 +123,7 @@ def _events(text):
     return out
 
 
-def _inherited(path, size, head=1 << 22):
+def _inherited(path, size, head=1 << 28):
     """What a rollout inherits from the thread it was forked from, which that thread's
     own file already counts: the cumulative just before this rollout's first call of
     its own, or None. A sub-agent's thread (session_meta forked_from_id) starts from
@@ -135,7 +135,10 @@ def _inherited(path, size, head=1 << 22):
     parent's exact cumulatives), so the inherited part is the last cumulative of that
     burst, which ends at the first pause of over a second (the fork's own first call,
     its parent's whole history in context, takes longer). Summing each file's last
-    cumulative counted 3.40T on Oct 12 where OpenAI's own page showed 91.7B. Kept identical to the builtin's _codex_inherited."""
+    cumulative counted 3.40T on Oct 12 where OpenAI's own page showed 91.7B. The first
+    usage line can come megabytes in, a paginated fork's file holding its parent's
+    history first (Jul 30-31 and Sep 5: 5-6MB in, 96B uncounted below 4MB), so the
+    head is read up to 256MB, stopping at that line. Kept identical to the builtin's _codex_inherited."""
     try:
         # a large buffer: a Windows folder seen from WSL answers each read slowly, and
         # line by line through the default 8KB buffer ran ~40x slower (8 MB/s)

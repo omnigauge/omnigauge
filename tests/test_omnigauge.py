@@ -994,6 +994,29 @@ class TestProviderConformance(unittest.TestCase):
             for since in (0, cut):
                 self.assertEqual(og.scan_codex(p, since), self.plug_codex.scan(p, since), "fork drift: builtin vs mirror")
 
+    def test_codex_fork_first_usage_far_into_the_file_is_still_found(self):
+        """A paginated fork's file holds its parent's history first, with no usage
+        lines, so its first usage line, carrying the parent's cumulative, can come
+        megabytes in (Jul 30-31 and Sep 5: 5-6MB in; read only to 4MB, those forks
+        counted 96B of inherited history again). Found wherever it is, through BOTH
+        copies."""
+        p = os.path.join(_TMP, "codex-fork-deep.jsonl")
+        u = lambda n: {"input_tokens": n, "cached_input_tokens": 0, "output_tokens": 0,
+                       "reasoning_output_tokens": 0, "total_tokens": n}
+        with open(p, "w") as fh:
+            fh.write(json.dumps({"timestamp": "2026-07-31T21:03:30.000Z", "type": "session_meta", "payload": {
+                "id": "fork", "forked_from_id": "parent", "history_mode": "paginated"}}) + "\n")
+            for i in range(600):        # the parent's history: ~6MB with no usage line
+                fh.write(json.dumps({"timestamp": "2026-07-31T21:03:30.000Z", "type": "response_item",
+                                     "payload": {"type": "message", "content": "x" * 10000}}) + "\n")
+            for ts, tot, own in (("2026-07-31T21:03:40.000Z", 1300001000, 1000), ("2026-07-31T21:03:45.000Z", 1300003000, 2000)):
+                fh.write(json.dumps({"timestamp": ts, "type": "event_msg", "payload": {"type": "token_count",
+                                     "info": {"total_token_usage": u(tot), "last_token_usage": u(own)}}}) + "\n")
+        self.assertGreater(os.path.getsize(p), 5 << 20, "the first usage line must lie past 4MB")
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            self.assertEqual(fn(p, 0)["total"], 3000, f"inherited history counted in {fn.__module__}: {fn(p, 0)['total']}")
+        self.assertEqual(og.scan_codex(p, 0), self.plug_codex.scan(p, 0), "deep fork drift: builtin vs mirror")
+
     def test_codex_scan_since_is_a_window_delta(self):
         """A rollout touched inside the window contributes its GROWTH across
         the window edge, not its whole history - the old behaviour put 1.13B
