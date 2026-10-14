@@ -940,6 +940,60 @@ class TestProviderConformance(unittest.TestCase):
         self.assertEqual(n - base, 1000 * inside)
         self.assertEqual(og.scan_codex(p, cut), self.plug_codex.scan(p, cut), "gap-walk drift: builtin vs mirror")
 
+    def test_codex_fork_inherited_history_counts_once(self):
+        """A sub-agent's thread starts from its parent's history, which the parent's
+        own file counts. A paginated fork's first usage line carries the parent's
+        cumulative (Aug 2026: ~3.2B on a call of ~80k); a legacy fork replays the
+        parent's usage lines as it is made (4,578 of one parent's cumulatives in each
+        of three forks). Summing each file's last cumulative read 3.40T where OpenAI's
+        own page showed 91.7B. Each fork counts its own calls alone, window and
+        lifetime, through BOTH copies; a restart from an inherited cumulative adds
+        that call's own usage."""
+        def meta(**kw):
+            return json.dumps({"timestamp": "2026-08-14T23:52:00.000Z", "type": "session_meta",
+                               "payload": dict({"id": "fork"}, **kw)}) + "\n"
+        def ev(ts, tot, own):
+            u = lambda n: {"input_tokens": n, "cached_input_tokens": 0, "output_tokens": 0,
+                           "reasoning_output_tokens": 0, "total_tokens": n}
+            return json.dumps({"timestamp": ts, "type": "event_msg", "payload": {"type": "token_count",
+                               "info": {"total_token_usage": u(tot), "last_token_usage": u(own)}}}) + "\n"
+        # paginated: the first line carries the parent's 3,000,000; the fork's own calls are 1,000 and 2,000
+        p1 = os.path.join(_TMP, "codex-fork-paginated.jsonl")
+        with open(p1, "w") as fh:
+            fh.write(meta(forked_from_id="parent", history_mode="paginated"))
+            fh.write(ev("2026-08-14T23:52:05.000Z", 3001000, 1000))
+            fh.write(ev("2026-08-14T23:52:09.000Z", 3003000, 2000))
+        # legacy: the parent's 40 calls replayed in one burst (to 40,000), then the fork's own 300 and 400
+        p2 = os.path.join(_TMP, "codex-fork-legacy.jsonl")
+        with open(p2, "w") as fh:
+            fh.write(meta(forked_from_id="parent", history_mode="legacy"))
+            for i in range(40):
+                fh.write(ev(f"2026-08-14T23:52:00.{100 + i * 20:03d}Z", 1000 * (i + 1), 1000))
+            fh.write(ev("2026-08-14T23:52:06.000Z", 40300, 300))
+            fh.write(ev("2026-08-14T23:52:11.000Z", 40700, 400))
+        # a restart from an inherited cumulative: 10,000 and 20,000 of its own, then a call of 500 on 25,000
+        p3 = os.path.join(_TMP, "codex-restart-inherited.jsonl")
+        with open(p3, "w") as fh:
+            fh.write(meta())
+            fh.write(ev("2026-08-14T20:00:00.000Z", 10000, 10000))
+            fh.write(ev("2026-08-14T20:00:05.000Z", 30000, 20000))
+            fh.write(ev("2026-08-14T21:00:00.000Z", 25000, 500))
+        # a fresh thread is as it was: its first cumulative is its own
+        p4 = os.path.join(_TMP, "codex-fresh-own.jsonl")
+        with open(p4, "w") as fh:
+            fh.write(meta())
+            fh.write(ev("2026-08-14T20:00:00.000Z", 7000, 7000))
+            fh.write(ev("2026-08-14T20:00:05.000Z", 9000, 2000))
+        cut = og._epoch("2026-08-14T00:00:00Z")
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            for p, want in ((p1, 3000), (p2, 700), (p3, 30500), (p4, 9000)):
+                for since in (0, cut):
+                    got = fn(p, since)["total"]
+                    self.assertEqual(got, want, f"{os.path.basename(p)} since={since} in {fn.__module__}: {got} for {want}")
+        for p in (p1, p2, p3, p4):
+            for since in (0, cut):
+                self.assertEqual(og.scan_codex(p, since), self.plug_codex.scan(p, since), "fork drift: builtin vs mirror")
+
     def test_codex_scan_since_is_a_window_delta(self):
         """A rollout touched inside the window contributes its GROWTH across
         the window edge, not its whole history - the old behaviour put 1.13B

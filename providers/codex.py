@@ -64,7 +64,7 @@ def _once(seq):
     return out
 
 
-def _spend(seq, since, fields):
+def _spend(seq, since, fields, inherited=None):
     """What was actually spent from `since` onward, given (epoch, totals) events.
 
     The cumulative counter is differenced STEP BY STEP rather than end to end,
@@ -78,20 +78,33 @@ def _spend(seq, since, fields):
     omitted everything before the restart.
     """
     acc = {k: 0 for k, _ in fields}
-    prev = None
+    prev, fresh = None, False
     for ep, u in seq:
         if ep is None or ep >= since:
             if prev is None:
                 # No earlier reading to subtract, so this cumulative IS the spend
                 # so far. That is the whole-file-inside-the-window case, and the
                 # lifetime case where since is 0.
+                fresh = True
                 for k, f in fields:
                     acc[k] += u.get(f, 0)
             else:
+                own = u.get("_own") if isinstance(u.get("_own"), dict) else None
                 for k, f in fields:
                     c, p = u.get(f, 0), prev.get(f, 0)
-                    acc[k] += c if c < p else c - p   # c < p means it restarted
+                    # c < p means it restarted: then this call's own usage where the
+                    # line records it (a restart can itself start from an inherited
+                    # cumulative), else the new cumulative
+                    acc[k] += (own.get(f, 0) if own else c) if c < p else c - p
         prev = u
+    # A sum begun from a first reading holds what the rollout inherited from the
+    # thread it was forked from (a paginated fork's first cumulative, a legacy
+    # fork's replay), which that thread's own file counts: it comes off, unless
+    # the sum never reached it (the counter restarted below it before then).
+    tk = next((k for k, f in fields if f == "total_tokens"), None)
+    if fresh and inherited and tk and acc[tk] >= inherited.get("total_tokens", 0):
+        for k, f in fields:
+            acc[k] = max(0, acc[k] - inherited.get(f, 0))
     return acc
 
 
@@ -103,8 +116,64 @@ def _events(text):
         try: d = json.loads(line)
         except ValueError: continue
         u = og._dig(d, "total_token_usage")
-        if u: out.append((og._epoch(d.get("timestamp", "")), u))
+        if u:
+            own = og._dig(d, "last_token_usage")
+            if isinstance(u, dict) and isinstance(own, dict): u = dict(u, _own=own)
+            out.append((og._epoch(d.get("timestamp", "")), u))
     return out
+
+
+def _inherited(path, size, head=1 << 22):
+    """What a rollout inherits from the thread it was forked from, which that thread's
+    own file already counts: the cumulative just before this rollout's first call of
+    its own, or None. A sub-agent's thread (session_meta forked_from_id) starts from
+    its parent's history, and Codex has written that two ways. Paginated: the first
+    usage line's cumulative already holds the parent's (Aug 2026: ~3.2B carried, ~80k
+    the call's own), so the inherited part is that cumulative less the call's own
+    usage. Legacy: the parent's history is replayed into the new file as it is made,
+    usage lines and all (Aug 14: ~4,800 lines written in 3 s, 4,578 of them the
+    parent's exact cumulatives), so the inherited part is the last cumulative of that
+    burst, which ends at the first pause of over a second (the fork's own first call,
+    its parent's whole history in context, takes longer). Summing each file's last
+    cumulative counted 3.40T on Oct 12 where OpenAI's own page showed 91.7B. Kept identical to the builtin's _codex_inherited."""
+    try:
+        # a large buffer: a Windows folder seen from WSL answers each read slowly, and
+        # line by line through the default 8KB buffer ran ~40x slower (8 MB/s)
+        with open(path, "rb", buffering=1 << 20) as fh:
+            first = fh.readline()
+            try: meta = json.loads(first).get("payload") or {}
+            except (ValueError, AttributeError): meta = {}
+            legacy = isinstance(meta, dict) and bool(meta.get("forked_from_id")) and meta.get("history_mode") == "legacy"
+            last_raw, before, read = None, None, len(first)
+            for raw in fh:
+                read += len(raw)
+                if legacy:
+                    m = re.match(rb'\{"timestamp":\s*"([^"]+)"', raw)
+                    ep = og._epoch(m.group(1).decode("utf-8", "replace")) if m else None
+                    if ep is not None:
+                        if before is not None and ep - before > 1.0: break
+                        before = ep
+                elif read > head:
+                    return None
+                if b'"total_token_usage"' not in raw: continue
+                if legacy:
+                    last_raw = raw    # read once the burst is over
+                    continue
+                ev = _events(raw.decode("utf-8", "replace"))
+                if not ev: continue
+                u = ev[-1][1]
+                own = u.get("_own")
+                if not isinstance(own, dict): return None
+                t, o = u.get("total_tokens", 0), own.get("total_tokens", 0)
+                if not isinstance(t, (int, float)) or not isinstance(o, (int, float)) or t <= o: return None
+                return {f: u.get(f, 0) - own.get(f, 0) for _k, f in _FIELDS
+                        if isinstance(u.get(f, 0), (int, float)) and isinstance(own.get(f, 0), (int, float))}
+            ev = _events(last_raw.decode("utf-8", "replace")) if legacy and last_raw else None
+            if not ev: return None
+            last = ev[-1][1]
+            return {f: last.get(f, 0) for _k, f in _FIELDS if isinstance(last.get(f, 0), (int, float))}
+    except OSError:
+        return None
 
 
 def _block(fh, size, off, nbytes=1 << 18):
@@ -202,7 +271,8 @@ def scan(path, since=0):
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
-    for key, val in _spend(_once(seq if seq else events), since, _FIELDS).items():
+    inherited = None if base is not None else _inherited(path, size)
+    for key, val in _spend(_once(seq if seq else events), since, _FIELDS, inherited).items():
         t[key] = val
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
     return t
