@@ -115,14 +115,11 @@ def _spend(seq, since, fields, inherited=None, hours=None):
         for k, f in fields:
             acc[k] = max(0, acc[k] - inherited.get(f, 0))
         # (in the hours, off the hour of that first reading, where it was put: kept identical to the builtin)
-        h = (hours or {}).get(int(first_ep // 3600)) if first_ep is not None else None
-        if h is not None:
-            for k, f in fields:
-                h[k] = max(0, h[k] - inherited.get(f, 0))
+        og.hour_take(hours, first_ep, fields, inherited)
     return acc
 
 
-def _calls(seq, since, inherited=None, hours=None):
+def _counted(seq, since, inherited, hours, tally):
     """Each changed cumulative is one model call in the window. A legacy
     fork's initial replay belongs to its parent, not to this thread."""
     # V241-CLI-01/02: inheritance is an initial replay, never a permanent
@@ -130,7 +127,7 @@ def _calls(seq, since, inherited=None, hours=None):
     legacy = "_replay_until" in (inherited or {})
     until = (inherited or {}).get("_replay_until")
     floor = (inherited or {}).get("total_tokens", 0) if legacy else 0
-    n, prev = 0, None
+    prev = None
     for ep, u in seq:
         c = u.get("total_tokens", 0)
         replay = legacy and ((ep is not None and until is not None and ep <= until)
@@ -138,10 +135,17 @@ def _calls(seq, since, inherited=None, hours=None):
         if floor and c > floor: floor = 0
         if ((ep is None or ep >= since) and not replay
                 and (prev is None or c != prev.get("total_tokens", 0))):
-            n += 1
+            tally["msgs"] += 1
             og.hour_add(hours, ep, msgs=1)
+        if ep is not None: tally["last_ts"] = max(tally.get("last_ts") or 0, ep)
         prev = u
-    return n
+        yield ep, u
+
+
+def _calls(seq, since, inherited=None, hours=None):
+    tally = {"msgs": 0}
+    for _ in _counted(seq, since, inherited, hours, tally): pass
+    return tally["msgs"]
 
 
 def _call_events(path, size):
@@ -250,6 +254,16 @@ def scan(path, since=0, hours=None):
     try: size = os.path.getsize(path)
     except OSError: return t
     tail = og.tail_chunk(path)
+    # V250-CLI-04: lifetime spend is the same with or without its hour view.
+    if not since:
+        # V250-CLI-01: fold physical lines once, without a list or per-event set.
+        inherited = _inherited(path, size)
+        counted = _counted(_call_events(path, size), since, inherited, hours, t)
+        for key, val in _spend(counted, since, _FIELDS, inherited, hours).items():
+            t[key] = val
+        mm = re.findall(r'"model":"([^"]+)"', tail)
+        og.add_model(t, mm[-1] if mm else "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
+        return t
     events = _events(tail)
     if not events and size > (1 << 20):
         try: whole = io.open(path, errors="replace").read()
@@ -323,19 +337,11 @@ def scan(path, since=0, hours=None):
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
     inherited = _inherited(path, size)
-    # The per-hour view (--days) needs every reading of the file (kept identical to the builtin): a tail's first
-    # reading carries all the history before it, which would fall into one hour.
-    full = None
-    if hours is not None and not since:
-        full = list(_call_events(path, size)) if size > (1 << 20) else events
-    once = _once(full if full is not None else (seq if seq else events))
+    once = _once(seq if seq else events)
     for key, val in _spend(once, since, _FIELDS, inherited, hours).items():
         t[key] = val
-    # Its messages are its model calls, as Claude's replies are (it was 1 a
-    # file: a conversation counted as one message)
-    # V241-CLI-03: when no window baseline was found, `once` can hold only
-    # the tail. Count the missing prefix too; a zero count invents no reply.
-    calls = once if full is not None else (_call_events(path, size) if seq is None and size > (1 << 20) else once)
+    # V241-CLI-03: a final cumulative holds tokens, not the prefix's call count.
+    calls = _call_events(path, size) if seq is None and size > (1 << 20) else once
     t["msgs"] = _calls(calls, since, inherited, hours)
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
     return t

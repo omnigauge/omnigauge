@@ -2084,8 +2084,10 @@ class TestDays(unittest.TestCase):
                     ("2026-10-13T12:00:00Z", 1000, 5),  # the peak
                     ("2026-10-10T12:00:00Z", 50, 1),    # a gap of two days before the run of three
                     ("2026-10-01T12:00:00Z", 10, 1)]    # outside the 7 days
-            con.executemany("INSERT INTO filehours(path,agent,hour,tin,tout,cache_read,cache_write,think,total,msgs) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                            [("f.jsonl", "claude", h(ts), 0, tot // 10, 0, 0, 0, tot, n) for ts, tot, n in rows])
+            con.executemany("INSERT INTO fileminutes(path,agent,minute,tin,tout,cache_read,cache_write,think,total,msgs) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                            [("f.jsonl", "claude", h(ts) * 60, 0, tot // 10, 0, 0, 0, tot, n) for ts, tot, n in rows])
+            og._MEMO[("l", "claude")] = og.blank()
+            og._MEMO[("h", "claude")] = {"f.jsonl"}
             rep = og.days_report(con, now=int(og._epoch("2026-10-15T15:00:00Z")))
             a = rep["agents"]["claude"]
             self.assertEqual(rep["today"], "2026-10-15")
