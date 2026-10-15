@@ -111,7 +111,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # codex step-sum fix every unchanged file kept answering with the old numbers and
 # the board sat 0.09% below an independent re-derivation, silently, until each
 # file happened to be written again. A cached number has to know what made it.
-SCAN_EPOCH = 4   # 4: a forked codex thread's inherited history no longer counted again
+SCAN_EPOCH = 5   # 5: a codex thread's messages are its model calls (4: its inherited history no longer counted again)
 
 VERSION = "1.0.11"
 
@@ -861,6 +861,23 @@ def _codex_spend(seq, since, fields, inherited=None):
     return acc
 
 
+def _codex_calls(seq, since, inherited=None):
+    """How many model calls the window holds: each reading of the cumulative
+    counter that moved (a restart counts too) from `since` onward, the readings
+    a fork replays from its parent (at or under what it inherited) left out.
+    Codex writes one token_count reading after each call, so this is its
+    messages, as a Claude reply is one. Identical in intent to
+    providers/codex.py::_calls - the conformance tests lock the two together."""
+    floor = (inherited or {}).get("total_tokens", 0)
+    n, prev = 0, None
+    for ep, u in seq:
+        c = u.get("total_tokens", 0)
+        if (ep is None or ep >= since) and (prev is None or c != prev.get("total_tokens", 0)) and not (floor and c <= floor):
+            n += 1
+        prev = u
+    return n
+
+
 def _codex_events(text):
     """(epoch, totals) for every token_count event in a text block."""
     out = []
@@ -1027,16 +1044,19 @@ def scan_codex(path, since=0):
                                 if ep is not None and since <= ep < first_tail]
                         off += (1 << 19)
                     seq = [(since - 1, base)] + gap + stamped
-    t["msgs"] = 1
     # Always step-sum. Falling back to `last - base` when no baseline was found
     # meant a rollout sitting entirely inside the window reported only its final
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
     inherited = None if base is not None else _codex_inherited(path, size)
-    for key, val in _codex_spend(_codex_once(seq if seq else events), since, _CODEX_FIELDS, inherited).items():
+    once = _codex_once(seq if seq else events)
+    for key, val in _codex_spend(once, since, _CODEX_FIELDS, inherited).items():
         t[key] = val
-    add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
+    # Its messages are its model calls, as Claude's replies are (it was 1 a
+    # file: a conversation counted as one message)
+    t["msgs"] = _codex_calls(once, since, inherited) or (1 if t["total"] else 0)
+    add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
     return t
 
 

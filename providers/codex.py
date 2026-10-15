@@ -108,6 +108,22 @@ def _spend(seq, since, fields, inherited=None):
     return acc
 
 
+def _calls(seq, since, inherited=None):
+    """How many model calls the window holds: each reading of the cumulative
+    counter that moved (a restart counts too) from `since` onward, the readings
+    a fork replays from its parent (at or under what it inherited) left out.
+    Identical in intent to omnigauge::_codex_calls - the conformance tests lock
+    the two together."""
+    floor = (inherited or {}).get("total_tokens", 0)
+    n, prev = 0, None
+    for ep, u in seq:
+        c = u.get("total_tokens", 0)
+        if (ep is None or ep >= since) and (prev is None or c != prev.get("total_tokens", 0)) and not (floor and c <= floor):
+            n += 1
+        prev = u
+    return n
+
+
 def _events(text):
     """(epoch, totals) for every token_count event in a text block."""
     out = []
@@ -268,16 +284,19 @@ def scan(path, since=0):
                                 if ep is not None and since <= ep < first_tail]
                         off += (1 << 19)
                     seq = [(since - 1, base)] + gap + stamped
-    t["msgs"] = 1
     # Always step-sum. Falling back to `last - base` when no baseline was found
     # meant a rollout sitting entirely inside the window reported only its final
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
     inherited = None if base is not None else _inherited(path, size)
-    for key, val in _spend(_once(seq if seq else events), since, _FIELDS, inherited).items():
+    once = _once(seq if seq else events)
+    for key, val in _spend(once, since, _FIELDS, inherited).items():
         t[key] = val
-    og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=1)
+    # Its messages are its model calls, as Claude's replies are (it was 1 a
+    # file: a conversation counted as one message)
+    t["msgs"] = _calls(once, since, inherited) or (1 if t["total"] else 0)
+    og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
     return t
 
 

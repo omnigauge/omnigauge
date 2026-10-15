@@ -994,6 +994,52 @@ class TestProviderConformance(unittest.TestCase):
             for since in (0, cut):
                 self.assertEqual(og.scan_codex(p, since), self.plug_codex.scan(p, since), "fork drift: builtin vs mirror")
 
+    def test_codex_messages_are_its_model_calls(self):
+        """Codex writes one token_count reading after each model call, so its
+        messages are those calls, as Claude's replies are; a rollout was counted as
+        ONE message (the app's Codex 'messages' read 176 where its 24 hours held 176
+        conversations). A fork's replayed history is no call of its own; a restart
+        is one; a window counts only its own calls. Through BOTH copies."""
+        def meta(**kw):
+            return json.dumps({"timestamp": "2026-08-14T19:00:00.000Z", "type": "session_meta",
+                               "payload": dict({"id": "t"}, **kw)}) + "\n"
+        def ev(ts, tot, own):
+            u = lambda n: {"input_tokens": n, "cached_input_tokens": 0, "output_tokens": 0,
+                           "reasoning_output_tokens": 0, "total_tokens": n}
+            return json.dumps({"timestamp": ts, "type": "event_msg", "payload": {"type": "token_count",
+                               "info": {"total_token_usage": u(tot), "last_token_usage": u(own)}}}) + "\n"
+        # three calls, one reading written twice
+        p1 = os.path.join(_TMP, "codex-calls-plain.jsonl")
+        with open(p1, "w") as fh:
+            fh.write(meta())
+            fh.write(ev("2026-08-14T20:00:00.000Z", 1000, 1000))
+            fh.write(ev("2026-08-14T20:00:00.000Z", 1000, 1000))
+            fh.write(ev("2026-08-14T21:00:00.000Z", 3000, 2000))
+            fh.write(ev("2026-08-14T22:00:00.000Z", 6000, 3000))
+        # a legacy fork: the parent's 40 calls replayed, then 2 of its own
+        p2 = os.path.join(_TMP, "codex-calls-legacy.jsonl")
+        with open(p2, "w") as fh:
+            fh.write(meta(forked_from_id="parent", history_mode="legacy"))
+            for i in range(40):
+                fh.write(ev(f"2026-08-14T23:52:00.{100 + i * 20:03d}Z", 1000 * (i + 1), 1000))
+            fh.write(ev("2026-08-14T23:52:06.000Z", 40300, 300))
+            fh.write(ev("2026-08-14T23:52:11.000Z", 40700, 400))
+        # a restart: 2 calls, then one from a lower cumulative
+        p3 = os.path.join(_TMP, "codex-calls-restart.jsonl")
+        with open(p3, "w") as fh:
+            fh.write(meta())
+            fh.write(ev("2026-08-14T20:00:00.000Z", 10000, 10000))
+            fh.write(ev("2026-08-14T20:00:05.000Z", 30000, 20000))
+            fh.write(ev("2026-08-14T21:00:00.000Z", 25000, 500))
+        late = og._epoch("2026-08-14T20:30:00Z")
+        for fn in (og.scan_codex, self.plug_codex.scan):
+            for p, since, want in ((p1, 0, 3), (p1, late, 2), (p2, 0, 2), (p3, 0, 3), (p3, late, 1)):
+                got = fn(p, since)["msgs"]
+                self.assertEqual(got, want, f"{os.path.basename(p)} since={since} in {fn.__module__}: {got} calls for {want}")
+            self.assertEqual(fn(p1, 0)["models"]["unknown"]["msgs"], 3, "the model is credited its calls")
+        for p in (p1, p2, p3):
+            self.assertEqual(og.scan_codex(p, late), self.plug_codex.scan(p, late), "calls drift: builtin vs mirror")
+
     def test_codex_fork_first_usage_far_into_the_file_is_still_found(self):
         """A paginated fork's file holds its parent's history first, with no usage
         lines, so its first usage line, carrying the parent's cumulative, can come
