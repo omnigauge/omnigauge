@@ -2,6 +2,25 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.11 - 2026-10-14
+
+- Codex tokens are counted once. Three fixes, each with a test:
+  - A window's total no longer counts events twice. The scan's blocks overlap where a long line
+    holds a block's edge, and a repeated reading looked like a counter restart, so the whole
+    total was added again: one session's 24h window was credited 26.18B against its whole
+    lifetime of 1.15B, and the 24h Codex total read 80.26B where OpenAI's own page showed about
+    2.8B a day.
+  - A sub-agent's thread no longer counts its parent's history again. A thread forked from
+    another starts from its parent's history, which the parent's own file already counts: its
+    first usage line carries the parent's total, or (in older Codex) it replays the parent's
+    usage lines. Summing each file's total, one computer's lifetime read 3.32T where OpenAI's
+    own page showed 91.7B; it now reads 74.55B.
+  - A forked thread's first usage line is found however far into its file it sits (the
+    parent's history can come first, megabytes of it), and a counter that restarts adds that
+    call's own usage.
+- The lifetime cache is read again once after upgrading, so the first `omnigauge --lifetime`
+  rescans every session file.
+
 ## 1.0.10 - 2026-08-22
 
 - No em-dashes or en-dashes anywhere a reader meets OmniGauge: 321 of them swept out of the CLI's
