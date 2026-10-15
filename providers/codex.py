@@ -80,6 +80,11 @@ def _spend(seq, since, fields, inherited=None):
     acc = {k: 0 for k, _ in fields}
     prev, fresh = None, False
     for ep, u in seq:
+        # V241-CLI-02: a cutoff inside the parent's replay is still replay.
+        until = (inherited or {}).get("_replay_until")
+        if ep is not None and until is not None and ep <= until:
+            prev = u
+            continue
         if ep is None or ep >= since:
             if prev is None:
                 # No earlier reading to subtract, so this cumulative IS the spend
@@ -109,19 +114,36 @@ def _spend(seq, since, fields, inherited=None):
 
 
 def _calls(seq, since, inherited=None):
-    """How many model calls the window holds: each reading of the cumulative
-    counter that moved (a restart counts too) from `since` onward, the readings
-    a fork replays from its parent (at or under what it inherited) left out.
-    Identical in intent to omnigauge::_codex_calls - the conformance tests lock
-    the two together."""
-    floor = (inherited or {}).get("total_tokens", 0)
+    """Each changed cumulative is one model call in the window. A legacy
+    fork's initial replay belongs to its parent, not to this thread."""
+    # V241-CLI-01/02: inheritance is an initial replay, never a permanent
+    # minimum. Paginated forks have no replay readings to exclude at all.
+    legacy = "_replay_until" in (inherited or {})
+    until = (inherited or {}).get("_replay_until")
+    floor = (inherited or {}).get("total_tokens", 0) if legacy else 0
     n, prev = 0, None
     for ep, u in seq:
         c = u.get("total_tokens", 0)
-        if (ep is None or ep >= since) and (prev is None or c != prev.get("total_tokens", 0)) and not (floor and c <= floor):
+        replay = legacy and ((ep is not None and until is not None and ep <= until)
+                             or ((ep is None or until is None) and floor and c <= floor))
+        if floor and c > floor: floor = 0
+        if ((ep is None or ep >= since) and not replay
+                and (prev is None or c != prev.get("total_tokens", 0))):
             n += 1
         prev = u
     return n
+
+
+def _call_events(path, size):
+    """Stream the readings missing from a tail-only count, without holding
+    a large transcript in memory. Lifetime results use the per-file cache."""
+    # V241-CLI-03: a final cumulative holds tokens, not how many calls made it.
+    with open(path, "rb", buffering=1 << 20) as fh:
+        while fh.tell() < size:
+            raw = fh.readline(size - fh.tell())
+            if not raw: break
+            if b'"total_token_usage"' in raw:
+                yield from _events(raw.decode("utf-8", "replace"))
 
 
 def _events(text):
@@ -190,7 +212,8 @@ def _inherited(path, size, head=1 << 28):
             ev = _events(last_raw.decode("utf-8", "replace")) if legacy and last_raw else None
             if not ev: return None
             last = ev[-1][1]
-            return {f: last.get(f, 0) for _k, f in _FIELDS if isinstance(last.get(f, 0), (int, float))}
+            return dict({f: last.get(f, 0) for _k, f in _FIELDS
+                         if isinstance(last.get(f, 0), (int, float))}, _replay_until=ev[-1][0])
     except OSError:
         return None
 
@@ -289,13 +312,16 @@ def scan(path, since=0):
     # cumulative - the spend since its LAST restart, everything before it dropped.
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
-    inherited = None if base is not None else _inherited(path, size)
+    inherited = _inherited(path, size)
     once = _once(seq if seq else events)
     for key, val in _spend(once, since, _FIELDS, inherited).items():
         t[key] = val
     # Its messages are its model calls, as Claude's replies are (it was 1 a
     # file: a conversation counted as one message)
-    t["msgs"] = _calls(once, since, inherited) or (1 if t["total"] else 0)
+    # V241-CLI-03: when no window baseline was found, `once` can hold only
+    # the tail. Count the missing prefix too; a zero count invents no reply.
+    calls = _call_events(path, size) if seq is None and size > (1 << 20) else once
+    t["msgs"] = _calls(calls, since, inherited)
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
     return t
 

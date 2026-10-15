@@ -2,6 +2,12 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## Unreleased
+
+- Codex call counts include the start of large rollouts and real calls after a fork's counter
+  restarts. A window opened inside a fork's replayed history excludes that history from its
+  calls and tokens. Cached figures from scan epoch 5 are read again once.
+
 ## 1.0.12 - 2026-10-15
 
 - Codex's messages are its model calls. Codex writes one usage reading after each call, so each
