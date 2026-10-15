@@ -11,3 +11,13 @@ updates:
     directory: "/.github/requirements"
     schedule:
       interval: weekly
+  # Python 3.8's own pins (ci.yml's 3.8 leg): patches only. Its tools' newer minors and majors need a newer Python
+  # (pytest 9.1.1 and iniconfig 2.3.0 need 3.10; pluggy 1.6.0, packaging 26.3 and typing-extensions 4.16.0 need 3.9),
+  # so a bump of them there could only fail that leg, and five such waited unmerged from Aug 21.
+  - package-ecosystem: pip
+    directory: "/.github/requirements/py38"
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

@@ -5,9 +5,9 @@ name: audit
 on:
   push:
     branches: [main]
-    paths: ['pyproject.toml', 'omnigauge', 'providers/**', '.github/workflows/audit.yml']
+    paths: ['pyproject.toml', 'omnigauge', 'providers/**', '.github/workflows/audit.yml', '.github/requirements/**']
   pull_request:
-    paths: ['pyproject.toml', 'omnigauge', 'providers/**']
+    paths: ['pyproject.toml', 'omnigauge', 'providers/**', '.github/workflows/audit.yml', '.github/requirements/**']
   schedule:
     - cron: '19 6 * * 1'
   workflow_dispatch:
