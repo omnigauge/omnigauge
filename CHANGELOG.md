@@ -2,6 +2,17 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.14 - 2026-10-15
+
+- `--days`: use by local day, from this computer's files. Today, yesterday, the 7 days before, lifetime, the peak day
+  and the current and longest streaks of days in use, for Claude and Codex; with `--json`, every day too. `TZ` decides
+  the days. This is the view OpenAI's own Codex page gives, for Claude as well.
+- Codex's lifetime counts every reading. The whole-file pass read each rollout's last megabyte, whose first reading
+  carries the history before it, so a counter restart before that megabyte was never seen: on one computer the
+  lifetime read 76.8B, and 90.5B counted whole, against OpenAI's own page's 91.7B. The 24-hour window was not affected.
+- Each file's use is kept by the hour beside its totals (`filehours`), summing to them exactly; the per-file cache is
+  read again once (scan epoch 7: here, 2 minutes for 38 GB, then seconds).
+
 ## 1.0.13 - 2026-10-15
 
 - Codex call counts include the start of large rollouts and real calls after a fork's counter
