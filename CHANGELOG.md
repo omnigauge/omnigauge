@@ -2,7 +2,7 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
-## Unreleased
+## 1.0.13 - 2026-10-15
 
 - Codex call counts include the start of large rollouts and real calls after a fork's counter
   restarts. A window opened inside a fork's replayed history excludes that history from its
