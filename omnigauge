@@ -132,7 +132,7 @@ MIGRATIONS = [("filecache", "models", "TEXT"),
 # file happened to be written again. A cached number has to know what made it.
 SCAN_EPOCH = 8   # 8: bounded whole-file pass, local-midnight minute buckets; 7: each file's hours kept for --days, Codex's whole-file pass from every reading (6: complete Codex calls; 5: calls; 4: inherited history)
 
-VERSION = "1.0.14"
+VERSION = "1.0.15"
 
 
 def build_id():

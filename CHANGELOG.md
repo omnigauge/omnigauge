@@ -2,6 +2,16 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.15 - 2026-10-15
+
+- `--days` puts use just after local midnight on its own day in half-hour and quarter-hour zones (Kolkata, Kathmandu,
+  Eucla): minute buckets are kept beside the hours, so a day starts at its own midnight.
+- `--days` counts only the files the lifetime pass read: a removed or unreadable file no longer brings its cached days.
+- Codex's whole-file pass streams its readings, so its memory no longer grows with a rollout of gigabytes.
+- Codex's lifetime is the same whether or not days are asked: every lifetime read takes the whole file, so a counter
+  restart before a rollout's last megabyte is always seen.
+- The first run after updating reads every file once more (SCAN_EPOCH 8), about two minutes on a busy computer.
+
 ## 1.0.14 - 2026-10-15
 
 - `--days`: use by local day, from this computer's files. Today, yesterday, the 7 days before, lifetime, the peak day
