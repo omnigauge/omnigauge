@@ -64,7 +64,7 @@ def _once(seq):
     return out
 
 
-def _spend(seq, since, fields, inherited=None):
+def _spend(seq, since, fields, inherited=None, hours=None):
     """What was actually spent from `since` onward, given (epoch, totals) events.
 
     The cumulative counter is differenced STEP BY STEP rather than end to end,
@@ -78,7 +78,7 @@ def _spend(seq, since, fields, inherited=None):
     omitted everything before the restart.
     """
     acc = {k: 0 for k, _ in fields}
-    prev, fresh = None, False
+    prev, fresh, first_ep = None, False, None
     for ep, u in seq:
         # V241-CLI-02: a cutoff inside the parent's replay is still replay.
         until = (inherited or {}).get("_replay_until")
@@ -90,17 +90,21 @@ def _spend(seq, since, fields, inherited=None):
                 # No earlier reading to subtract, so this cumulative IS the spend
                 # so far. That is the whole-file-inside-the-window case, and the
                 # lifetime case where since is 0.
-                fresh = True
+                fresh, first_ep = True, ep
                 for k, f in fields:
                     acc[k] += u.get(f, 0)
+                og.hour_add(hours, ep, **{k: u.get(f, 0) for k, f in fields})
             else:
                 own = u.get("_own") if isinstance(u.get("_own"), dict) else None
+                step = {}
                 for k, f in fields:
                     c, p = u.get(f, 0), prev.get(f, 0)
                     # c < p means it restarted: then this call's own usage where the
                     # line records it (a restart can itself start from an inherited
                     # cumulative), else the new cumulative
-                    acc[k] += (own.get(f, 0) if own else c) if c < p else c - p
+                    step[k] = (own.get(f, 0) if own else c) if c < p else c - p
+                    acc[k] += step[k]
+                og.hour_add(hours, ep, **step)
         prev = u
     # A sum begun from a first reading holds what the rollout inherited from the
     # thread it was forked from (a paginated fork's first cumulative, a legacy
@@ -110,10 +114,15 @@ def _spend(seq, since, fields, inherited=None):
     if fresh and inherited and tk and acc[tk] >= inherited.get("total_tokens", 0):
         for k, f in fields:
             acc[k] = max(0, acc[k] - inherited.get(f, 0))
+        # (in the hours, off the hour of that first reading, where it was put: kept identical to the builtin)
+        h = (hours or {}).get(int(first_ep // 3600)) if first_ep is not None else None
+        if h is not None:
+            for k, f in fields:
+                h[k] = max(0, h[k] - inherited.get(f, 0))
     return acc
 
 
-def _calls(seq, since, inherited=None):
+def _calls(seq, since, inherited=None, hours=None):
     """Each changed cumulative is one model call in the window. A legacy
     fork's initial replay belongs to its parent, not to this thread."""
     # V241-CLI-01/02: inheritance is an initial replay, never a permanent
@@ -130,6 +139,7 @@ def _calls(seq, since, inherited=None):
         if ((ep is None or ep >= since) and not replay
                 and (prev is None or c != prev.get("total_tokens", 0))):
             n += 1
+            og.hour_add(hours, ep, msgs=1)
         prev = u
     return n
 
@@ -225,7 +235,7 @@ def _block(fh, size, off, nbytes=1 << 18):
     return fh.read(min(nbytes, size)).decode("utf-8", "replace")
 
 
-def scan(path, since=0):
+def scan(path, since=0, hours=None):
     """Last cumulative total per rollout. input_tokens counts context re-sent
     each turn, so it runs far above the vendor's own 'tokens used'.
 
@@ -313,15 +323,20 @@ def scan(path, since=0):
     # Window and lifetime were wrong in the same direction, so the
     # window-cannot-exceed-lifetime invariant never noticed.
     inherited = _inherited(path, size)
-    once = _once(seq if seq else events)
-    for key, val in _spend(once, since, _FIELDS, inherited).items():
+    # The per-hour view (--days) needs every reading of the file (kept identical to the builtin): a tail's first
+    # reading carries all the history before it, which would fall into one hour.
+    full = None
+    if hours is not None and not since:
+        full = list(_call_events(path, size)) if size > (1 << 20) else events
+    once = _once(full if full is not None else (seq if seq else events))
+    for key, val in _spend(once, since, _FIELDS, inherited, hours).items():
         t[key] = val
     # Its messages are its model calls, as Claude's replies are (it was 1 a
     # file: a conversation counted as one message)
     # V241-CLI-03: when no window baseline was found, `once` can hold only
     # the tail. Count the missing prefix too; a zero count invents no reply.
-    calls = _call_events(path, size) if seq is None and size > (1 << 20) else once
-    t["msgs"] = _calls(calls, since, inherited)
+    calls = once if full is not None else (_call_events(path, size) if seq is None and size > (1 << 20) else once)
+    t["msgs"] = _calls(calls, since, inherited, hours)
     og.add_model(t, model or "unknown", out=t["tout"], total=t["total"], msgs=t["msgs"])
     return t
 

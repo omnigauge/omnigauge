@@ -49,7 +49,7 @@ def files():
 
 # ── token counting ──────────────────────────────────────────────────────────
 
-def scan(path, since=0):
+def scan(path, since=0, hours=None):
     t = og.blank()
     for line in io.open(path, errors="replace"):
         if '"usage"' not in line:
@@ -88,6 +88,10 @@ def scan(path, since=0):
                    + u.get("input_tokens", 0)),
             msgs=1,
         )
+        og.hour_add(hours, ep, msgs=1, tin=u.get("input_tokens", 0), tout=u.get("output_tokens", 0),
+                    cache_read=u.get("cache_read_input_tokens", 0), cache_write=u.get("cache_creation_input_tokens", 0),
+                    think=(u.get("output_tokens_details") or {}).get("thinking_tokens", 0),
+                    total=u.get("input_tokens", 0) + u.get("output_tokens", 0) + u.get("cache_read_input_tokens", 0))
     return t
 
 

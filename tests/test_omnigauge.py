@@ -994,6 +994,69 @@ class TestProviderConformance(unittest.TestCase):
             for since in (0, cut):
                 self.assertEqual(og.scan_codex(p, since), self.plug_codex.scan(p, since), "fork drift: builtin vs mirror")
 
+    def test_hours_sum_to_each_files_totals_in_both_copies(self):
+        """--days adds up the hours each file's whole-file pass keeps beside its totals
+        (UTC epoch hours), so a file's hours sum to exactly its totals, each reading in
+        the hour its time falls in, through BOTH copies: Claude's replies across a UTC
+        midnight; a Codex rollout's restart; a fork's inherited history off its first
+        reading's hour; and a big rollout's history spread over its own days, never
+        into the hour of its tail's first reading."""
+        hour = lambda ts: int(og._epoch(ts) // 3600)
+        def sums(hours, t, what):
+            for k in og.HOUR_FIELDS:
+                self.assertEqual(sum(h[k] for h in hours.values()), t[k], f"{what}: {k} hours against totals")
+        pc = os.path.join(_TMP, "hours-claude.jsonl")
+        with open(pc, "w") as fh:
+            for ts, i, o, c in (("2026-10-14T23:30:00Z", 10, 2, 100), ("2026-10-15T00:10:00Z", 20, 3, 200), ("2026-10-15T00:50:00Z", 30, 4, 300)):
+                fh.write(json.dumps({"timestamp": ts, "message": {"model": "m", "usage": {
+                    "input_tokens": i, "output_tokens": o, "cache_read_input_tokens": c}}}) + "\n")
+        def ev(ts, tot, own, pad=""):
+            u = lambda n: {"input_tokens": n, "cached_input_tokens": 0, "output_tokens": 0,
+                           "reasoning_output_tokens": 0, "total_tokens": n}
+            line = json.dumps({"timestamp": ts, "type": "event_msg", "payload": {"type": "token_count",
+                               "info": {"total_token_usage": u(tot), "last_token_usage": u(own)}}}) + "\n"
+            return (json.dumps({"timestamp": ts, "type": "response_item", "payload": {"type": "message", "text": pad}}) + "\n" if pad else "") + line
+        meta = lambda **kw: json.dumps({"timestamp": "2026-10-10T00:00:00.000Z", "type": "session_meta", "payload": dict({"id": "t"}, **kw)}) + "\n"
+        pr = os.path.join(_TMP, "hours-codex-restart.jsonl")
+        with open(pr, "w") as fh:
+            fh.write(meta())
+            fh.write(ev("2026-10-14T20:00:00.000Z", 10000, 10000))
+            fh.write(ev("2026-10-14T20:30:00.000Z", 30000, 20000))
+            fh.write(ev("2026-10-14T21:10:00.000Z", 25000, 500))
+        pf = os.path.join(_TMP, "hours-codex-fork.jsonl")
+        with open(pf, "w") as fh:
+            fh.write(meta(forked_from_id="parent"))
+            fh.write(ev("2026-10-14T20:00:00.000Z", 3000000, 80000))
+            fh.write(ev("2026-10-14T21:00:00.000Z", 3100000, 100000))
+        pb = os.path.join(_TMP, "hours-codex-big.jsonl")
+        with open(pb, "w") as fh:
+            fh.write(meta())
+            # (a first reading's own call is its whole cumulative: one above it is a fork's inheritance)
+            for day, tot, own in ((12, 1000000, 1000000), (13, 3000000, 2000000), (14, 6000000, 3000000)):
+                fh.write(ev(f"2026-10-{day}T12:00:00.000Z", tot, own, pad="x" * 400000))
+        for scan_c, scan_x in ((og.scan_claude, og.scan_codex), (self.plug.scan, self.plug_codex.scan)):
+            where = scan_c.__module__
+            hours = {}; t = scan_c(pc, 0, hours=hours)
+            self.assertEqual(sorted(hours), [hour("2026-10-14T23:30:00Z"), hour("2026-10-15T00:10:00Z")], where)
+            self.assertEqual(hours[hour("2026-10-15T00:10:00Z")]["msgs"], 2, where)
+            sums(hours, t, "claude in " + where)
+            hours = {}; t = scan_x(pr, 0, hours=hours)
+            self.assertEqual((t["total"], t["msgs"]), (30500, 3), where)
+            self.assertEqual(hours[hour("2026-10-14T20:00:00Z")]["total"], 30000, "the two readings of the first hour, " + where)
+            self.assertEqual(hours[hour("2026-10-14T21:10:00Z")]["total"], 500, "the restart's own call, " + where)
+            sums(hours, t, "codex restart in " + where)
+            hours = {}; t = scan_x(pf, 0, hours=hours)
+            self.assertEqual((t["total"], hours[hour("2026-10-14T20:00:00Z")]["total"], hours[hour("2026-10-14T21:00:00Z")]["total"]), (180000, 80000, 100000),
+                             "the parent's history off the first reading's hour, " + where)
+            sums(hours, t, "codex fork in " + where)
+            hours = {}; t = scan_x(pb, 0, hours=hours)
+            self.assertGreater(os.path.getsize(pb), 1 << 20)
+            self.assertEqual([hours[hour(f"2026-10-{d}T12:00:00Z")]["total"] for d in (12, 13, 14)], [1000000, 2000000, 3000000],
+                             "a big rollout's history in its own days, " + where)
+            self.assertEqual(t["total"], scan_x(pb, 0)["total"], "the same total with its hours as without, " + where)
+            sums(hours, t, "codex big in " + where)
+        self.assertEqual(og.scan_codex(pr, 0), self.plug_codex.scan(pr, 0), "without hours, as before")
+
     def test_codex_messages_are_its_model_calls(self):
         """Codex writes one token_count reading after each model call, so its
         messages are those calls, as Claude's replies are; a rollout was counted as
@@ -2000,3 +2063,39 @@ class TestCacheSurvivesAScannerChange(unittest.TestCase):
         finally:
             og.SCANNERS.clear(); og.SCANNERS.update(old_scanners)
             og.memo_clear()
+
+
+class TestDays(unittest.TestCase):
+    """--days: the hours each file's whole-file pass kept, made into local days (TZ
+    decides): today, yesterday, the 7 days before today, lifetime, the peak day, and
+    the current and longest runs of days in use."""
+
+    def test_days_are_local_days_with_yesterday_last7_peak_and_streaks(self):
+        old_tz, saved = os.environ.get("TZ"), dict(og.SCANNERS)
+        os.environ["TZ"] = "America/Chicago"; time.tzset()
+        try:
+            con = sqlite3.connect(":memory:"); con.executescript(og.SCHEMA)
+            og.SCANNERS.clear(); og._MEMO.clear()
+            def scan(path, since=0, hours=None): return og.blank()
+            og.SCANNERS["claude"] = (lambda: [os.path.join(_TMP, "no-such-file.jsonl")], scan)
+            h = lambda ts: int(og._epoch(ts) // 3600)
+            rows = [("2026-10-15T14:00:00Z", 100, 1),   # 9 AM CDT: today
+                    ("2026-10-15T03:00:00Z", 200, 2),   # Oct 14, 10 PM CDT: yesterday, though UTC's Oct 15
+                    ("2026-10-13T12:00:00Z", 1000, 5),  # the peak
+                    ("2026-10-10T12:00:00Z", 50, 1),    # a gap of two days before the run of three
+                    ("2026-10-01T12:00:00Z", 10, 1)]    # outside the 7 days
+            con.executemany("INSERT INTO filehours(path,agent,hour,tin,tout,cache_read,cache_write,think,total,msgs) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                            [("f.jsonl", "claude", h(ts), 0, tot // 10, 0, 0, 0, tot, n) for ts, tot, n in rows])
+            rep = og.days_report(con, now=int(og._epoch("2026-10-15T15:00:00Z")))
+            a = rep["agents"]["claude"]
+            self.assertEqual(rep["today"], "2026-10-15")
+            self.assertEqual([d[0] for d in a["days"]], ["2026-10-01", "2026-10-10", "2026-10-13", "2026-10-14", "2026-10-15"])
+            self.assertEqual((a["today"]["total"], a["yesterday"]["total"], a["last7"]["total"], a["lifetime"]["total"]), (100, 200, 1250, 1360))
+            self.assertEqual((a["yesterday"]["msgs"], a["last7"]["tout"]), (2, 125))
+            self.assertEqual(a["peak"], {"day": "2026-10-13", "total": 1000})
+            self.assertEqual(a["streak"], {"current": 3, "longest": 3})
+        finally:
+            og.SCANNERS.clear(); og.SCANNERS.update(saved); og._MEMO.clear()
+            if old_tz is None: os.environ.pop("TZ", None)
+            else: os.environ["TZ"] = old_tz
+            time.tzset()
