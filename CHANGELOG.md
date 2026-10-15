@@ -2,6 +2,14 @@
 
 All notable changes to OmniGauge, newest first. Versions are the ones on PyPI.
 
+## 1.0.12 - 2026-10-15
+
+- Codex's messages are its model calls. Codex writes one usage reading after each call, so each
+  reading of its counter that moved is one message, as a Claude reply is; a restart counts too,
+  and a forked thread's replayed history is no call of its own. A whole session was counted as ONE
+  message, so the 24-hour Codex messages equalled its sessions (176 and 176).
+- The per-file cache is read again once after upgrading (the scan's epoch moves to 5).
+
 ## 1.0.11 - 2026-10-14
 
 - Codex tokens are counted once. Three fixes, each with a test:
