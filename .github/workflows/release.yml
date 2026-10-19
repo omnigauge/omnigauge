@@ -1,11 +1,10 @@
 # On a version tag: the GitHub Release with that version's CHANGELOG section as the notes, and
 # as assets the wheel and sdist built from the tag (byte-identical to PyPI's: reproducible.yml
-# checks that) and a CycloneDX SBOM of the installed package. Runs beside publish.yml; can be run
-# by hand for a past version.
+# checks that) and a CycloneDX SBOM of the installed package. Called by publish.yml once PyPI has
+# the version (after the owner's approval there); can be run by hand for a past version.
 name: release
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
   workflow_dispatch:
     inputs:
       version:

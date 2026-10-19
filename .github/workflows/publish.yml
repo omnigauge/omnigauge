@@ -1,7 +1,11 @@
-# Publish omnigauge to PyPI on a version tag - by trusted publishing (OIDC), no token anywhere.
-# PyPI is configured to trust this repository + this workflow file. A tag `vX.Y.Z` must equal
-# the version in pyproject.toml (which a test already pins to the file's VERSION) or nothing
-# is published.
+# Publish omnigauge to PyPI on a version tag, once the owner approves it on GitHub - by trusted
+# publishing (OIDC), no token anywhere. PyPI is configured to trust this repository + this workflow
+# file. A tag `vX.Y.Z` must equal the version in pyproject.toml (which a test already pins to the
+# file's VERSION) or nothing is published.
+# The approval: the job runs in the environment `release`, whose required reviewer is the owner, so
+# a tag pushed by mistake publishes nothing until someone approves it in the browser. The GitHub
+# Release (release.yml) and the reproducibility check (reproducible.yml) are called from here once
+# PyPI has the version, so that one approval is the release's only one.
 name: publish
 on:
   push:
@@ -12,6 +16,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/project/omnigauge/
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,3 +42,15 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           attestations: true
+  release:
+    needs: publish
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/release.yml
+  reproducible:
+    needs: publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reproducible.yml

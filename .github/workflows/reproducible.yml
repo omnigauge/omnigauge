@@ -1,11 +1,11 @@
 # Reproducible package: build the wheel and sdist again from the tag, on a clean runner, and
 # compare their sha256 with the digests PyPI recorded. hatchling builds are byte-for-byte
 # reproducible (checked: 1.0.6 rebuilt from its tag matched PyPI exactly), so this is the
-# strong form. Runs on every version tag (polling for publish.yml to land first) and by hand.
+# strong form. Called by publish.yml once PyPI has the version (still polling, for PyPI's index to
+# catch up), and run by hand.
 name: reproducible
 on:
-  push:
-    tags: ['v*']
+  workflow_call:
   workflow_dispatch:
     inputs:
       version:
